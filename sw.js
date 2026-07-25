@@ -1,0 +1,53 @@
+// Service Worker：app shell 快取（cache-first），API 一律走網路
+const CACHE = 'autobook-v1.1.0';
+const SHELL = [
+  './',
+  './index.html',
+  './css/app.css',
+  './js/main.js',
+  './js/i18n.js',
+  './js/store.js',
+  './js/sfx.js',
+  './js/gemini.js',
+  './js/zhconv.js',
+  './js/ui.js',
+  './js/fog.js',
+  './js/story.js',
+  './js/game.js',
+  './js/words.js',
+  './js/settings.js',
+  './manifest.webmanifest',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/icon-180.png',
+];
+
+self.addEventListener('install', (e) => {
+  e.waitUntil(
+    caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()),
+  );
+});
+
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim()),
+  );
+});
+
+// network-first：線上永遠拿最新檔（不會卡舊版），離線時用快取
+self.addEventListener('fetch', (e) => {
+  const url = new URL(e.request.url);
+  // API 請求不快取
+  if (url.origin !== location.origin) return;
+  e.respondWith(
+    fetch(e.request).then((res) => {
+      if (res.ok && e.request.method === 'GET') {
+        const clone = res.clone();
+        caches.open(CACHE).then((c) => c.put(e.request, clone));
+      }
+      return res;
+    }).catch(() => caches.match(e.request)),
+  );
+});

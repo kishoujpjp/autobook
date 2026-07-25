@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="自動繪本">
+<title>自動繪本</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <main id="pages">
+    <section id="page-story" class="page active"></section>
+    <section id="page-game" class="page"></section>
+    <section id="page-words" class="page"></section>
+    <section id="page-settings" class="page"></section>
+  </main>
+
+  <nav id="tabbar">
+    <button class="tab active" data-page="story">
+      <span class="tab-icon">📖</span><span class="tab-label" data-i18n="tab_story">故事</span>
+    </button>
+    <button class="tab" data-page="game">
+      <span class="tab-icon">🎈</span><span class="tab-label" data-i18n="tab_game">遊戲</span>
+    </button>
+    <button class="tab" data-page="words">
+      <span class="tab-icon">🗂️</span><span class="tab-label" data-i18n="tab_words">字表</span>
+    </button>
+    <button class="tab" data-page="settings">
+      <span class="tab-icon">⚙️</span><span class="tab-label" data-i18n="tab_settings">設定</span>
+    </button>
+  </nav>
+
+  <div id="modal-root"></div>
+  <div id="toast-root"></div>
+  <canvas id="confetti-canvas"></canvas>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
