@@ -63,6 +63,20 @@ export function confirmDialog(message) {
   });
 }
 
+/** 錯誤／訊息對話框：完整顯示內容，按「好」關閉 */
+export function infoDialog(title, message, isError = false) {
+  return new Promise((resolve) => {
+    const m = openModal(title, { closable: false });
+    m.body.append(el('p', {
+      text: message,
+      style: `font-size:19px;font-weight:600;padding:6px 4px 10px;word-break:break-all;white-space:pre-wrap;${isError ? 'color:var(--berry-deep);' : ''}`,
+    }));
+    m.foot.append(
+      el('button', { class: 'btn', text: t('ok'), onclick: () => { sfx.tap(); m.close(); resolve(); } }),
+    );
+  });
+}
+
 // ---------- 彩帶 ----------
 const COLORS = ['#FF8A3D', '#4ECDC4', '#FF6B9D', '#5AA9F9', '#FFD93D', '#7DC855'];
 let confettiRunning = false;

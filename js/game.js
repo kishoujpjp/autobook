@@ -1,6 +1,6 @@
 // 遊戲頁：聽音認字。開始前先把 10 題語音緩存好，之後重複利用。
 import { t } from './i18n.js';
-import { el, toast, confetti } from './ui.js';
+import { el, toast, confetti, infoDialog } from './ui.js';
 import { sfx, playBlob } from './sfx.js';
 import { settings, words, bumpGame, idbGet, idbSet } from './store.js';
 import { ttsChar } from './gemini.js';
@@ -106,12 +106,12 @@ async function startPrep() {
     ),
   );
 
-  let done = 0, fail = [];
+  let done = 0, fail = [], lastErr = null;
   for (const ch of missing) {
     try {
       const blob = await ttsChar(ch);
       await idbSet('audio', ch, blob);
-    } catch { fail.push(ch); }
+    } catch (e) { fail.push(ch); lastErr = e; console.warn('tts failed', ch, e); }
     done++;
     msg.textContent = `${t('game_prep')} ${done}/${missing.length}`;
     fill.style.width = `${Math.round((done / missing.length) * 100)}%`;
@@ -119,6 +119,12 @@ async function startPrep() {
 
   let qs = questions;
   if (fail.length) {
+    if (fail.length === missing.length && lastErr) {
+      // 全部失敗：把真正的錯誤攤開給家長看
+      await infoDialog(t('err_title'), `${lastErr.message}${t('err_hint')}`, true);
+      renderIntro();
+      return;
+    }
     toast(t('game_prep_fail'), true);
     const bad = new Set(fail);
     qs = questions.filter((q) => !bad.has(q.ch) && !bad.has(q.wrong));

@@ -1,7 +1,7 @@
 // 故事頁：固定插圖＋可翻頁的點讀文字、迷霧、生成新故事、書架
 // 顯示時故事文字依語系做繁簡轉換（儲存保持生成當下的字形）
 import { t, getLang } from './i18n.js';
-import { el, toast, openModal, confirmDialog, confetti } from './ui.js';
+import { el, toast, openModal, confirmDialog, infoDialog, confetti } from './ui.js';
 import { sfx, playBlob } from './sfx.js';
 import {
   settings, words, isHan, bumpUsed, bumpRead,
@@ -413,7 +413,7 @@ async function runGeneration(mustInclude, extraPrompt) {
     m.close();
     if (e.message === 'NO_KEY') toast(t('api_missing'), true);
     else if (e.message === 'GEN_FAIL') toast(t('gen_fail'), true);
-    else toast(t('api_error', { msg: e.message }), true);
+    else infoDialog(t('err_title'), `${e.message}${t('err_hint')}`, true);
   }
 }
 
@@ -446,17 +446,21 @@ async function prepStoryVoice(dispText) {
     el('div', { class: 'prep-bar' }, fill),
   ));
 
-  let done = 0, fail = 0;
+  let done = 0, fail = 0, lastErr = null;
   for (const ch of missing) {
     try {
       const blob = await ttsChar(ch);
       await idbSet('audio', ch, blob);
-    } catch { fail++; }
+    } catch (e) { fail++; lastErr = e; console.warn('tts failed', ch, e); }
     done++;
     msg.textContent = `${t('game_prep')} ${done}/${missing.length}`;
     fill.style.width = `${Math.round((done / missing.length) * 100)}%`;
   }
   m.close();
+  if (fail === missing.length && lastErr) {
+    infoDialog(t('err_title'), `${lastErr.message}${t('err_hint')}`, true);
+    return;
+  }
   toast(fail ? t('game_prep_fail') : t('prep_voice_done'), !!fail);
 }
 

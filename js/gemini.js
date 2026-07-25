@@ -22,7 +22,7 @@ async function call(model, body, { timeoutMs = 90000 } = {}) {
       let msg = `HTTP ${res.status}`;
       try {
         const err = await res.json();
-        if (err.error && err.error.message) msg = err.error.message.slice(0, 140);
+        if (err.error && err.error.message) msg = `HTTP ${res.status}：${err.error.message.slice(0, 400)}`;
       } catch { /* ignore */ }
       throw new Error(msg);
     }
@@ -155,6 +155,14 @@ export async function generateImage(imagePrompt) {
   if (!inline) throw new Error('NO_IMAGE');
   const bytes = b64ToBytes(inline.data);
   return new Blob([bytes], { type: inline.mimeType || 'image/png' });
+}
+
+/** 測試連線：打一次文字模型，成功回傳模型回覆，失敗丟出含完整訊息的錯誤 */
+export async function testConnection() {
+  const resp = await call(settings.textModel, {
+    contents: [{ role: 'user', parts: [{ text: '請回答：好' }] }],
+  }, { timeoutMs: 30000 });
+  return firstText(resp) || '(空回覆)';
 }
 
 /** 單字 TTS，回傳 WAV Blob */

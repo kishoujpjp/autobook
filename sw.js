@@ -1,5 +1,5 @@
 // Service Worker：app shell 快取（cache-first），API 一律走網路
-const CACHE = 'autobook-v1.1.0';
+const CACHE = 'autobook-v1.1.1';
 const SHELL = [
   './',
   './index.html',

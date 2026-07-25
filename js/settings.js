@@ -1,7 +1,8 @@
 // 設定頁：語系、API Key、模型、快取管理、版本
 import { t, setLang, getLang } from './i18n.js';
-import { el, toast, confirmDialog } from './ui.js';
+import { el, toast, confirmDialog, infoDialog } from './ui.js';
 import { sfx } from './sfx.js';
+import { testConnection } from './gemini.js';
 import {
   settings, saveSettings, clearAll, idbClear,
   addWords, DEMO_WORDS, VERSION,
@@ -45,10 +46,32 @@ function render() {
     saveSettings();
     toast('OK!');
   });
+  const testBtn = el('button', { class: 'btn sky small' }, '📡 ', t('set_test'));
+  testBtn.addEventListener('click', async () => {
+    sfx.tap();
+    settings.apiKey = keyInput.value.trim();
+    saveSettings();
+    if (!settings.apiKey) { toast(t('api_missing'), true); return; }
+    testBtn.disabled = true;
+    testBtn.textContent = t('test_running');
+    try {
+      await testConnection();
+      sfx.sparkle();
+      await infoDialog(t('test_ok_title'), t('test_ok'));
+    } catch (e) {
+      console.error('test connection failed', e);
+      await infoDialog(t('err_title'), `${e.message}${t('err_hint')}`, true);
+    }
+    testBtn.disabled = false;
+    testBtn.textContent = '';
+    testBtn.append('📡 ', t('set_test'));
+  });
+
   root.append(el('div', { class: 'card' },
     el('div', { class: 'field-label', text: `🔑 ${t('set_api')}` }),
     keyInput,
     el('p', { class: 'settings-note', text: t('set_api_note') }),
+    el('div', { class: 'row', style: 'margin-top:12px;' }, testBtn),
     advancedModels(),
   ));
 

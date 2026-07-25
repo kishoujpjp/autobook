@@ -86,6 +86,12 @@ const DICT = {
     ok: '好', cancel: '取消', confirm: '確定',
     api_missing: '請先在設定頁填入 Gemini API Key',
     api_error: '連線失敗了，等一下再試試（{msg}）',
+    set_test: '測試連線',
+    test_running: '測試中…',
+    test_ok_title: '✅ 連線成功',
+    test_ok: '模型有回應，可以開始做繪本囉！',
+    err_title: '😢 出錯了',
+    err_hint: '\n\n（常見原因：API Key 貼錯或多了空格、免費額度用完（429）、Key 沒開通 Generative Language API 權限）',
   },
   'zh-Hans': {
     tab_story: '故事', tab_game: '游戏', tab_words: '字表', tab_settings: '设置',
@@ -169,6 +175,12 @@ const DICT = {
     ok: '好', cancel: '取消', confirm: '确定',
     api_missing: '请先在设置页填入 Gemini API Key',
     api_error: '连接失败了，等一下再试试（{msg}）',
+    set_test: '测试连接',
+    test_running: '测试中…',
+    test_ok_title: '✅ 连接成功',
+    test_ok: '模型有回应，可以开始做绘本啦！',
+    err_title: '😢 出错了',
+    err_hint: '\n\n（常见原因：API Key 贴错或多了空格、免费额度用完（429）、Key 没开通 Generative Language API 权限）',
   },
 };
 
