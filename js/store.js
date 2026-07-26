@@ -1,10 +1,12 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
-export const VERSION = '1.3.0';
+export const VERSION = '1.4.0';
 
 const LS = {
   settings: 'autobook.settings',
   words: 'autobook.words',
   stories: 'autobook.stories',
+  accounts: 'autobook.accounts',
+  currentAccount: 'autobook.currentAccount',
 };
 
 const DEFAULT_SETTINGS = {
@@ -139,16 +141,60 @@ export async function removeStory(id) {
 
 export function getStory(id) { return stories.find((s) => s.id === id); }
 
+// ---------- 帳號 ----------
+// account: { id, name, role:'parent'|'kid', avatar:{kind:'preset',preset} | {kind:'image',fallback} }
+export let accounts = load(LS.accounts, []);
+export let currentAccountId = load(LS.currentAccount, null);
+
+if (!accounts.length) {
+  accounts = [{
+    id: 'a-default',
+    name: settings.lang === 'zh-Hans' ? '家长' : '家長',
+    role: 'parent',
+    avatar: { kind: 'preset', preset: 'bear' },
+  }];
+  save(LS.accounts, accounts);
+}
+if (!accounts.some((a) => a.id === currentAccountId)) {
+  currentAccountId = accounts[0].id;
+  save(LS.currentAccount, currentAccountId);
+}
+
+export function saveAccounts() { save(LS.accounts, accounts); }
+
+export function currentAccount() {
+  return accounts.find((a) => a.id === currentAccountId) || accounts[0];
+}
+
+export function setCurrentAccount(id) {
+  if (accounts.some((a) => a.id === id)) {
+    currentAccountId = id;
+    save(LS.currentAccount, currentAccountId);
+  }
+}
+
+export function parentCount() {
+  return accounts.filter((a) => a.role === 'parent').length;
+}
+
+export async function removeAccount(id) {
+  accounts = accounts.filter((a) => a.id !== id);
+  saveAccounts();
+  await idbDel('avatars', id).catch(() => {});
+  if (currentAccountId === id) setCurrentAccount(accounts[0].id);
+}
+
 // ---------- IndexedDB（blob 快取） ----------
 let dbPromise = null;
 function db() {
   if (!dbPromise) {
     dbPromise = new Promise((resolve, reject) => {
-      const req = indexedDB.open('autobook', 1);
+      const req = indexedDB.open('autobook', 2);
       req.onupgradeneeded = () => {
         const d = req.result;
         if (!d.objectStoreNames.contains('images')) d.createObjectStore('images');
         if (!d.objectStoreNames.contains('audio')) d.createObjectStore('audio');
+        if (!d.objectStoreNames.contains('avatars')) d.createObjectStore('avatars');
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -176,8 +222,11 @@ export async function clearAll() {
   localStorage.removeItem(LS.settings);
   localStorage.removeItem(LS.words);
   localStorage.removeItem(LS.stories);
+  localStorage.removeItem(LS.accounts);
+  localStorage.removeItem(LS.currentAccount);
   await idbClear('images').catch(() => {});
   await idbClear('audio').catch(() => {});
+  await idbClear('avatars').catch(() => {});
 }
 
 // ---------- 示範資料 ----------

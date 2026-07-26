@@ -6,7 +6,10 @@ import { testConnection } from './gemini.js';
 import {
   settings, saveSettings, clearAll, idbClear,
   addWords, DEMO_WORDS, VERSION,
+  accounts, currentAccount,
 } from './store.js';
+import { openAccountEditor } from './account.js';
+import { avatarEl } from './avatars.js';
 
 let root = null;
 let onLangChange = null;
@@ -22,6 +25,33 @@ export function refreshSettingsPage() { render(); }
 function render() {
   root.innerHTML = '';
   root.append(el('div', { class: 'h1' }, '⚙️ ', t('settings_title')));
+
+  // ---- 帳號 ----
+  const accList = el('div', {});
+  for (const a of accounts) {
+    const row = el('div', { class: 'acct-row' },
+      avatarEl(a, 'avatar acct-avatar'),
+      el('span', { style: 'font-size:22px;font-weight:800;flex:1;', text: a.name }),
+      a.id === currentAccount().id
+        ? el('span', { class: 'role-chip now', text: t('acc_current') })
+        : null,
+      el('span', { class: `role-chip${a.role === 'kid' ? ' kid' : ''}`, text: t(a.role === 'kid' ? 'acc_kid' : 'acc_parent') }),
+      el('button', {
+        class: 'btn ghost small',
+        onclick: () => { sfx.tap(); openAccountEditor(a, render); },
+      }, '✏️'),
+    );
+    accList.append(row);
+  }
+  root.append(el('div', { class: 'card' },
+    el('div', { class: 'field-label', style: 'margin-top:0;', text: `👨‍👩‍👧 ${t('acc_title')}` }),
+    accList,
+    el('div', { class: 'row', style: 'margin-top:14px;' },
+      el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); openAccountEditor(null, render); } },
+        '➕ ', t('acc_add')),
+    ),
+    el('p', { class: 'settings-note', text: t('acc_note') }),
+  ));
 
   // ---- 語系 ----
   const langSeg = el('div', { class: 'seg' },

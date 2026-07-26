@@ -6,6 +6,7 @@ import { initStory, refreshStoryPage } from './story.js';
 import { initGame, refreshGamePage } from './game.js';
 import { initWords, refreshWordsPage } from './words.js';
 import { initSettings, refreshSettingsPage } from './settings.js';
+import { initAccountUI, applyRole } from './account.js';
 
 setLang(settings.lang);
 
@@ -47,6 +48,7 @@ initStory(pages.story);
 initGame(pages.game);
 initWords(pages.words);
 initSettings(pages.settings, refreshAll);
+initAccountUI(() => { applyRole(); refreshAll(); });
 
 // 阻止 iOS 雙擊縮放與長按選單殘留行為
 document.addEventListener('gesturestart', (e) => e.preventDefault());

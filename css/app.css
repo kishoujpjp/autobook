@@ -973,4 +973,114 @@ details.adv[open] summary::before { content: "▾ "; }
   z-index: 300;
 }
 
+/* ============ 帳號 ============ */
+#avatar-btn {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  right: 20px;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 4px solid #fff;
+  box-shadow: 0 4px 0 rgba(74, 59, 42, 0.15), 0 6px 16px rgba(0, 0, 0, 0.14);
+  padding: 0;
+  overflow: hidden;
+  z-index: 60;
+  transition: transform 0.1s;
+}
+#avatar-btn:active { transform: scale(0.9); }
+
+/* 讓每頁第一列標頭避開右上角頭像 */
+.page > .h1:first-child,
+.page > .spread:first-child,
+.fc-stage > .spread:first-child {
+  margin-right: 88px;
+}
+
+.avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  display: block;
+}
+.avatar svg, .avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.acct-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 2px dashed #F0E2C6;
+}
+.acct-row:last-child { border-bottom: none; }
+.acct-avatar {
+  width: 60px;
+  height: 60px;
+  flex: 0 0 auto;
+  background: #FFF3DF;
+}
+
+.role-chip {
+  font-size: 15px;
+  font-weight: 800;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: #E0EFFF;
+  color: var(--sky-deep);
+  flex: 0 0 auto;
+}
+.role-chip.kid { background: #FFE4EE; color: var(--berry-deep); }
+.role-chip.now { background: #E7F6D8; color: #3E8B1F; }
+
+.preset-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.preset-pick {
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  overflow: hidden;
+  padding: 0;
+  background: #FFF9EC;
+  border: 4px solid #F0DFC0;
+  transition: transform 0.1s;
+}
+.preset-pick:active { transform: scale(0.92); }
+.preset-pick.on { border-color: var(--primary); box-shadow: 0 0 0 3px #FFD9AE; }
+.preset-pick svg { width: 100%; height: 100%; display: block; }
+
+.switch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
+}
+.switch-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 10px 14px;
+  background: #FFF9EC;
+  border: 3px solid #F0DFC0;
+  border-radius: 22px;
+  font-size: 21px;
+  font-weight: 800;
+  color: var(--ink);
+  transition: transform 0.1s;
+}
+.switch-item:active { transform: scale(0.95); }
+.switch-item.current { border-color: var(--primary); background: #FFF1DC; }
+.switch-item .acct-avatar { width: 76px; height: 76px; }
+
+.gate-opts { display: flex; gap: 16px; justify-content: center; padding-bottom: 8px; }
+
 .hidden { display: none !important; }
