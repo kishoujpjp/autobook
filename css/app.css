@@ -1180,9 +1180,13 @@ details.adv[open] summary::before { content: "▾ "; }
   50% { transform: scaleY(1); }
 }
 
-/* 分數貼紙：疊在圖片下緣、與圖片中軸對齊 */
+/* 分數貼紙：與麥克風同列、對齊畫面中軸 */
+.rep-controls { position: relative; }
 .rep-score {
-  margin-top: -36px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   z-index: 3;
   padding: 2px 30px 6px;
   border-radius: 999px;
@@ -1193,7 +1197,11 @@ details.adv[open] summary::before { content: "▾ "; }
   align-items: baseline;
   gap: 6px;
   border: 6px solid #FFFDF6;
-  animation: modalin 0.3s cubic-bezier(0.34, 1.5, 0.64, 1);
+  animation: scorepop 0.3s cubic-bezier(0.34, 1.5, 0.64, 1);
+}
+@keyframes scorepop {
+  from { transform: translate(-50%, -50%) scale(0); }
+  to { transform: translate(-50%, -50%) scale(1); }
 }
 .rep-score .unit { font-size: 24px; font-weight: 800; opacity: 0.9; }
 .rep-score.g { background: #58C24B; box-shadow: 0 6px 0 #3D9C3C, 0 10px 20px rgba(74, 59, 42, 0.18); }

@@ -497,7 +497,7 @@ function startPractice(items) {
       nextEdge.classList.toggle('gold', last);
     }
 
-    const main = el('div', { class: 'rep-main' }, figWrap, scorePill, textRow, hint);
+    const main = el('div', { class: 'rep-main' }, figWrap, textRow, hint);
 
     root.append(
       el('div', { class: 'rep-stage' },
@@ -509,6 +509,7 @@ function startPractice(items) {
         el('div', { class: 'rep-controls' },
           speakBtn,
           el('span', { style: 'flex:1;' }),
+          scorePill,
           micBtn,
         ),
         prevEdge, nextEdge,
