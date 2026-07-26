@@ -6,6 +6,7 @@ import { initStory, refreshStoryPage } from './story.js';
 import { initGame, refreshGamePage } from './game.js';
 import { initWords, refreshWordsPage } from './words.js';
 import { initSettings, refreshSettingsPage } from './settings.js';
+import { initRepeat, refreshRepeatPage } from './repeat.js';
 import { initAccountUI, applyRole } from './account.js';
 
 setLang(settings.lang);
@@ -13,6 +14,7 @@ setLang(settings.lang);
 const pages = {
   story: document.getElementById('page-story'),
   game: document.getElementById('page-game'),
+  repeat: document.getElementById('page-repeat'),
   words: document.getElementById('page-words'),
   settings: document.getElementById('page-settings'),
 };
@@ -20,6 +22,7 @@ const pages = {
 const refreshers = {
   story: refreshStoryPage,
   game: refreshGamePage,
+  repeat: refreshRepeatPage,
   words: refreshWordsPage,
   settings: refreshSettingsPage,
 };
@@ -46,6 +49,7 @@ function refreshAll() {
 
 initStory(pages.story);
 initGame(pages.game);
+initRepeat(pages.repeat);
 initWords(pages.words);
 initSettings(pages.settings, refreshAll);
 initAccountUI(() => { applyRole(); refreshAll(); });

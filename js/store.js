@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.5.1';
+export const VERSION = '1.6.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -9,6 +9,7 @@ const LS = {
   stories: 'autobook.stories',
   accounts: 'autobook.accounts',
   currentAccount: 'autobook.currentAccount',
+  phrases: 'autobook.phrases',
 };
 
 const DEFAULT_SETTINGS = {
@@ -199,6 +200,47 @@ export async function removeStory(id) {
 }
 
 export function getStory(id) { return stories.find((s) => s.id === id); }
+
+// ---------- 跟讀題庫 ----------
+// phrase: { id, text, addedAt, hasImage, stats: { [accId]: {last, best, tries} } }
+export let phrases = load(LS.phrases, []);
+export function savePhrases() { save(LS.phrases, phrases); }
+
+export function addPhrases(lines) {
+  const seen = new Set(phrases.map((p) => p.text.toLowerCase().trim()));
+  let added = 0;
+  const now = Date.now();
+  for (const raw of lines) {
+    const text = raw.trim().replace(/\s+/g, ' ');
+    if (!text || !/[a-zA-Z]/.test(text)) continue;
+    if (seen.has(text.toLowerCase())) continue;
+    seen.add(text.toLowerCase());
+    phrases.push({ id: `p${(now + added).toString(36)}${(Math.random() * 1e4 | 0).toString(36)}`, text, addedAt: now + added, hasImage: false, stats: {} });
+    added++;
+  }
+  if (added) savePhrases();
+  return added;
+}
+
+export async function removePhrase(id) {
+  phrases = phrases.filter((p) => p.id !== id);
+  savePhrases();
+  await idbDel('images', `ph|${id}`).catch(() => {});
+}
+
+export function phraseStat(p) {
+  return (p.stats && p.stats[currentAccountId]) || null;
+}
+
+export function setPhraseStat(p, score) {
+  if (!p.stats) p.stats = {};
+  const s = p.stats[currentAccountId] || { last: 0, best: 0, tries: 0 };
+  s.last = score;
+  s.best = Math.max(s.best, score);
+  s.tries++;
+  p.stats[currentAccountId] = s;
+  savePhrases();
+}
 
 // ---------- 帳號 ----------
 // account: { id, name, role:'parent'|'kid', avatar:{kind:'preset',preset} | {kind:'image',fallback} }

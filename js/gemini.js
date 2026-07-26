@@ -166,6 +166,58 @@ export async function testConnection() {
   return firstText(resp) || '(空回覆)';
 }
 
+/** AI 出跟讀題：回傳英文單字/短句陣列 */
+export async function generatePhrases({ topic, count = 10, mode = 'word' }) {
+  const kind = mode === 'sentence'
+    ? 'very short simple English sentences (3-6 words each)'
+    : 'simple English words (1 word each, occasionally 2-word phrases)';
+  const prompt = [
+    `Generate ${count} ${kind} for a 5-year-old child learning English as a second language.`,
+    topic ? `Topic: ${topic}.` : 'Use everyday topics a young child knows (animals, food, family, colors...).',
+    'Keep vocabulary very basic and friendly. No duplicates. Output JSON only.',
+  ].join(' ');
+  const resp = await call(settings.textModel, {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'OBJECT',
+        properties: { items: { type: 'ARRAY', items: { type: 'STRING' } } },
+        required: ['items'],
+      },
+    },
+  });
+  const data = JSON.parse(firstText(resp));
+  return (data.items || []).filter((s) => typeof s === 'string' && s.trim());
+}
+
+/** 跟讀配圖：回傳 Blob */
+export async function generatePhraseImage(text) {
+  const prompt = `A single cute, friendly illustration for a children's English flashcard showing: "${text}". Soft watercolor style, bright warm colors, simple composition on clean light background, no text, no letters, no words in the image.`;
+  const body = {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: {
+      responseModalities: ['TEXT', 'IMAGE'],
+      imageConfig: { aspectRatio: '4:3' },
+    },
+  };
+  let resp;
+  try {
+    resp = await call(settings.imageModel, body, { timeoutMs: 120000 });
+  } catch {
+    delete body.generationConfig.imageConfig;
+    resp = await call(settings.imageModel, body, { timeoutMs: 120000 });
+  }
+  const inline = firstInline(resp, 'image/');
+  if (!inline) throw new Error('NO_IMAGE');
+  return new Blob([b64ToBytes(inline.data)], { type: inline.mimeType || 'image/png' });
+}
+
+/** 任意文字 TTS（英文句子也可），回傳 WAV Blob */
+export async function ttsText(text) {
+  return ttsChar(text);
+}
+
 /** 單字 TTS，回傳 WAV Blob */
 export async function ttsChar(ch) {
   const resp = await call(settings.ttsModel, {
