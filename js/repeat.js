@@ -18,6 +18,8 @@ let root = null;
 // ---------- 自繪圖示（統一粗圓角線條風格） ----------
 const SVG_MIC =
   '<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect x="18" y="6" width="12" height="22" rx="6" fill="currentColor"/><path d="M12 24 a12 12 0 0 0 24 0" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><line x1="24" y1="36" x2="24" y2="42" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>';
+const WAVE_HTML =
+  '<span class="mic-wave"><i></i><i></i><i></i><i></i><i></i></span>';
 const SVG_BACK =
   '<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path d="M28 10 L14 24 L28 38" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const SVG_SPEAKER =
@@ -472,9 +474,14 @@ function startPractice(items) {
 
     const speakBtn = el('button', { class: 'rep-speak' });
     speakBtn.innerHTML = SVG_SPEAKER;
-    const scorePill = el('div', { class: 'rep-pill hidden' });
+    const scorePill = el('div', { class: 'rep-score hidden' });
     const micBtn = el('button', { class: 'rep-mic' });
     micBtn.innerHTML = SVG_MIC;
+    // 錄音中：橘色＋音波動畫；結束還原麥克風圖示
+    function setMicRec(on) {
+      micBtn.classList.toggle('rec', on);
+      micBtn.innerHTML = on ? WAVE_HTML : SVG_MIC;
+    }
 
     // 邊緣箭頭
     const prevEdge = el('button', { class: 'edge-nav left' });
@@ -490,7 +497,7 @@ function startPractice(items) {
       nextEdge.classList.toggle('gold', last);
     }
 
-    const main = el('div', { class: 'rep-main' }, figWrap, textRow, hint);
+    const main = el('div', { class: 'rep-main' }, figWrap, scorePill, textRow, hint);
 
     root.append(
       el('div', { class: 'rep-stage' },
@@ -502,7 +509,6 @@ function startPractice(items) {
         el('div', { class: 'rep-controls' },
           speakBtn,
           el('span', { style: 'flex:1;' }),
-          scorePill,
           micBtn,
         ),
         prevEdge, nextEdge,
@@ -584,8 +590,8 @@ function startPractice(items) {
         void wordEls[ti].offsetWidth;
         wordEls[ti].classList.add(scoreCls(s), 'pop');
       });
-      scorePill.textContent = String(a.score);
-      scorePill.className = `rep-pill ${scoreCls(a.score)}`;
+      scorePill.innerHTML = `${a.score}<span class="unit">${t('rep_score_unit')}</span>`;
+      scorePill.className = `rep-score ${scoreCls(a.score)}`;
       if (a.heard) hint.textContent = `👂 ${a.heard}`;
       refreshEdges();
     }
@@ -616,7 +622,7 @@ function startPractice(items) {
         else if (!transcripts.has(text)) transcripts.set(text, c);
       };
 
-      micBtn.classList.add('rec');
+      setMicRec(true);
       hint.textContent = t('rep_mic_stop');
       sfx.tap();
 
@@ -639,7 +645,7 @@ function startPractice(items) {
         finished = true;
         clearTimeout(safetyTimer);
         currentRec = null;
-        micBtn.classList.remove('rec');
+        setMicRec(false);
         if (!transcripts.size) {
           toast(t('rep_no_result'), true);
           hint.textContent = t('rep_listen');
@@ -660,13 +666,13 @@ function startPractice(items) {
         if (e.error === 'not-allowed') {
           finished = true;
           currentRec = null;
-          micBtn.classList.remove('rec');
+          setMicRec(false);
           infoDialog(t('err_title'), t('rep_sr_denied'), true);
           hint.textContent = t('rep_listen');
         } else if (e.error === 'service-not-allowed' || e.error === 'audio-capture') {
           finished = true;
           currentRec = null;
-          micBtn.classList.remove('rec');
+          setMicRec(false);
           infoDialog(t('err_title'), t('rep_sr_unavail'), true);
           hint.textContent = t('rep_listen');
         } else {
@@ -676,7 +682,7 @@ function startPractice(items) {
       rec.onnomatch = () => finish();
       rec.onend = () => finish();
       safetyTimer = setTimeout(() => { try { rec.stop(); } catch { /* noop */ } }, 15000);
-      try { rec.start(); } catch { currentRec = null; micBtn.classList.remove('rec'); }
+      try { rec.start(); } catch { currentRec = null; setMicRec(false); }
     });
   }
 
