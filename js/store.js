@@ -1,5 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
-export const VERSION = '1.5.0';
+import { t2s, s2t } from './zhconv.js';
+
+export const VERSION = '1.5.1';
 
 const LS = {
   settings: 'autobook.settings',
@@ -105,22 +107,42 @@ export function wordSet() { return new Set(words.map((w) => w.ch)); }
 const HAN_RE = /\p{Script=Han}/u;
 export function isHan(ch) { return HAN_RE.test(ch); }
 
+/** 某字的「雙向一對一」等價字形（貓⇄猫）。多對應字（发↔發/髮）不算等價，不會被去重。 */
+function equivalents(ch) {
+  const out = [ch];
+  const s = t2s(ch);
+  if (s !== ch && s2t(s) === ch) out.push(s);
+  const tr = s2t(ch);
+  if (tr !== ch && t2s(tr) === ch) out.push(tr);
+  return out;
+}
+
 export function addWords(text) {
-  const set = wordSet();
+  // 跨繁簡去重：只略過「雙向一對一」等價的字；絕不刪改既有的字
+  const equiv = new Set();
+  for (const w of words) for (const e of equivalents(w.ch)) equiv.add(e);
+
   let added = 0, dup = 0;
+  const collide = []; // 加入了，但與既有字在某一邊字形顯示相同（如 髮 vs 发）
   const now = Date.now();
   for (const ch of text) {
     if (!isHan(ch)) continue;
-    if (set.has(ch)) { dup++; continue; }
-    set.add(ch);
+    if (equiv.has(ch)) { dup++; continue; }
+    for (const w of words) {
+      if (w.ch !== ch && (t2s(w.ch) === t2s(ch) || s2t(w.ch) === s2t(ch))) {
+        collide.push(ch);
+        break;
+      }
+    }
     words.push({
       ch, addedAt: now + added, usedCount: 0, readCount: 0,
       archived: false, cards: {},
     });
+    for (const e of equivalents(ch)) equiv.add(e);
     added++;
   }
   if (added) saveWords();
-  return { added, dup };
+  return { added, dup, collide };
 }
 
 export function removeWord(ch) {

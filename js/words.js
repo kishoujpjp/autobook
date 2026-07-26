@@ -53,12 +53,15 @@ function render() {
   const addBtn = el('button', { class: 'btn mint' }, '➕ ', t('words_add'));
   addBtn.addEventListener('click', () => {
     sfx.tap();
-    const { added, dup } = addWords(input.value);
+    const { added, dup, collide } = addWords(input.value);
     if (added) {
       sfx.sparkle();
       let msg = t('words_added', { n: added });
       if (dup) msg += ' ' + t('words_dup', { n: dup });
       toast(msg);
+      if (collide && collide.length) {
+        toast(t('words_collide', { list: collide.join('、') }), true);
+      }
       input.value = '';
       render();
     } else if (dup) {
