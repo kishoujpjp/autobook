@@ -1,5 +1,5 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
-export const VERSION = '1.4.0';
+export const VERSION = '1.4.1';
 
 const LS = {
   settings: 'autobook.settings',
