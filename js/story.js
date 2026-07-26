@@ -4,7 +4,7 @@ import { t, getLang } from './i18n.js';
 import { el, toast, openModal, confirmDialog, infoDialog, confetti } from './ui.js';
 import { sfx, playBlob } from './sfx.js';
 import {
-  settings, words, isHan, bumpUsed, bumpRead,
+  settings, saveSettings, words, isHan, addWords, bumpUsed, bumpRead,
   stories, addStory, removeStory, getStory, saveStories,
   idbGet, idbSet,
   DEMO_STORY_HANT, DEMO_STORY_HANS,
@@ -86,15 +86,16 @@ export function render() {
   );
 
   // ---- 右欄：標題＋可翻頁文字＋控制列 ----
-  const textWrap = el('div', { class: 'story-text' });
+  const textWrap = el('div', { class: `story-text${settings.storyFont === 'big' ? ' bigfont' : ''}` });
   const scroll = el('div', { class: 'story-scroll' }, textWrap);
   const upBtn = el('button', { class: 'page-btn', text: '▲' });
   const downBtn = el('button', { class: 'page-btn', text: '▼' });
   const pageInd = el('span', { class: 'page-ind', text: '1 / 1' });
 
-  // 一次翻「整行」的倍數，避免把字切一半（行高 = 72px 字鈕 + 10px 間距）
-  const ROW = 82;
+  // 一次翻「整行」的倍數，避免把字切一半（行高 = 字鈕高 + 10px 間距）
+  function rowH() { return settings.storyFont === 'big' ? 118 : 82; }
   function pageStep() {
+    const ROW = rowH();
     return Math.max(ROW, Math.floor((scroll.clientHeight - 20) / ROW) * ROW);
   }
   function updatePager() {
@@ -117,6 +118,23 @@ export function render() {
   scroll.addEventListener('scroll', () => requestAnimationFrame(updatePager));
   window.addEventListener('resize', updatePager);
 
+  // 字體大小切換（顯示的是「切過去會變成」的大小）
+  const fontBtn = el('button', { class: 'btn ghost small' });
+  function fontBtnLabel() {
+    fontBtn.textContent = '';
+    fontBtn.append(settings.storyFont === 'big' ? '🔡 ' : '🔠 ',
+      t(settings.storyFont === 'big' ? 'font_small' : 'font_big'));
+  }
+  fontBtnLabel();
+  fontBtn.addEventListener('click', () => {
+    sfx.tap();
+    settings.storyFont = settings.storyFont === 'big' ? 'small' : 'big';
+    saveSettings();
+    textWrap.classList.toggle('bigfont', settings.storyFont === 'big');
+    fontBtnLabel();
+    requestAnimationFrame(updatePager);
+  });
+
   const rightCol = el('div', { class: 'text-col' },
     el('div', { class: 'story-title', text: dispTitle }),
     el('div', { class: 'card text-card' }, scroll),
@@ -124,6 +142,7 @@ export function render() {
       el('button', {
         class: 'btn sky small', onclick: () => { sfx.tap(); prepStoryVoice(dispText); },
       }, '🔊 ', t('prep_voice')),
+      fontBtn,
       el('span', { style: 'flex:1;' }),
       upBtn, pageInd, downBtn,
     ),
@@ -281,11 +300,18 @@ function openGenModal() {
     grid.append(btn);
   }
 
+  const todayInput = el('input', {
+    class: 'text-input', placeholder: t('gen_today_ph'),
+    autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
+  });
+
   const promptInput = el('textarea', { class: 'text-area', placeholder: t('gen_extra_ph') });
   const micBtn = el('button', { class: 'mic-btn', text: '🎤' });
   setupMic(micBtn, promptInput);
 
   m.body.append(
+    el('div', { class: 'field-label', text: `🌱 ${t('gen_today')}` }),
+    todayInput,
     el('div', { class: 'field-label', text: t('gen_must') }),
     grid,
     el('div', { class: 'field-label', text: t('gen_extra') }),
@@ -296,8 +322,12 @@ function openGenModal() {
   m.foot.append(
     el('button', { class: 'btn big berry', onclick: () => {
       sfx.whoosh();
+      // 今日新字：直接加入字表，並列為本次必用字
+      const todayChars = [...new Set([...todayInput.value].filter(isHan))];
+      if (todayChars.length) addWords(todayChars.join(''));
+      const must = [...new Set([...todayChars, ...selected])];
       m.close();
-      runGeneration([...selected], promptInput.value.trim());
+      runGeneration(must, promptInput.value.trim());
     } }, '🪄 ', t('gen_go')),
   );
 }

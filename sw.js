@@ -1,5 +1,5 @@
 // Service Worker：app shell 快取（cache-first），API 一律走網路
-const CACHE = 'autobook-v1.1.1';
+const CACHE = 'autobook-v1.2.0';
 const SHELL = [
   './',
   './index.html',
@@ -24,7 +24,9 @@ const SHELL = [
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()),
+    caches.open(CACHE)
+      .then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))))
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -36,13 +38,17 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// network-first：線上永遠拿最新檔（不會卡舊版），離線時用快取
+// network-first：線上永遠拿最新檔（cache:'no-cache' 強制向伺服器驗證，
+// 避免瀏覽器 HTTP 快取回舊檔），離線時退回 SW 快取
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   // API 請求不快取
   if (url.origin !== location.origin) return;
+  const req = e.request.mode === 'navigate'
+    ? new Request(e.request.url, { cache: 'no-cache' })
+    : new Request(e.request, { cache: 'no-cache' });
   e.respondWith(
-    fetch(e.request).then((res) => {
+    fetch(req).then((res) => {
       if (res.ok && e.request.method === 'GET') {
         const clone = res.clone();
         caches.open(CACHE).then((c) => c.put(e.request, clone));

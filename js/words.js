@@ -1,11 +1,12 @@
-// 字表頁：新增/刪除字、統計、排序
+// 字表頁：新增/多選刪除字、統計、排序
 import { t } from './i18n.js';
 import { el, toast, confirmDialog } from './ui.js';
 import { sfx, playBlob } from './sfx.js';
-import { words, addWords, removeWord, idbGet } from './store.js';
+import { words, addWords, removeWords, idbGet } from './store.js';
 
 let root = null;
 let editMode = false;
+let selected = new Set();
 let sortMode = 'new'; // new | least | most
 
 export function initWords(rootEl) {
@@ -15,6 +16,7 @@ export function initWords(rootEl) {
 
 export function refreshWordsPage() {
   editMode = false;
+  selected.clear();
   render();
 }
 
@@ -73,48 +75,113 @@ function render() {
     return;
   }
 
-  // ---- 排序 + 編輯 ----
+  // ---- 排序 + 編輯工具列 ----
   const seg = el('div', { class: 'seg' },
     segBtn('new', t('words_sort_new')),
     segBtn('least', t('words_sort_least')),
     segBtn('most', t('words_sort_most')),
   );
+
   const editBtn = el('button', {
-    class: `btn small ${editMode ? 'berry' : 'ghost'}`,
-    onclick: () => { sfx.tap(); editMode = !editMode; render(); },
+    class: `btn small ${editMode ? 'mint' : 'ghost'}`,
+    onclick: () => { sfx.tap(); editMode = !editMode; selected.clear(); render(); },
   }, editMode ? `✅ ${t('words_edit_done')}` : `🧹 ${t('words_edit')}`);
 
-  root.append(el('div', { class: 'spread', style: 'margin-bottom:16px;' }, seg, editBtn));
+  const delBtn = el('button', { class: 'btn berry small' });
+  function refreshDelBtn() {
+    delBtn.textContent = '';
+    delBtn.append('🗑 ', t('words_del_multi', { n: selected.size }));
+    delBtn.disabled = selected.size === 0;
+  }
+  refreshDelBtn();
+  delBtn.addEventListener('click', async () => {
+    sfx.tap();
+    const yes = await confirmDialog(t('words_del_multi_confirm', { n: selected.size }));
+    if (yes) {
+      removeWords([...selected]);
+      selected.clear();
+      render();
+    }
+  });
+
+  root.append(el('div', { class: 'spread', style: 'margin-bottom:10px;' },
+    seg,
+    el('div', { class: 'row' }, editMode ? delBtn : null, editBtn),
+  ));
+  if (editMode) {
+    root.append(el('p', { class: 'settings-note', style: 'margin-bottom:12px;', text: `👉 ${t('words_edit_hint')}` }));
+  }
 
   // ---- 字格 ----
   const now = Date.now();
   const grid = el('div', { class: 'word-grid' });
+  const chipByCh = new Map();
+
+  function setSel(ch, on) {
+    const chip = chipByCh.get(ch);
+    if (!chip) return;
+    if (on) selected.add(ch); else selected.delete(ch);
+    chip.classList.toggle('sel', on);
+    refreshDelBtn();
+  }
+
   for (const w of sortedWords()) {
     const fresh = now - w.addedAt < 48 * 3600 * 1000;
-    const chip = el('button', { class: `word-chip${fresh ? ' fresh' : ''}` },
+    const chip = el('button', {
+      class: `word-chip${fresh ? ' fresh' : ''}${selected.has(w.ch) ? ' sel' : ''}`,
+      'data-ch': w.ch,
+    },
       el('span', { class: 'w', text: w.ch }),
       el('span', { class: 'u', text: t('used_times', { n: w.usedCount }) }),
     );
-    if (editMode) {
-      chip.append(el('span', { class: 'del', text: '✕' }));
+    chipByCh.set(w.ch, chip);
+
+    if (!editMode) {
       chip.addEventListener('click', async () => {
-        sfx.tap();
-        const yes = await confirmDialog(t('words_del_confirm', { w: w.ch }));
-        if (yes) { removeWord(w.ch); render(); }
-      });
-    } else {
-      chip.addEventListener('click', async () => {
-        chip.classList.remove('pop');
+        chip.style.animation = 'none';
         void chip.offsetWidth;
         chip.style.animation = 'zipop 0.35s ease';
-        setTimeout(() => { chip.style.animation = ''; }, 400);
         const blob = await idbGet('audio', w.ch).catch(() => null);
         if (blob) playBlob(blob);
         else sfx.pop();
       });
+    } else {
+      // 編輯模式：點按或滑過複選（在字卡上起手的拖曳不會捲動頁面）
+      chip.style.touchAction = 'none';
     }
     grid.append(chip);
   }
+
+  if (editMode) {
+    let dragging = false;
+    let dragOn = true; // 這次拖曳是「選」還是「取消選」
+
+    grid.addEventListener('pointerdown', (e) => {
+      const chip = e.target.closest('.word-chip');
+      if (!chip) return;
+      e.preventDefault();
+      dragging = true;
+      const ch = chip.dataset.ch;
+      dragOn = !selected.has(ch);
+      sfx.tap();
+      setSel(ch, dragOn);
+      try { chip.releasePointerCapture(e.pointerId); } catch { /* 合成事件沒有有效 pointerId */ }
+    });
+    grid.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const elUnder = document.elementFromPoint(e.clientX, e.clientY);
+      const chip = elUnder && elUnder.closest('.word-chip');
+      if (chip && chip.dataset.ch) {
+        const ch = chip.dataset.ch;
+        if (selected.has(ch) !== dragOn) { sfx.tap(); setSel(ch, dragOn); }
+      }
+    });
+    const stop = () => { dragging = false; };
+    grid.addEventListener('pointerup', stop);
+    grid.addEventListener('pointercancel', stop);
+    grid.addEventListener('pointerleave', stop);
+  }
+
   root.append(grid);
 }
 
@@ -127,6 +194,6 @@ function statChip(num, label) {
 
 function segBtn(mode, label) {
   const b = el('button', { class: sortMode === mode ? 'on' : '', text: label });
-  b.addEventListener('click', () => { sfx.tap(); sortMode = mode; render(); });
+  b.addEventListener('click', () => { sfx.tap(); sortMode = mode; selected.clear(); render(); });
   return b;
 }

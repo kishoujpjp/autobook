@@ -1,5 +1,5 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
-export const VERSION = '1.1.1';
+export const VERSION = '1.2.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -11,6 +11,8 @@ const DEFAULT_SETTINGS = {
   apiKey: '',
   lang: 'zh-Hant',
   tapSpeak: true,
+  storyFont: 'small', // small | big
+
   textModel: 'gemini-2.5-flash',
   imageModel: 'gemini-2.5-flash-image',
   ttsModel: 'gemini-2.5-flash-preview-tts',
@@ -56,6 +58,12 @@ export function addWords(text) {
 
 export function removeWord(ch) {
   words = words.filter((w) => w.ch !== ch);
+  saveWords();
+}
+
+export function removeWords(chs) {
+  const set = new Set(chs);
+  words = words.filter((w) => !set.has(w.ch));
   saveWords();
 }
 
