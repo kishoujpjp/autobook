@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.6.1';
+export const VERSION = '1.7.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -10,6 +10,7 @@ const LS = {
   accounts: 'autobook.accounts',
   currentAccount: 'autobook.currentAccount',
   phrases: 'autobook.phrases',
+  repGroups: 'autobook.repGroups',
 };
 
 const DEFAULT_SETTINGS = {
@@ -206,26 +207,69 @@ export function getStory(id) { return stories.find((s) => s.id === id); }
 export let phrases = load(LS.phrases, []);
 export function savePhrases() { save(LS.phrases, phrases); }
 
+/** 加入題目池。回傳 {added, ids}；ids 含所有輸入行對應的題目 id（重複的對到既有題） */
 export function addPhrases(lines) {
-  const seen = new Set(phrases.map((p) => p.text.toLowerCase().trim()));
   let added = 0;
+  const ids = [];
   const now = Date.now();
   for (const raw of lines) {
     const text = raw.trim().replace(/\s+/g, ' ');
     if (!text || !/[a-zA-Z]/.test(text)) continue;
-    if (seen.has(text.toLowerCase())) continue;
-    seen.add(text.toLowerCase());
-    phrases.push({ id: `p${(now + added).toString(36)}${(Math.random() * 1e4 | 0).toString(36)}`, text, addedAt: now + added, hasImage: false, stats: {} });
+    const existing = phrases.find((p) => p.text.toLowerCase() === text.toLowerCase());
+    if (existing) {
+      if (!ids.includes(existing.id)) ids.push(existing.id);
+      continue;
+    }
+    const id = `p${(now + added).toString(36)}${(Math.random() * 1e4 | 0).toString(36)}`;
+    phrases.push({ id, text, addedAt: now + added, hasImage: false, stats: {} });
+    ids.push(id);
     added++;
   }
   if (added) savePhrases();
-  return added;
+  return { added, ids };
 }
 
 export async function removePhrase(id) {
   phrases = phrases.filter((p) => p.id !== id);
   savePhrases();
+  // 從所有練習組移除
+  let dirty = false;
+  for (const g of repGroups) {
+    const before = g.ids.length;
+    g.ids = g.ids.filter((x) => x !== id);
+    if (g.ids.length !== before) dirty = true;
+  }
+  if (dirty) saveRepGroups();
   await idbDel('images', `ph|${id}`).catch(() => {});
+}
+
+// ---------- 跟讀練習組 ----------
+// group: { id, name, ids:[phraseId], addedAt }
+export let repGroups = load(LS.repGroups, []);
+export function saveRepGroups() { save(LS.repGroups, repGroups); }
+
+export function addRepGroup(name, ids) {
+  const g = {
+    id: `g${Date.now().toString(36)}${(Math.random() * 1e4 | 0).toString(36)}`,
+    name, ids: [...ids], addedAt: Date.now(),
+  };
+  repGroups.push(g);
+  saveRepGroups();
+  return g;
+}
+
+export function removeRepGroup(id) {
+  repGroups = repGroups.filter((g) => g.id !== id);
+  saveRepGroups();
+}
+
+export function groupPhrases(g) {
+  return g.ids.map((id) => phrases.find((p) => p.id === id)).filter(Boolean);
+}
+
+// v1.6 → v1.7 遷移：已有散題但還沒有練習組 → 收成一個預設組
+if (phrases.length && !repGroups.length) {
+  addRepGroup(settings.lang === 'zh-Hans' ? '我的题组' : '我的題組', phrases.map((p) => p.id));
 }
 
 export function phraseStat(p) {
