@@ -3,9 +3,10 @@ import { t, getLang } from './i18n.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
 import { el, toast, confetti, infoDialog } from './ui.js';
 import { sfx, playBlob } from './sfx.js';
-import { settings, words, bumpGame, idbGet, idbSet } from './store.js';
+import { settings, saveSettings, words, bumpGame, getCard, idbGet, idbSet } from './store.js';
 import { ttsChar } from './gemini.js';
 import { startFlash } from './flash.js';
+import { confirmDialog } from './ui.js';
 
 const Q_COUNT = 10;
 let root = null;
@@ -34,29 +35,72 @@ function renderIntro() {
     return card;
   }
 
+  // 不熟模式開關
+  const weakSwitch = el('button', { class: `switch${settings.weakMode ? ' on' : ''}` });
+  weakSwitch.addEventListener('click', () => {
+    sfx.tap();
+    settings.weakMode = !settings.weakMode;
+    saveSettings();
+    weakSwitch.classList.toggle('on', settings.weakMode);
+  });
+
   root.append(
     el('div', { class: 'h1' }, '🎈 ', t('game_title')),
     el('div', { class: 'game-menu' },
-      entry('🦊', t('game_menu_listen'), t('game_intro'), 'listen', () => { sfx.tap(); startPrep(); }),
-      entry('🃏', t('game_menu_flash'), t('game_menu_flash_desc'), 'flash', () => {
+      entry('🦊', t('game_menu_listen'), t('game_intro'), 'listen', async () => {
+        sfx.tap();
+        if (!(await weakModeGate())) return;
+        startPrep();
+      }),
+      entry('🃏', t('game_menu_flash'), t('game_menu_flash_desc'), 'flash', async () => {
         sfx.tap();
         if (words.length < 4) { toast(t('game_need_words'), true); return; }
+        if (!(await weakModeGate())) return;
         startFlash(root, 'char', renderIntro);
       }),
-      entry('🧩', t('game_menu_word'), t('game_menu_word_desc'), 'word', () => {
+      entry('🧩', t('game_menu_word'), t('game_menu_word_desc'), 'word', async () => {
         sfx.tap();
         if (words.length < 4) { toast(t('game_need_words'), true); return; }
+        if (!(await weakModeGate())) return;
         startFlash(root, 'word', renderIntro);
       }),
+    ),
+    el('div', { class: 'card', style: 'max-width:1100px;margin:20px auto 0;' },
+      el('div', { class: 'settings-line' },
+        el('span', { text: `🔥 ${t('weak_mode')}` }), weakSwitch,
+      ),
     ),
   );
 }
 
+/** 出題池（入庫的不算；不熟模式只留紅/白字） */
+function gamePool() {
+  return words.filter((w) => !w.archived &&
+    (!settings.weakMode || getCard(w).mark !== 'green'));
+}
+
+/** 不熟模式但紅/白字已練完 → 問是否直接關閉；回傳是否繼續進遊戲 */
+async function weakModeGate() {
+  if (!settings.weakMode) return true;
+  if (gamePool().length > 0) return true;
+  const yes = await confirmDialog(t('weak_empty_q'));
+  if (yes) {
+    settings.weakMode = false;
+    saveSettings();
+    renderIntro();
+    return true;
+  }
+  return false;
+}
+
 // ---------- 出題 ----------
 function pickQuestions() {
-  // 加權隨機：答錯多、練習少的字更容易被選中
-  const pool = [...words];
-  const weight = (w) => 1 + w.ng * 2 + Math.max(0, 3 - w.usedCount) * 0.5;
+  // 加權隨機：答錯多、練習少的字更容易被選中（依目前帳號×語系的紀錄）
+  const pool = gamePool();
+  const weight = (w) => {
+    const c = getCard(w);
+    return 1 + c.ng * 2 + (c.flashCount === 0 ? 1 : 0) + Math.max(0, 3 - w.usedCount) * 0.5;
+  };
   const picked = [];
   while (picked.length < Q_COUNT && pool.length) {
     let total = pool.reduce((s, w) => s + weight(w), 0);
@@ -68,8 +112,8 @@ function pickQuestions() {
     }
     picked.push(pool.splice(idx, 1)[0].ch);
   }
-  // 干擾項：從其他字裡隨機挑
-  const all = words.map((w) => w.ch);
+  // 干擾項：從其他未入庫的字裡隨機挑
+  const all = words.filter((w) => !w.archived).map((w) => w.ch);
   return picked.map((ch) => {
     let wrong = ch;
     while (wrong === ch) wrong = all[(Math.random() * all.length) | 0];
@@ -95,7 +139,7 @@ async function startPrep() {
   if (missing.length && !settings.apiKey) {
     // 沒 key：只用已緩存語音的字出題；一個都沒有就提示
     const cached = [];
-    for (const w of words) {
+    for (const w of gamePool()) {
       const hit = await idbGet('audio', w.ch).catch(() => null);
       if (hit) cached.push(w.ch);
     }
@@ -104,7 +148,7 @@ async function startPrep() {
     const shuffled = cached.sort(() => Math.random() - 0.5);
     for (const ch of shuffled.slice(0, Q_COUNT)) {
       let wrong = ch;
-      const all = words.map((w) => w.ch);
+      const all = words.filter((w) => !w.archived).map((w) => w.ch);
       while (wrong === ch) wrong = all[(Math.random() * all.length) | 0];
       qs.push({ ch, wrong });
     }

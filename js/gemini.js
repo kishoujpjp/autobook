@@ -4,8 +4,9 @@ import { pcmToWav, b64ToBytes } from './sfx.js';
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-async function call(model, body, { timeoutMs = 90000 } = {}) {
-  if (!settings.apiKey) throw new Error('NO_KEY');
+async function call(model, body, { timeoutMs = 90000, apiKey = null } = {}) {
+  const key = apiKey || settings.apiKey;
+  if (!key) throw new Error('NO_KEY');
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
@@ -13,7 +14,7 @@ async function call(model, body, { timeoutMs = 90000 } = {}) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-goog-api-key': settings.apiKey,
+        'x-goog-api-key': key,
       },
       body: JSON.stringify(body),
       signal: ac.signal,
@@ -175,7 +176,7 @@ export async function ttsChar(ch) {
         voiceConfig: { prebuiltVoiceConfig: { voiceName: settings.voice || 'Leda' } },
       },
     },
-  }, { timeoutMs: 45000 });
+  }, { timeoutMs: 45000, apiKey: settings.ttsApiKey || null });
   const inline = firstInline(resp, 'audio/');
   if (!inline) throw new Error('NO_AUDIO');
   const bytes = b64ToBytes(inline.data);

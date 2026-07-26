@@ -1,5 +1,5 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
-export const VERSION = '1.4.2';
+export const VERSION = '1.5.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -11,11 +11,14 @@ const LS = {
 
 const DEFAULT_SETTINGS = {
   apiKey: '',
+  ttsApiKey: '',          // 選填：TTS 專用 key，留空共用 apiKey
   lang: 'zh-Hant',
   tapSpeak: true,
   storyFont: 'small', // small | big
+  weakMode: false,        // 不熟模式：遊戲只出紅字與白字
+  wordLen: 'all',         // 認詞彙長度：'2' | '3' | 'all'
 
-  textModel: 'gemini-2.5-flash',
+  textModel: 'gemini-3-flash-preview',
   imageModel: 'gemini-2.5-flash-image',
   ttsModel: 'gemini-2.5-flash-preview-tts',
   voice: 'Leda',
@@ -33,37 +36,67 @@ function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
 export const settings = Object.assign({}, DEFAULT_SETTINGS, load(LS.settings, {}));
 export function saveSettings() { save(LS.settings, settings); }
 
-// ---------- 字表 ----------
-// word: { ch, addedAt, usedCount, readCount, ok, ng, flashCount, mark, markedAt }
-// flashCount＝字卡/詞卡出現次數；mark＝'green'(學會)/'red'(還不會)/null；markedAt＝標記時間
-export let words = load(LS.words, []);
-for (const w of words) {
-  if (w.flashCount == null) w.flashCount = 0;
-  if (w.mark === undefined) w.mark = null;
-  if (w.markedAt == null) w.markedAt = 0;
+// 舊預設文字模型自動升級
+if (settings.textModel === 'gemini-2.5-flash') {
+  settings.textModel = 'gemini-3-flash-preview';
+  saveSettings();
 }
+
+// ---------- 字表 ----------
+// word: { ch, addedAt, usedCount, readCount, archived, cards }
+// usedCount/readCount＝字表全域屬性（被故事使用、點讀次數）
+// archived＝入庫（不進遊戲，仍可用於故事，字表排最後）
+// cards＝熟悉度紀錄，依「帳號|語系」分開：{ 'accId|lang': {mark, markedAt, flashCount, ok, ng} }
+//   mark＝'green'(學會)/'red'(還不會)/null；flashCount＝字卡出現次數；ok/ng＝聽音認字答對/錯
+export let words = load(LS.words, []);
 export function saveWords() { save(LS.words, words); }
+
+/** 熟悉度紀錄的鍵：目前帳號＋目前語系 */
+export function cardKey() {
+  return `${currentAccountId}|${settings.lang}`;
+}
+
+const EMPTY_CARD = Object.freeze({ mark: null, markedAt: 0, flashCount: 0, ok: 0, ng: 0 });
+
+export function getCard(w) {
+  return (w.cards && w.cards[cardKey()]) || EMPTY_CARD;
+}
+
+export function ensureCard(w) {
+  if (!w.cards) w.cards = {};
+  const k = cardKey();
+  if (!w.cards[k]) w.cards[k] = { mark: null, markedAt: 0, flashCount: 0, ok: 0, ng: 0 };
+  return w.cards[k];
+}
 
 /** 學會的字 3 天內不進出題池 */
 export const GREEN_COOLDOWN_MS = 3 * 24 * 3600 * 1000;
 
 export function isCooling(w, now = Date.now()) {
-  return w.mark === 'green' && now - w.markedAt < GREEN_COOLDOWN_MS;
+  const c = getCard(w);
+  return c.mark === 'green' && now - c.markedAt < GREEN_COOLDOWN_MS;
 }
 
 /** 點按循環：null → green → red → null，回傳新狀態 */
 export function cycleMark(ch) {
   const w = words.find((x) => x.ch === ch);
   if (!w) return null;
-  w.mark = w.mark === null ? 'green' : w.mark === 'green' ? 'red' : null;
-  w.markedAt = w.mark ? Date.now() : 0;
+  const c = ensureCard(w);
+  c.mark = c.mark === null ? 'green' : c.mark === 'green' ? 'red' : null;
+  c.markedAt = c.mark ? Date.now() : 0;
   saveWords();
-  return w.mark;
+  return c.mark;
 }
 
 export function bumpFlash(chs) {
   const set = new Set(chs);
-  for (const w of words) if (set.has(w.ch)) w.flashCount++;
+  for (const w of words) if (set.has(w.ch)) ensureCard(w).flashCount++;
+  saveWords();
+}
+
+export function setArchived(chs, on) {
+  const set = new Set(chs);
+  for (const w of words) if (set.has(w.ch)) w.archived = on;
   saveWords();
 }
 
@@ -81,8 +114,8 @@ export function addWords(text) {
     if (set.has(ch)) { dup++; continue; }
     set.add(ch);
     words.push({
-      ch, addedAt: now + added, usedCount: 0, readCount: 0, ok: 0, ng: 0,
-      flashCount: 0, mark: null, markedAt: 0,
+      ch, addedAt: now + added, usedCount: 0, readCount: 0,
+      archived: false, cards: {},
     });
     added++;
   }
@@ -114,7 +147,11 @@ export function bumpRead(ch, delta) {
 
 export function bumpGame(ch, correct) {
   const w = words.find((x) => x.ch === ch);
-  if (w) { correct ? w.ok++ : w.ng++; saveWords(); }
+  if (w) {
+    const c = ensureCard(w);
+    correct ? c.ok++ : c.ng++;
+    saveWords();
+  }
 }
 
 // ---------- 故事 ----------
@@ -183,6 +220,27 @@ export async function removeAccount(id) {
   await idbDel('avatars', id).catch(() => {});
   if (currentAccountId === id) setCurrentAccount(accounts[0].id);
 }
+
+// ---------- 舊字表資料遷移（v1.4 → v1.5：全域熟悉度 → 帳號×語系） ----------
+// 需在帳號初始化之後執行（cardKey 用到 currentAccountId）
+(function migrateWordCards() {
+  let dirty = false;
+  for (const w of words) {
+    if (w.archived == null) { w.archived = false; dirty = true; }
+    if (!w.cards) { w.cards = {}; dirty = true; }
+    if (w.mark !== undefined || w.flashCount != null || w.ok != null || w.ng != null) {
+      if ((w.mark || w.flashCount || w.ok || w.ng) && !w.cards[cardKey()]) {
+        w.cards[cardKey()] = {
+          mark: w.mark || null, markedAt: w.markedAt || 0,
+          flashCount: w.flashCount || 0, ok: w.ok || 0, ng: w.ng || 0,
+        };
+      }
+      delete w.mark; delete w.markedAt; delete w.flashCount; delete w.ok; delete w.ng;
+      dirty = true;
+    }
+  }
+  if (dirty) saveWords();
+})();
 
 // ---------- IndexedDB（blob 快取） ----------
 let dbPromise = null;

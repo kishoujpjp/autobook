@@ -737,31 +737,65 @@ button {
   color: var(--berry-deep);
   box-shadow: 0 0.035em 0 #F0A9C2;
 }
-.fc-zi.pop { animation: zipop 0.3s ease; }
+.fc-zi.pop { animation: fcpop 0.3s ease; }
+/* 回彈放大但不旋轉（教具卡用） */
+@keyframes fcpop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.14); }
+  100% { transform: scale(1); }
+}
 .fc-controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 10px 4px 4px;
+  padding: 8px 4px 2px;
 }
-.fc-controls .settings-note { text-align: center; flex: 1; }
+.fc-hint {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  line-height: 1.3;
+}
 .fc-nav {
-  width: 104px;
-  height: 104px;
+  width: 116px;
+  height: 116px;
   border-radius: 50%;
   background: var(--sky);
   color: #fff;
-  font-size: 44px;
-  font-weight: 800;
   box-shadow: 0 8px 0 var(--sky-deep);
   flex: 0 0 auto;
   transition: transform 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+.fc-nav svg { width: 64%; height: 64%; display: block; }
 .fc-nav.next { background: var(--primary); box-shadow: 0 8px 0 var(--primary-deep); }
 .fc-nav:active { transform: translateY(5px); box-shadow: 0 3px 0 var(--sky-deep); }
 .fc-nav.next:active { box-shadow: 0 3px 0 var(--primary-deep); }
 .fc-nav:disabled { filter: grayscale(0.7) opacity(0.35); pointer-events: none; }
+
+/* 自繪圖示鈕（返回等，風格與 modal-close 一致） */
+.icon-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #FFE9CB;
+  color: var(--primary-deep);
+  box-shadow: 0 4px 0 #EBD7B4;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s;
+}
+.icon-btn svg { width: 55%; height: 55%; display: block; }
+.icon-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #EBD7B4; }
+
+.seg.small button { min-height: 44px; padding: 4px 16px; font-size: 17px; }
 
 .game-end { padding: 30px 0; }
 .game-end .stars { font-size: 64px; letter-spacing: 6px; margin: 20px 0; }
@@ -825,6 +859,12 @@ button {
 .word-chip .w { font-size: 42px; font-weight: 700; }
 .word-chip .u { font-size: 13px; font-weight: 700; color: var(--ink-soft); }
 .word-chip.fresh { border: 3px solid var(--sun); }
+.word-chip.mk-g { background: #E3F6D3; box-shadow: 0 5px 0 #A9D889; }
+.word-chip.mk-g .w { color: #3E8B1F; }
+.word-chip.mk-r { background: #FFE0E9; box-shadow: 0 5px 0 #F0A9C2; }
+.word-chip.mk-r .w { color: var(--berry-deep); }
+.word-chip.arch { filter: grayscale(0.85); opacity: 0.55; }
+.word-chip.pop { animation: fcpop 0.3s ease; }
 .word-chip.sel {
   border: 3px solid var(--berry);
   background: #FFE4EC;

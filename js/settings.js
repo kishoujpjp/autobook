@@ -97,11 +97,24 @@ function render() {
     testBtn.append('📡 ', t('set_test'));
   });
 
+  const ttsKeyInput = el('input', {
+    class: 'text-input', type: 'password',
+    placeholder: t('set_api_ph'), value: settings.ttsApiKey || '',
+    autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
+  });
+  ttsKeyInput.addEventListener('change', () => {
+    settings.ttsApiKey = ttsKeyInput.value.trim();
+    saveSettings();
+    toast('OK!');
+  });
+
   root.append(el('div', { class: 'card' },
     el('div', { class: 'field-label', text: `🔑 ${t('set_api')}` }),
     keyInput,
     el('p', { class: 'settings-note', text: t('set_api_note') }),
     el('div', { class: 'row', style: 'margin-top:12px;' }, testBtn),
+    el('div', { class: 'field-label', text: `🔊 ${t('set_tts_key')}` }),
+    ttsKeyInput,
     advancedModels(),
   ));
 
