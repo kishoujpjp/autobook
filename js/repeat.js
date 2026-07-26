@@ -5,12 +5,13 @@ import { t, getLang } from './i18n.js';
 import { el, toast, openModal, confirmDialog, infoDialog, confetti } from './ui.js';
 import { sfx, playBlob } from './sfx.js';
 import {
-  settings, phrases, addPhrases, removePhrase, savePhrases,
+  settings, saveSettings, phrases, addPhrases, removePhrase, savePhrases,
   phraseStat, setPhraseStat,
   repGroups, saveRepGroups, addRepGroup, removeRepGroup, groupPhrases,
   idbGet, idbSet,
 } from './store.js';
 import { ttsText, generatePhrases, generatePhraseImage } from './gemini.js';
+import { phonemesOf } from './phonemes.js';
 
 let root = null;
 
@@ -102,6 +103,30 @@ function renderHome() {
   if (!srCtor()) {
     root.append(el('p', { class: 'settings-note', style: 'margin-bottom:12px;', text: `⚠️ ${t('rep_sr_unavail')}` }));
   }
+
+  // 評分嚴格度
+  const strictSeg = el('div', { class: 'seg small' });
+  const mkStrict = (val, label) => {
+    const b = el('button', { class: settings.repStrict === val ? 'on' : '', text: label });
+    b.addEventListener('click', () => {
+      sfx.tap();
+      settings.repStrict = val;
+      saveSettings();
+      [...strictSeg.children].forEach((c) => c.classList.remove('on'));
+      b.classList.add('on');
+    });
+    return b;
+  };
+  strictSeg.append(
+    mkStrict('easy', t('rep_strict_easy')),
+    mkStrict('std', t('rep_strict_std')),
+    mkStrict('hard', t('rep_strict_hard')),
+  );
+  root.append(el('div', { class: 'card', style: 'margin-bottom:18px;' },
+    el('div', { class: 'settings-line' },
+      el('span', { text: `🎯 ${t('rep_strict')}` }), strictSeg,
+    ),
+  ));
 
   if (!repGroups.length) {
     root.append(el('div', { class: 'card story-empty' },
@@ -579,9 +604,17 @@ function startPractice(items) {
       // iOS Safari 常常在 interimResults=false 時整場不給結果，所以開 interim 收集所有片段
       rec.interimResults = true;
       rec.maxAlternatives = 5;
-      const transcripts = new Set();
+      const transcripts = new Map(); // text -> 最高信心值（可為 null）
       let safetyTimer = 0;
       let finished = false;
+
+      const keep = (text, conf) => {
+        if (!text || !text.trim()) return;
+        const prev = transcripts.get(text);
+        const c = typeof conf === 'number' && conf > 0 ? conf : null;
+        if (prev == null || (c != null && c > prev)) transcripts.set(text, c);
+        else if (!transcripts.has(text)) transcripts.set(text, c);
+      };
 
       micBtn.classList.add('rec');
       hint.textContent = t('rep_mic_stop');
@@ -589,15 +622,17 @@ function startPractice(items) {
 
       rec.onresult = (e) => {
         const joined = [];
+        let joinedConf = null;
         for (let ri = 0; ri < e.results.length; ri++) {
           for (let ai = 0; ai < e.results[ri].length; ai++) {
-            const tr = e.results[ri][ai].transcript;
-            if (tr && tr.trim()) transcripts.add(tr);
+            keep(e.results[ri][ai].transcript, e.results[ri][ai].confidence);
           }
           joined.push(e.results[ri][0].transcript);
+          const c0 = e.results[ri][0].confidence;
+          if (typeof c0 === 'number' && c0 > 0) joinedConf = joinedConf == null ? c0 : Math.min(joinedConf, c0);
         }
         const full = joined.join(' ').trim();
-        if (full) transcripts.add(full);
+        if (full) keep(full, joinedConf);
       };
       const finish = () => {
         if (finished) return;
@@ -610,9 +645,9 @@ function startPractice(items) {
           hint.textContent = t('rep_listen');
           return;
         }
-        const list = [...transcripts];
+        const list = [...transcripts].map(([text, conf]) => ({ text, conf }));
         const { wordScores, overall } = scoreAttempt(p.text, list);
-        const heard = list.reduce((a, b) => (b.length > a.length ? b : a), '');
+        const heard = list.reduce((a, b) => (b.text.length > a.text.length ? b : a)).text;
         answers[i] = { score: overall, wordScores, heard };
         setPhraseStat(p, overall);
         if (overall >= 75) { sfx.correct(); confetti(1000, 50); }
@@ -674,17 +709,63 @@ function sim(a, b) {
   return 1 - d / Math.max(a.length, b.length);
 }
 
-/** 逐詞計分：每個目標詞取所有候選轉寫中最相似的詞 */
+/** 詞相似度：優先音素層（同音不冤枉、關鍵音錯了確實扣），查不到的詞退回字母層 */
+function simWord(a, b) {
+  const pa = phonemesOf(a);
+  const pb = phonemesOf(b);
+  if (pa && pb) {
+    let best = 0;
+    for (const x of pa) {
+      for (const y of pb) {
+        best = Math.max(best, 1 - lev(x, y) / Math.max(x.length, y.length));
+      }
+    }
+    return best;
+  }
+  return sim(a, b);
+}
+
+// 嚴格度設定：門檻 / 各檔分數 / 鼓勵下限 / 多唸扣分 / 信心值權重
+const STRICT_CFG = {
+  easy: { th: [0.85, 0.55, 0.35, 0.20], pts: [100, 80, 60, 45, 25], floor: 55, extraPen: 0, confW: 0 },
+  std:  { th: [0.90, 0.65, 0.45, 0.25], pts: [100, 80, 60, 40, 20], floor: 45, extraPen: 5, confW: 0.3 },
+  hard: { th: [0.95, 0.75, 0.55, 0.35], pts: [100, 75, 55, 35, 15], floor: 0,  extraPen: 8, confW: 0.5 },
+};
+
+/**
+ * 逐詞計分。transcripts: [{text, conf}]，conf 為辨識信心值（0~1，可為 null）。
+ * 詞顏色用未加權的 wordScores；總分再乘信心值、扣多唸的字。
+ */
 export function scoreAttempt(targetText, transcripts) {
+  const cfg = STRICT_CFG[settings.repStrict] || STRICT_CFG.std;
   const tw = normWords(targetText);
-  const spoken = [...new Set(transcripts.flatMap((tr) => normWords(tr)))];
+  const spoken = [...new Set(transcripts.flatMap((tr) => normWords(tr.text)))];
   const wordScores = tw.map((w) => {
     let best = 0;
-    for (const s of spoken) best = Math.max(best, sim(w, s));
-    return best >= 0.85 ? 100 : best >= 0.6 ? 80 : best >= 0.4 ? 60 : best >= 0.25 ? 45 : 25;
+    for (const s of spoken) best = Math.max(best, simWord(w, s));
+    return best >= cfg.th[0] ? cfg.pts[0]
+      : best >= cfg.th[1] ? cfg.pts[1]
+      : best >= cfg.th[2] ? cfg.pts[2]
+      : best >= cfg.th[3] ? cfg.pts[3]
+      : cfg.pts[4];
   });
   let overall = Math.round(wordScores.reduce((a, b) => a + b, 0) / (wordScores.length || 1));
-  // 鼓勵下限：只要有一個詞唸得不錯，總分不低於 55
-  if (wordScores.some((s) => s >= 80)) overall = Math.max(overall, 55);
+
+  // B：辨識信心值加權（發音含糊時就算轉寫對了信心值也會掉）
+  if (cfg.confW > 0) {
+    const confs = transcripts.map((x) => x.conf).filter((c) => typeof c === 'number' && c > 0);
+    if (confs.length) {
+      const c = Math.max(...confs);
+      overall = Math.round(overall * (1 - cfg.confW + cfg.confW * c));
+    }
+  }
+  // 多唸一堆無關字的輕度扣分
+  if (cfg.extraPen) {
+    const extras = spoken.filter((s) => tw.every((w) => simWord(w, s) < 0.5)).length;
+    overall -= Math.min(cfg.extraPen * 3, extras * cfg.extraPen);
+  }
+  // 鼓勵下限
+  if (cfg.floor && wordScores.some((s) => s >= 80)) overall = Math.max(overall, cfg.floor);
+  overall = Math.max(0, Math.min(100, overall));
   return { wordScores, overall };
 }

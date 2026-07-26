@@ -1,5 +1,5 @@
 // Service Worker：app shell 快取（cache-first），API 一律走網路
-const CACHE = 'autobook-v1.7.0';
+const CACHE = 'autobook-v1.8.0';
 const SHELL = [
   './',
   './index.html',
@@ -15,6 +15,7 @@ const SHELL = [
   './js/avatars.js',
   './js/account.js',
   './js/repeat.js',
+  './js/phonemes.js',
   './js/ui.js',
   './js/fog.js',
   './js/story.js',
