@@ -289,7 +289,7 @@ function openGenModal() {
   const grid = el('div', { class: 'pick-grid' });
   for (const w of sorted) {
     const btn = el('button', { class: 'pick-zi' },
-      w.ch,
+      convertTo(w.ch, getLang()),
       el('span', { class: 'cnt', text: String(w.usedCount) }),
     );
     btn.addEventListener('click', () => {

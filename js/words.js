@@ -1,8 +1,10 @@
 // 字表頁：新增/多選刪除字、統計、排序
-import { t } from './i18n.js';
+// 顯示字形跟隨語系（資料仍存輸入時的原字形）
+import { t, getLang } from './i18n.js';
 import { el, toast, confirmDialog } from './ui.js';
 import { sfx, playBlob } from './sfx.js';
 import { words, addWords, removeWords, idbGet } from './store.js';
+import { convertTo, t2s, s2t } from './zhconv.js';
 
 let root = null;
 let editMode = false;
@@ -131,7 +133,7 @@ function render() {
       class: `word-chip${fresh ? ' fresh' : ''}${selected.has(w.ch) ? ' sel' : ''}`,
       'data-ch': w.ch,
     },
-      el('span', { class: 'w', text: w.ch }),
+      el('span', { class: 'w', text: convertTo(w.ch, getLang()) }),
       el('span', { class: 'u', text: t('used_times', { n: w.usedCount }) }),
     );
     chipByCh.set(w.ch, chip);
@@ -141,7 +143,12 @@ function render() {
         chip.style.animation = 'none';
         void chip.offsetWidth;
         chip.style.animation = 'zipop 0.35s ease';
-        const blob = await idbGet('audio', w.ch).catch(() => null);
+        // 語音快取可能存在任一字形底下
+        let blob = await idbGet('audio', w.ch).catch(() => null);
+        if (!blob) {
+          const alt = getLang() === 'zh-Hans' ? t2s(w.ch) : s2t(w.ch);
+          if (alt !== w.ch) blob = await idbGet('audio', alt).catch(() => null);
+        }
         if (blob) playBlob(blob);
         else sfx.pop();
       });

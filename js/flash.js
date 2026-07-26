@@ -1,11 +1,12 @@
 // 認字卡／認詞彙：親子面對面教具卡
 // 排程：優先出現 flashCount 少的字；標綠（學會）3 天冷卻不出題；
 // 標紅（還不會）在 1~2 張後重新出現。詞彙由內建離線詞庫拼出（不用 AI）。
-import { t } from './i18n.js';
+import { t, getLang } from './i18n.js';
 import { el, toast } from './ui.js';
 import { sfx, playBlob } from './sfx.js';
 import { settings, words, isCooling, cycleMark, bumpFlash, idbGet } from './store.js';
 import { WORDS } from './wordbank.js';
+import { convertTo } from './zhconv.js';
 
 const RECENT_AVOID = 5; // 避免短期內重複出同一張
 
@@ -51,7 +52,7 @@ export function startFlash(root, mode, onExit) {
       if (!form) continue;
       const chars = [...form];
       if (!relax && chars.some((ch) => isCooling(bank.get(ch), now))) continue;
-      out.push({ form, chars });
+      out.push({ form, chars, t: wd.t, s: wd.s });
     }
     return out;
   }
@@ -92,7 +93,7 @@ export function startFlash(root, mode, onExit) {
     }
     const c = retryCh ? pickWord(retryCh) : pickWord();
     if (!c) return null;
-    return { text: c.form, chars: c.chars };
+    return { text: c.form, chars: c.chars, t: c.t, s: c.s };
   }
 
   function scheduleRetry(ch) {
@@ -145,12 +146,18 @@ export function startFlash(root, mode, onExit) {
       : `min(38vh, ${Math.floor(84 / n)}vw)`;
     const wrap = el('div', { class: 'fc-card' });
     const bank = bankMap();
-    for (const ch of card.chars) {
+    // 顯示字形跟隨語系：詞卡直接用詞庫的繁/簡形（避免逐字轉換的一簡對多繁誤差），
+    // 字卡逐字轉換；資料（標記/計數/語音）仍用字表原字
+    const dispChars = card.t
+      ? [...(getLang() === 'zh-Hans' ? card.s : card.t)]
+      : card.chars.map((c) => convertTo(c, getLang()));
+    card.chars.forEach((ch, ci) => {
       const w = bank.get(ch);
+      const dispCh = dispChars[ci] || ch;
       const btn = el('button', {
         class: `fc-zi${markClass(w ? w.mark : null)}`,
         style: `font-size:${size};`,
-        text: ch,
+        text: dispCh,
       });
       btn.addEventListener('click', async () => {
         const mark = cycleMark(ch);
@@ -162,12 +169,13 @@ export function startFlash(root, mode, onExit) {
         else if (mark === 'red') { sfx.unpop(); scheduleRetry(ch); }
         else sfx.tap();
         if (settings.tapSpeak) {
-          const blob = await idbGet('audio', ch).catch(() => null);
+          let blob = await idbGet('audio', ch).catch(() => null);
+          if (!blob && dispCh !== ch) blob = await idbGet('audio', dispCh).catch(() => null);
           if (blob) playBlob(blob);
         }
       });
       wrap.append(btn);
-    }
+    });
     cardArea.append(wrap);
   }
 

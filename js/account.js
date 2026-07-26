@@ -75,11 +75,18 @@ function openSwitchModal() {
 // ---------- 家長確認（算術門） ----------
 export function parentGate() {
   return new Promise((resolve) => {
-    const a = 11 + ((Math.random() * 39) | 0);
-    const b = 11 + ((Math.random() * 39) | 0);
-    const answer = a + b;
+    // 個位數加減
+    let a = 2 + ((Math.random() * 8) | 0);
+    let b = 1 + ((Math.random() * 9) | 0);
+    const minus = Math.random() < 0.5;
+    if (minus && b > a) [a, b] = [b, a];
+    const answer = minus ? a - b : a + b;
+    const q = `${a} ${minus ? '−' : '+'} ${b}`;
     const opts = new Set([answer]);
-    while (opts.size < 3) opts.add(answer + ((Math.random() * 21) | 0) - 10);
+    while (opts.size < 3) {
+      const n = answer + ((Math.random() * 9) | 0) - 4;
+      if (n >= 0 && n !== answer) opts.add(n);
+    }
     const shuffled = [...opts].sort(() => Math.random() - 0.5);
 
     let settled = false;
@@ -87,7 +94,7 @@ export function parentGate() {
     const m = openModal(`🔒 ${t('acc_gate')}`, { onClose: () => done(false) });
     let tries = 0;
     m.body.append(
-      el('p', { style: 'font-size:30px;font-weight:800;text-align:center;padding:8px 0 18px;', text: `${t('acc_gate_q')}：${a} + ${b} = ?` }),
+      el('p', { style: 'font-size:30px;font-weight:800;text-align:center;padding:8px 0 18px;', text: `${t('acc_gate_q')}：${q} = ?` }),
       el('div', { class: 'gate-opts' },
         shuffled.map((n) => {
           const btn = el('button', { class: 'btn sky', text: String(n) });

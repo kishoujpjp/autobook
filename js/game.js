@@ -1,5 +1,6 @@
 // 遊戲頁：聽音認字。開始前先把 10 題語音緩存好，之後重複利用。
-import { t } from './i18n.js';
+import { t, getLang } from './i18n.js';
+import { convertTo, t2s, s2t } from './zhconv.js';
 import { el, toast, confetti, infoDialog } from './ui.js';
 import { sfx, playBlob } from './sfx.js';
 import { settings, words, bumpGame, idbGet, idbSet } from './store.js';
@@ -182,7 +183,11 @@ function renderQuestion() {
 
   async function play() {
     speaker.classList.add('playing');
-    const blob = await idbGet('audio', q.ch).catch(() => null);
+    let blob = await idbGet('audio', q.ch).catch(() => null);
+    if (!blob) {
+      const alt = getLang() === 'zh-Hans' ? t2s(q.ch) : s2t(q.ch);
+      if (alt !== q.ch) blob = await idbGet('audio', alt).catch(() => null);
+    }
     if (blob) await playBlob(blob);
     speaker.classList.remove('playing');
   }
@@ -190,7 +195,7 @@ function renderQuestion() {
 
   let answered = false;
   const cards = options.map((ch) => {
-    const card = el('button', { class: 'choice-card', text: ch });
+    const card = el('button', { class: 'choice-card', text: convertTo(ch, getLang()), 'data-ch': ch });
     card.addEventListener('click', async () => {
       if (answered) return;
       answered = true;
@@ -206,7 +211,7 @@ function renderQuestion() {
         sfx.wrong();
         state.score = Math.max(0, state.score - 1);
         // 標出正確答案
-        cards.forEach((c) => { if (c.textContent === q.ch) c.classList.add('right'); });
+        cards.forEach((c) => { if (c.dataset.ch === q.ch) c.classList.add('right'); });
       }
       state.answers.push(correct);
       scoreEl.textContent = `⭐ ${state.score} ${t('game_score')}`;

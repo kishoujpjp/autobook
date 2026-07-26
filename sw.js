@@ -1,5 +1,5 @@
 // Service Worker：app shell 快取（cache-first），API 一律走網路
-const CACHE = 'autobook-v1.4.1';
+const CACHE = 'autobook-v1.4.2';
 const SHELL = [
   './',
   './index.html',
@@ -21,9 +21,9 @@ const SHELL = [
   './js/words.js',
   './js/settings.js',
   './manifest.webmanifest',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-180.png',
+  './icons/icon2-192.png',
+  './icons/icon2-512.png',
+  './icons/icon2-180.png',
 ];
 
 self.addEventListener('install', (e) => {
