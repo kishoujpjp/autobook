@@ -289,42 +289,67 @@ function startPractice(items) {
       const rec = new SR();
       currentRec = rec;
       rec.lang = 'en-US';
-      rec.interimResults = false;
+      // iOS Safari 常常在 interimResults=false 時整場不給結果，所以開 interim 收集所有片段
+      rec.interimResults = true;
       rec.maxAlternatives = 5;
-      let transcripts = [];
+      const transcripts = new Set();
+      let safetyTimer = 0;
 
       micBtn.classList.add('rec');
       hint.textContent = t('rep_mic_stop');
       sfx.tap();
 
       rec.onresult = (e) => {
+        // 全部片段（含 interim）都收：逐一 + 各候選 + 全串接
+        const joined = [];
         for (let ri = 0; ri < e.results.length; ri++) {
           for (let ai = 0; ai < e.results[ri].length; ai++) {
-            transcripts.push(e.results[ri][ai].transcript);
+            const tr = e.results[ri][ai].transcript;
+            if (tr && tr.trim()) transcripts.add(tr);
           }
+          joined.push(e.results[ri][0].transcript);
         }
+        const full = joined.join(' ').trim();
+        if (full) transcripts.add(full);
+      };
+      const finish = () => {
+        clearTimeout(safetyTimer);
+        currentRec = null;
+        micBtn.classList.remove('rec');
+        if (answered) return;
+        if (!transcripts.size) {
+          toast(t('rep_no_result'), true);
+          hint.textContent = t('rep_listen');
+          return;
+        }
+        answered = true;
+        const list = [...transcripts];
+        console.log('heard:', list);
+        const { wordScores, overall } = scoreAttempt(p.text, list);
+        // 顯示聽到的內容（取最長一句），家長可對照
+        const heard = list.reduce((a, b) => (b.length > a.length ? b : a), '');
+        hint.textContent = `👂 ${heard}`;
+        applyResult(wordScores, overall);
       };
       rec.onerror = (e) => {
+        clearTimeout(safetyTimer);
         currentRec = null;
         micBtn.classList.remove('rec');
         if (e.error === 'not-allowed') infoDialog(t('err_title'), t('rep_sr_denied'), true);
         else if (e.error === 'service-not-allowed' || e.error === 'audio-capture') {
           infoDialog(t('err_title'), t('rep_sr_unavail'), true);
-        } else if (e.error !== 'aborted' && e.error !== 'no-speech') {
-          toast(t('rep_no_result'), true);
-        } else if (e.error === 'no-speech') {
+        } else if (transcripts.size) {
+          finish();
+          return;
+        } else {
           toast(t('rep_no_result'), true);
         }
         hint.textContent = t('rep_listen');
       };
-      rec.onend = () => {
-        currentRec = null;
-        micBtn.classList.remove('rec');
-        if (!transcripts.length) return;
-        answered = true;
-        const { wordScores, overall } = scoreAttempt(p.text, transcripts);
-        applyResult(wordScores, overall);
-      };
+      rec.onnomatch = () => { finish(); };
+      rec.onend = () => { finish(); };
+      // 保險：15 秒後自動收音（iOS 偶爾不會自己結束）
+      safetyTimer = setTimeout(() => { try { rec.stop(); } catch { /* noop */ } }, 15000);
       try { rec.start(); } catch { currentRec = null; micBtn.classList.remove('rec'); }
     });
 
@@ -344,7 +369,6 @@ function startPractice(items) {
       else sfx.pop();
       setPhraseStat(p, overall);
       results.push({ p, score: overall });
-      hint.textContent = '';
       micBtn.classList.add('hidden');
       nextBtn.classList.remove('hidden');
     }
