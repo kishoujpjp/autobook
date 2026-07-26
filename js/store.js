@@ -1,5 +1,5 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
-export const VERSION = '1.2.0';
+export const VERSION = '1.3.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -32,9 +32,38 @@ export const settings = Object.assign({}, DEFAULT_SETTINGS, load(LS.settings, {}
 export function saveSettings() { save(LS.settings, settings); }
 
 // ---------- 字表 ----------
-// word: { ch, addedAt, usedCount, readCount, ok, ng }
+// word: { ch, addedAt, usedCount, readCount, ok, ng, flashCount, mark, markedAt }
+// flashCount＝字卡/詞卡出現次數；mark＝'green'(學會)/'red'(還不會)/null；markedAt＝標記時間
 export let words = load(LS.words, []);
+for (const w of words) {
+  if (w.flashCount == null) w.flashCount = 0;
+  if (w.mark === undefined) w.mark = null;
+  if (w.markedAt == null) w.markedAt = 0;
+}
 export function saveWords() { save(LS.words, words); }
+
+/** 學會的字 3 天內不進出題池 */
+export const GREEN_COOLDOWN_MS = 3 * 24 * 3600 * 1000;
+
+export function isCooling(w, now = Date.now()) {
+  return w.mark === 'green' && now - w.markedAt < GREEN_COOLDOWN_MS;
+}
+
+/** 點按循環：null → green → red → null，回傳新狀態 */
+export function cycleMark(ch) {
+  const w = words.find((x) => x.ch === ch);
+  if (!w) return null;
+  w.mark = w.mark === null ? 'green' : w.mark === 'green' ? 'red' : null;
+  w.markedAt = w.mark ? Date.now() : 0;
+  saveWords();
+  return w.mark;
+}
+
+export function bumpFlash(chs) {
+  const set = new Set(chs);
+  for (const w of words) if (set.has(w.ch)) w.flashCount++;
+  saveWords();
+}
 
 export function wordSet() { return new Set(words.map((w) => w.ch)); }
 
@@ -49,7 +78,10 @@ export function addWords(text) {
     if (!isHan(ch)) continue;
     if (set.has(ch)) { dup++; continue; }
     set.add(ch);
-    words.push({ ch, addedAt: now + added, usedCount: 0, readCount: 0, ok: 0, ng: 0 });
+    words.push({
+      ch, addedAt: now + added, usedCount: 0, readCount: 0, ok: 0, ng: 0,
+      flashCount: 0, mark: null, markedAt: 0,
+    });
     added++;
   }
   if (added) saveWords();

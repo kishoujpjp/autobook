@@ -4,6 +4,7 @@ import { el, toast, confetti, infoDialog } from './ui.js';
 import { sfx, playBlob } from './sfx.js';
 import { settings, words, bumpGame, idbGet, idbSet } from './store.js';
 import { ttsChar } from './gemini.js';
+import { startFlash } from './flash.js';
 
 const Q_COUNT = 10;
 let root = null;
@@ -19,15 +20,33 @@ export function refreshGamePage() {
   renderIntro();
 }
 
-// ---------- 首頁 ----------
+// ---------- 首頁（三個遊戲入口） ----------
 function renderIntro() {
   root.innerHTML = '';
+
+  function entry(emoji, label, desc, cls, onclick) {
+    const card = el('button', { class: `game-entry ${cls}`, onclick },
+      el('span', { class: 'ge-emoji', text: emoji }),
+      el('span', { class: 'ge-label', text: label }),
+      el('span', { class: 'ge-desc', text: desc }),
+    );
+    return card;
+  }
+
   root.append(
     el('div', { class: 'h1' }, '🎈 ', t('game_title')),
-    el('div', { class: 'card game-stage', style: 'padding:48px 24px;' },
-      el('div', { style: 'font-size:110px;margin-bottom:10px;', text: '🦊' }),
-      el('p', { style: 'font-size:28px;font-weight:800;margin-bottom:30px;', text: t('game_intro') }),
-      el('button', { class: 'btn big berry', onclick: startPrep }, '🎮 ', t('game_start')),
+    el('div', { class: 'game-menu' },
+      entry('🦊', t('game_menu_listen'), t('game_intro'), 'listen', () => { sfx.tap(); startPrep(); }),
+      entry('🃏', t('game_menu_flash'), t('game_menu_flash_desc'), 'flash', () => {
+        sfx.tap();
+        if (words.length < 4) { toast(t('game_need_words'), true); return; }
+        startFlash(root, 'char', renderIntro);
+      }),
+      entry('🧩', t('game_menu_word'), t('game_menu_word_desc'), 'word', () => {
+        sfx.tap();
+        if (words.length < 4) { toast(t('game_need_words'), true); return; }
+        startFlash(root, 'word', renderIntro);
+      }),
     ),
   );
 }
