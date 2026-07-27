@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.9.2';
+export const VERSION = '1.10.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -28,6 +28,9 @@ const DEFAULT_SETTINGS = {
   ttsModel: 'gemini-2.5-flash-preview-tts',
   voice: 'Leda',
 };
+
+/** 備份要涵蓋的 localStorage 鍵（全部資料鍵） */
+export const BACKUP_KEYS = Object.values(LS);
 
 function load(key, fallback) {
   try {
