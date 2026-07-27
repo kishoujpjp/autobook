@@ -591,7 +591,7 @@ function startPractice(items) {
         void wordEls[ti].offsetWidth;
         wordEls[ti].classList.add(scoreCls(s), 'pop');
       });
-      scorePill.innerHTML = `${a.score}<span class="unit">${t('rep_score_unit')}</span>`;
+      scorePill.textContent = String(a.score);
       scorePill.className = `rep-score ${scoreCls(a.score)}`;
       if (a.heard) hint.textContent = `👂 ${a.heard}`;
       refreshEdges();
