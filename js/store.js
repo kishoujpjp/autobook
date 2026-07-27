@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.8.3';
+export const VERSION = '1.9.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -204,12 +204,13 @@ export async function removeStory(id) {
 export function getStory(id) { return stories.find((s) => s.id === id); }
 
 // ---------- 跟讀題庫 ----------
-// phrase: { id, text, addedAt, hasImage, stats: { [accId]: {last, best, tries} } }
+// phrase: { id, text, addedAt, hasImage, tags:[], stats: { [accId]: {last, best, tries} } }
 export let phrases = load(LS.phrases, []);
+for (const p of phrases) if (!p.tags) p.tags = [];
 export function savePhrases() { save(LS.phrases, phrases); }
 
-/** 加入題目池。回傳 {added, ids}；ids 含所有輸入行對應的題目 id（重複的對到既有題） */
-export function addPhrases(lines) {
+/** 加入題目池（可帶 tags）。回傳 {added, ids}；ids 含所有輸入行對應的題目 id（重複的對到既有題） */
+export function addPhrases(lines, tags = []) {
   let added = 0;
   const ids = [];
   const now = Date.now();
@@ -222,12 +223,55 @@ export function addPhrases(lines) {
       continue;
     }
     const id = `p${(now + added).toString(36)}${(Math.random() * 1e4 | 0).toString(36)}`;
-    phrases.push({ id, text, addedAt: now + added, hasImage: false, stats: {} });
+    phrases.push({ id, text, addedAt: now + added, hasImage: false, tags: [...tags], stats: {} });
     ids.push(id);
     added++;
   }
   if (added) savePhrases();
   return { added, ids };
+}
+
+/** 幫一批題目加 tag（不重複） */
+export function tagPhrases(ids, tag) {
+  const set = new Set(ids);
+  for (const p of phrases) {
+    if (!set.has(p.id)) continue;
+    if (!p.tags) p.tags = [];
+    if (tag && !p.tags.includes(tag)) p.tags.push(tag);
+  }
+  savePhrases();
+}
+
+export function clearPhraseTags(ids) {
+  const set = new Set(ids);
+  for (const p of phrases) if (set.has(p.id)) p.tags = [];
+  savePhrases();
+}
+
+/** 批次刪題（連同所有練習組內的引用與配圖快取） */
+export async function removePhrases(ids) {
+  const set = new Set(ids);
+  phrases = phrases.filter((p) => !set.has(p.id));
+  savePhrases();
+  let dirty = false;
+  for (const g of repGroups) {
+    const before = g.ids.length;
+    g.ids = g.ids.filter((x) => !set.has(x));
+    if (g.ids.length !== before) dirty = true;
+  }
+  if (dirty) saveRepGroups();
+  for (const id of ids) await idbDel('images', `ph|${id}`).catch(() => {});
+}
+
+export function allPhraseTags() {
+  const s = new Set();
+  for (const p of phrases) for (const tg of (p.tags || [])) s.add(tg);
+  return [...s].sort();
+}
+
+/** 這題被幾個練習組收錄 */
+export function phraseGroupCount(id) {
+  return repGroups.reduce((n, g) => n + (g.ids.includes(id) ? 1 : 0), 0);
 }
 
 export async function removePhrase(id) {

@@ -5,7 +5,8 @@ import { t, getLang } from './i18n.js';
 import { el, toast, openModal, confirmDialog, infoDialog, confetti } from './ui.js';
 import { sfx, playBlob } from './sfx.js';
 import {
-  settings, saveSettings, phrases, addPhrases, removePhrase, savePhrases,
+  settings, saveSettings, phrases, addPhrases, savePhrases,
+  tagPhrases, clearPhraseTags, removePhrases, allPhraseTags, phraseGroupCount,
   phraseStat, setPhraseStat,
   repGroups, saveRepGroups, addRepGroup, removeRepGroup, groupPhrases,
   idbGet, idbSet,
@@ -195,132 +196,322 @@ async function fillContent() {
   toast(fail ? t('game_prep_fail') : t('rep_fill_done'), !!fail);
 }
 
-// ============ 題庫（題目池＋練習組管理） ============
-function openBankModal() {
-  const m = openModal(`📚 ${t('rep_bank')}`, { onClose: renderHome });
+// ============ 題庫（練習組＋全部題目，兩籤） ============
+function phraseIsWord(p) { return !p.text.trim().includes(' '); }
 
-  // ---- 練習組 ----
-  const groupList = el('div', {});
-  function renderGroups() {
-    groupList.innerHTML = '';
-    for (const g of repGroups) {
-      const edit = el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); openGroupEditor(g, renderGroups); } }, '✏️');
-      const del = el('button', { class: 'book-del', text: '🗑' });
-      del.addEventListener('click', async () => {
-        sfx.tap();
-        const yes = await confirmDialog(t('rep_group_del_confirm', { n: g.name }));
-        if (yes) { removeRepGroup(g.id); renderGroups(); }
-      });
-      groupList.append(el('div', { class: 'book-row' },
-        el('span', { class: 'book-open', text: `📦 ${g.name}（${g.ids.length}）` }),
-        edit, del,
-      ));
-    }
-  }
-  renderGroups();
+function matchPhrase(p, st) {
+  if (st.q && !p.text.toLowerCase().includes(st.q)) return false;
+  if (st.type === 'word' && !phraseIsWord(p)) return false;
+  if (st.type === 'sent' && phraseIsWord(p)) return false;
+  if (st.orphan && phraseGroupCount(p.id) > 0) return false;
+  if (st.tags.size && !(p.tags || []).some((tg) => st.tags.has(tg))) return false;
+  return true;
+}
 
-  // ---- 手動加題 ----
-  const input = el('textarea', { class: 'text-area', placeholder: t('rep_bank_add_ph'), autocapitalize: 'off' });
-  const addBtn = el('button', { class: 'btn mint small' }, '➕ ', t('rep_bank_add'));
+/** 搜尋＋過濾列（搜尋、單字/句子、tag chips、未分組） */
+function filterBar(st, onChange, { orphan = true } = {}) {
+  const wrap = el('div', { style: 'margin-bottom:12px;' });
+  const search = el('input', {
+    class: 'text-input', placeholder: t('rep_search_ph'), value: st.q,
+    autocapitalize: 'off', spellcheck: 'false', style: 'margin-bottom:10px;',
+  });
+  search.addEventListener('input', () => { st.q = search.value.trim().toLowerCase(); onChange(); });
 
-  // ---- AI 出題 ----
-  const topicInput = el('input', { class: 'text-input', placeholder: t('rep_ai_topic_ph'), autocapitalize: 'off', style: 'flex:1;min-width:180px;' });
-  let aiMode = 'word';
-  const modeSeg = el('div', { class: 'seg small' });
-  const mkMode = (val, label) => {
-    const b = el('button', { class: aiMode === val ? 'on' : '', text: label });
+  const typeSeg = el('div', { class: 'seg small' });
+  const mkType = (val, label) => {
+    const b = el('button', { class: st.type === val ? 'on' : '', text: label });
     b.addEventListener('click', () => {
-      sfx.tap(); aiMode = val;
-      [...modeSeg.children].forEach((c) => c.classList.remove('on'));
+      sfx.tap(); st.type = val;
+      [...typeSeg.children].forEach((c) => c.classList.remove('on'));
       b.classList.add('on');
+      onChange();
     });
     return b;
   };
-  modeSeg.append(mkMode('word', t('rep_ai_word')), mkMode('sentence', t('rep_ai_sentence')));
-  const aiBtn = el('button', { class: 'btn sky small' }, '🪄 ', t('rep_ai_go'));
-  aiBtn.addEventListener('click', async () => {
-    sfx.tap();
-    if (!settings.apiKey) { toast(t('rep_need_key_ai'), true); return; }
-    const ov = aiOverlay(t('rep_generating'));
-    try {
-      const items = await generatePhrases({ topic: topicInput.value.trim(), count: 10, mode: aiMode });
-      ov.close();
-      const defName = topicInput.value.trim() ||
-        `AI ${new Date().getMonth() + 1}/${new Date().getDate()}`;
-      openAiPreview(items, defName, renderGroups);
-    } catch (e) {
-      ov.close();
-      console.error(e);
-      infoDialog(t('err_title'), `${e.message}${t('err_hint')}`, true);
-    }
-  });
+  typeSeg.append(mkType('all', t('rep_f_all')), mkType('word', t('rep_f_word')), mkType('sent', t('rep_f_sent')));
 
-  // ---- 題目池 ----
-  const list = el('div', {});
-  function renderList() {
-    list.innerHTML = '';
-    for (const p of [...phrases].sort((a, b) => b.addedAt - a.addedAt)) {
-      const del = el('button', { class: 'book-del', text: '🗑' });
-      del.addEventListener('click', async () => {
-        sfx.tap();
-        const yes = await confirmDialog(t('rep_del_confirm'));
-        if (yes) { await removePhrase(p.id); renderList(); renderGroups(); }
-      });
-      list.append(el('div', { class: 'book-row' },
-        el('span', { class: 'book-open', text: p.text }),
-        del,
-      ));
-    }
+  const chips = el('div', { class: 'row', style: 'gap:8px;margin-top:10px;' });
+  for (const tg of allPhraseTags()) {
+    const c = el('button', { class: `tagchip${st.tags.has(tg) ? ' on' : ''}`, text: `#${tg}` });
+    c.addEventListener('click', () => {
+      sfx.tap();
+      st.tags.has(tg) ? st.tags.delete(tg) : st.tags.add(tg);
+      c.classList.toggle('on');
+      onChange();
+    });
+    chips.append(c);
   }
-  renderList();
+  if (orphan) {
+    const oc = el('button', { class: `tagchip warn${st.orphan ? ' on' : ''}`, text: `📎 ${t('rep_f_orphan')}` });
+    oc.addEventListener('click', () => { sfx.tap(); st.orphan = !st.orphan; oc.classList.toggle('on'); onChange(); });
+    chips.append(oc);
+  }
 
-  addBtn.addEventListener('click', () => {
-    sfx.tap();
-    const { added } = addPhrases(input.value.split('\n'));
-    if (added) { sfx.sparkle(); toast(t('rep_added', { n: added })); input.value = ''; renderList(); }
-  });
+  wrap.append(search, typeSeg, chips);
+  return wrap;
+}
 
-  m.body.append(
-    el('div', { class: 'field-label', style: 'margin-top:0;', text: `📦 ${t('rep_groups')}` }),
-    groupList,
-    el('div', { class: 'row', style: 'margin:6px 0 4px;' },
-      el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); openGroupEditor(null, renderGroups); } }, '➕ ', t('rep_group_new')),
-    ),
-    el('div', { class: 'field-label', text: `🪄 ${t('rep_ai_go')}（${t('rep_ai_note')}）` }),
-    el('div', { class: 'row' }, topicInput, modeSeg, aiBtn),
-    el('div', { class: 'field-label', text: `✏️ ${t('rep_pool')}` }),
-    input,
-    el('div', { class: 'row', style: 'margin:10px 0 8px;justify-content:flex-end;' }, addBtn),
-    list,
+function openBankModal(initialTab = 'groups') {
+  const m = openModal(`📚 ${t('rep_bank')}`, { onClose: renderHome });
+  let tab = initialTab;
+  const content = el('div', {});
+  const tabSeg = el('div', { class: 'seg', style: 'margin-bottom:14px;' });
+  const mkTab = (val, label) => {
+    const b = el('button', { class: tab === val ? 'on' : '', text: label });
+    b.addEventListener('click', () => {
+      sfx.tap(); tab = val;
+      [...tabSeg.children].forEach((c) => c.classList.remove('on'));
+      b.classList.add('on');
+      render();
+    });
+    return b;
+  };
+  tabSeg.append(mkTab('groups', t('rep_tab_groups')), mkTab('pool', t('rep_tab_pool')));
+  m.body.append(tabSeg, content);
+
+  // 全部題目籤的狀態（切籤保留）
+  const st = { q: '', type: 'all', tags: new Set(), orphan: false };
+  const selected = new Set();
+
+  function render() {
+    m.foot.innerHTML = '';
+    content.innerHTML = '';
+    if (tab === 'groups') renderGroupsTab();
+    else renderPoolTab();
+  }
+
+  // ---------- 練習組籤 ----------
+  function renderGroupsTab() {
+    const groupList = el('div', {});
+    function refreshGroups() {
+      groupList.innerHTML = '';
+      for (const g of repGroups) {
+        const edit = el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); openGroupEditor(g, refreshGroups); } }, '✏️');
+        const del = el('button', { class: 'book-del', text: '🗑' });
+        del.addEventListener('click', async () => {
+          sfx.tap();
+          const yes = await confirmDialog(t('rep_group_del_confirm', { n: g.name }));
+          if (yes) { removeRepGroup(g.id); refreshGroups(); }
+        });
+        groupList.append(el('div', { class: 'book-row' },
+          el('span', { class: 'book-open', text: `📦 ${g.name}（${g.ids.length}）` }),
+          edit, del,
+        ));
+      }
+    }
+    refreshGroups();
+
+    // AI 出題（生成 → 預覽增刪 → 存成練習組，自動打主題 tag）
+    const topicInput = el('input', { class: 'text-input', placeholder: t('rep_ai_topic_ph'), autocapitalize: 'off', style: 'flex:1;min-width:180px;' });
+    let aiMode = 'word';
+    const modeSeg = el('div', { class: 'seg small' });
+    const mkMode = (val, label) => {
+      const b = el('button', { class: aiMode === val ? 'on' : '', text: label });
+      b.addEventListener('click', () => {
+        sfx.tap(); aiMode = val;
+        [...modeSeg.children].forEach((c) => c.classList.remove('on'));
+        b.classList.add('on');
+      });
+      return b;
+    };
+    modeSeg.append(mkMode('word', t('rep_ai_word')), mkMode('sentence', t('rep_ai_sentence')));
+    const aiBtn = el('button', { class: 'btn sky small' }, '🪄 ', t('rep_ai_go'));
+    aiBtn.addEventListener('click', async () => {
+      sfx.tap();
+      if (!settings.apiKey) { toast(t('rep_need_key_ai'), true); return; }
+      const ov = aiOverlay(t('rep_generating'));
+      try {
+        const items = await generatePhrases({ topic: topicInput.value.trim(), count: 10, mode: aiMode });
+        ov.close();
+        const defName = topicInput.value.trim() ||
+          `AI ${new Date().getMonth() + 1}/${new Date().getDate()}`;
+        openAiPreview(items, defName, refreshGroups);
+      } catch (e) {
+        ov.close();
+        console.error(e);
+        infoDialog(t('err_title'), `${e.message}${t('err_hint')}`, true);
+      }
+    });
+
+    content.append(
+      groupList,
+      el('div', { class: 'row', style: 'margin:6px 0 4px;' },
+        el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); openGroupEditor(null, refreshGroups); } }, '➕ ', t('rep_group_new')),
+      ),
+      el('div', { class: 'field-label', text: `🪄 ${t('rep_ai_go')}（${t('rep_ai_note')}）` }),
+      el('div', { class: 'row' }, topicInput, modeSeg, aiBtn),
+    );
+  }
+
+  // ---------- 全部題目籤 ----------
+  function renderPoolTab() {
+    // 新增區（可帶一個 tag）
+    const input = el('textarea', { class: 'text-area', placeholder: t('rep_bank_add_ph'), autocapitalize: 'off', style: 'min-height:70px;' });
+    const tagIn = el('input', { class: 'text-input', placeholder: t('rep_tag_ph'), autocapitalize: 'off', style: 'max-width:220px;' });
+    const addBtn = el('button', { class: 'btn mint small' }, '➕ ', t('rep_bank_add'));
+    addBtn.addEventListener('click', () => {
+      sfx.tap();
+      const tg = tagIn.value.trim();
+      const { added } = addPhrases(input.value.split('\n'), tg ? [tg] : []);
+      if (added) { sfx.sparkle(); toast(t('rep_added', { n: added })); input.value = ''; render(); }
+    });
+
+    const listWrap = el('div', {});
+    function renderList() {
+      listWrap.innerHTML = '';
+      const shown = [...phrases].sort((a, b) => b.addedAt - a.addedAt).filter((p) => matchPhrase(p, st));
+      if (!shown.length) {
+        listWrap.append(el('p', { class: 'settings-note', text: t('rep_empty') }));
+        return;
+      }
+      for (const p of shown) {
+        const gN = phraseGroupCount(p.id);
+        const metaBits = [];
+        if ((p.tags || []).length) metaBits.push(p.tags.map((x) => `#${x}`).join(' '));
+        metaBits.push(gN ? t('rep_in_groups', { n: gN }) : `📎 ${t('rep_f_orphan')}`);
+        const row = el('button', { class: `rep-pick${selected.has(p.id) ? ' on' : ''}` },
+          el('span', { text: p.text }),
+          el('span', { class: 'meta', text: metaBits.join('｜') }),
+        );
+        row.addEventListener('click', () => {
+          sfx.tap();
+          if (selected.has(p.id)) { selected.delete(p.id); row.classList.remove('on'); }
+          else { selected.add(p.id); row.classList.add('on'); }
+          refreshBatch();
+        });
+        listWrap.append(row);
+      }
+    }
+
+    // 批次工具列（放 modal 底部）
+    function refreshBatch() {
+      m.foot.innerHTML = '';
+      const n = selected.size;
+      const mk = (cls, label, fn) => {
+        const b = el('button', { class: `btn ${cls} small`, onclick: fn });
+        b.append(label);
+        b.disabled = n === 0;
+        return b;
+      };
+      m.foot.append(
+        mk('sky', `📦 ${t('rep_batch_group', { n })}`, () => {
+          sfx.tap();
+          openGroupChooser([...selected], () => { selected.clear(); render(); });
+        }),
+        mk('ghost', `🏷 ${t('rep_batch_tag', { n })}`, () => {
+          sfx.tap();
+          openTagModal([...selected], () => render());
+        }),
+        mk('berry', `🗑 ${t('rep_batch_del', { n })}`, async () => {
+          sfx.tap();
+          const yes = await confirmDialog(t('rep_del_sel_confirm', { n }));
+          if (yes) {
+            await removePhrases([...selected]);
+            selected.clear();
+            render();
+          }
+        }),
+      );
+    }
+
+    content.append(
+      input,
+      el('div', { class: 'row', style: 'margin:10px 0 14px;justify-content:flex-end;' }, tagIn, addBtn),
+      filterBar(st, renderList),
+      listWrap,
+    );
+    renderList();
+    refreshBatch();
+  }
+
+  render();
+}
+
+// ---- 加入練習組選擇器 ----
+function openGroupChooser(ids, onDone) {
+  const m = openModal(`📦 ${t('rep_pick_group')}`);
+  for (const g of repGroups) {
+    const row = el('button', { class: 'book-open', style: 'width:100%;margin-bottom:10px;', text: `📦 ${g.name}（${g.ids.length}）` });
+    row.addEventListener('click', () => {
+      sfx.sparkle();
+      const set = new Set(g.ids);
+      for (const id of ids) set.add(id);
+      g.ids = [...set];
+      saveRepGroups();
+      toast(t('rep_added_group', { g: g.name }));
+      m.close();
+      if (onDone) onDone();
+    });
+    m.body.append(row);
+  }
+  m.foot.append(
+    el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); m.close(); openGroupEditor(null, onDone, ids); } }, '➕ ', t('rep_group_new')),
   );
 }
 
-// ---- 練習組編輯（命名＋勾選題目） ----
-function openGroupEditor(existing, onDone) {
+// ---- 批次打 tag ----
+function openTagModal(ids, onDone) {
+  const m = openModal(`🏷 ${t('rep_tag_title')}`);
+  const input = el('input', { class: 'text-input', placeholder: t('rep_tag_ph'), autocapitalize: 'off' });
+  const chips = el('div', { class: 'row', style: 'gap:8px;margin-top:12px;' });
+  for (const tg of allPhraseTags()) {
+    chips.append(el('button', { class: 'tagchip', text: `#${tg}`, onclick: () => { sfx.tap(); input.value = tg; } }));
+  }
+  m.body.append(input, chips);
+  m.foot.append(
+    el('button', { class: 'btn ghost small', onclick: () => {
+      sfx.tap();
+      clearPhraseTags(ids);
+      toast(t('rep_tag_cleared'));
+      m.close();
+      if (onDone) onDone();
+    } }, t('rep_tag_clear')),
+    el('button', { class: 'btn mint small', onclick: () => {
+      sfx.tap();
+      const tg = input.value.trim();
+      if (!tg) { toast(t('rep_tag_need'), true); return; }
+      tagPhrases(ids, tg);
+      toast(t('rep_tag_done', { n: ids.length }));
+      m.close();
+      if (onDone) onDone();
+    } }, t('rep_tag_apply')),
+  );
+}
+
+// ---- 練習組編輯（命名＋勾選題目，含搜尋過濾） ----
+function openGroupEditor(existing, onDone, preIds) {
   const m = openModal(existing ? `✏️ ${existing.name}` : `➕ ${t('rep_group_new')}`);
   const nameInput = el('input', {
     class: 'text-input', placeholder: t('rep_group_name_ph'),
     value: existing ? existing.name : '',
   });
-  const chosen = new Set(existing ? existing.ids : []);
+  const chosen = new Set(existing ? existing.ids : (preIds || []));
+  const st = { q: '', type: 'all', tags: new Set(), orphan: false };
 
   const list = el('div', {});
-  for (const p of [...phrases].sort((a, b) => b.addedAt - a.addedAt)) {
-    const row = el('button', { class: `rep-pick${chosen.has(p.id) ? ' on' : ''}`, text: p.text });
-    row.addEventListener('click', () => {
-      sfx.tap();
-      if (chosen.has(p.id)) { chosen.delete(p.id); row.classList.remove('on'); }
-      else { chosen.add(p.id); row.classList.add('on'); }
-    });
-    list.append(row);
+  function renderList() {
+    list.innerHTML = '';
+    const shown = [...phrases].sort((a, b) => b.addedAt - a.addedAt)
+      .filter((p) => chosen.has(p.id) || matchPhrase(p, st)); // 已勾選的永遠顯示
+    for (const p of shown) {
+      const row = el('button', { class: `rep-pick${chosen.has(p.id) ? ' on' : ''}`, text: p.text });
+      row.addEventListener('click', () => {
+        sfx.tap();
+        if (chosen.has(p.id)) { chosen.delete(p.id); row.classList.remove('on'); }
+        else { chosen.add(p.id); row.classList.add('on'); }
+      });
+      list.append(row);
+    }
   }
 
   m.body.append(
     el('div', { class: 'field-label', style: 'margin-top:0;', text: t('rep_group_name') }),
     nameInput,
     el('div', { class: 'field-label', text: t('rep_group_items') }),
+    phrases.length ? filterBar(st, renderList, { orphan: false }) : null,
     phrases.length ? list : el('p', { class: 'settings-note', text: t('rep_empty') }),
   );
+  renderList();
 
   const saveBtn = el('button', { class: 'btn mint' }, '💾 ', t('acc_save'));
   saveBtn.addEventListener('click', () => {
@@ -342,7 +533,7 @@ function openGroupEditor(existing, onDone) {
   m.foot.append(saveBtn);
 }
 
-// ---- AI 出題預覽：確認增刪後存成練習組 ----
+// ---- AI 出題預覽：確認增刪後存成練習組（自動打主題 tag） ----
 function openAiPreview(items, defaultName, onDone) {
   const m = openModal(`🪄 ${t('rep_ai_preview')}`);
   const nameInput = el('input', { class: 'text-input', value: defaultName });
@@ -365,7 +556,7 @@ function openAiPreview(items, defaultName, onDone) {
   m.body.append(
     el('div', { class: 'field-label', style: 'margin-top:0;', text: t('rep_group_name') }),
     nameInput,
-    el('div', { class: 'field-label', text: `📋` }),
+    el('div', { class: 'field-label', text: '📋' }),
     list,
   );
 
@@ -375,7 +566,7 @@ function openAiPreview(items, defaultName, onDone) {
     const name = nameInput.value.trim();
     if (!name) { toast(t('rep_group_need_name'), true); return; }
     if (!kept.length) { toast(t('rep_group_need_items'), true); return; }
-    const { ids } = addPhrases(kept);
+    const { ids } = addPhrases(kept, [name]);
     addRepGroup(name, ids);
     sfx.sparkle();
     toast(t('rep_added', { n: ids.length }));

@@ -1294,6 +1294,23 @@ details.adv[open] summary::before { content: "▾ "; }
 .rep-pick:active { transform: scale(0.98); }
 .rep-pick.on { border-color: var(--mint-deep); background: #E4F8F1; }
 .rep-pick.on::before { content: "✓ "; color: var(--mint-deep); font-weight: 800; }
+.rep-pick .meta { display: block; font-size: 14px; font-weight: 600; color: var(--ink-soft); margin-top: 3px; }
+.rep-pick.on .meta { color: var(--mint-deep); }
+
+/* tag chips（過濾與打 tag 用） */
+.tagchip {
+  min-height: 44px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: #F3E7CE;
+  color: var(--ink-soft);
+  font-size: 16px;
+  font-weight: 800;
+  transition: transform 0.08s;
+}
+.tagchip:active { transform: scale(0.94); }
+.tagchip.on { background: var(--mint); color: #fff; }
+.tagchip.warn.on { background: var(--sun); color: #8A6200; }
 
 /* AI 生成動畫（阻斷） */
 .ai-anim { width: 170px; height: 170px; margin: 6px auto 0; }
