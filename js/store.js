@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.10.0';
+export const VERSION = '1.10.1';
 
 const LS = {
   settings: 'autobook.settings',
@@ -113,9 +113,17 @@ export function wordSet() { return new Set(words.map((w) => w.ch)); }
 const HAN_RE = /\p{Script=Han}/u;
 export function isHan(ch) { return HAN_RE.test(ch); }
 
-/** 某字的「雙向一對一」等價字形（貓⇄猫）。多對應字（发↔發/髮）不算等價，不會被去重。 */
+/**
+ * 「簡體側字形本身也是合法繁體字」的字對（游/遊、后/後、里/裏…）。
+ * 對照表看起來是雙向一對一，但兩邊都是各自獨立的繁體字形，依規則要各自保留，不可去重。
+ * 產生方式：對照表中所有雙向一對一的字對，取簡體側字形也出現在繁體詞庫（js/wordbank.js 繁體側）者。
+ */
+const SELF_HANT = new Set('伙夥准準占佔台臺吃喫后後咨諮唇脣岩巖岳嶽峰峯干幹床牀征徵游遊秘祕糍餈群羣辟闢郁鬱采採里裏霉黴');
+
+/** 某字的「雙向一對一」等價字形（貓⇄猫）。多對應字（发↔發/髮）與 SELF_HANT 不算等價，不會被去重。 */
 function equivalents(ch) {
   const out = [ch];
+  if (SELF_HANT.has(ch)) return out;
   const s = t2s(ch);
   if (s !== ch && s2t(s) === ch) out.push(s);
   const tr = s2t(ch);
@@ -445,7 +453,7 @@ export async function clearAll() {
 
 // ---------- 示範資料 ----------
 export const DEMO_WORDS =
-  '我你他的了在有一二三四五六七八九十大小上下天地日月山水火木花草蟲魚鳥貓狗兔熊媽爸家人手口心目耳朵頭來去看見說笑哭吃喝玩跑跳飛走坐站睡覺好不是要和跟朋友學校車球書畫紅黃藍綠白黑色風雨雲星亮光開關門窗高矮長短多少快慢新舊愛喜歡想什麼誰哪裡今明年月日早晚安';
+  '我你他的了在有一二三四五六七八九十大小上下天地日月山水火木花草蟲魚鳥貓狗兔熊媽爸家人手口心目耳朵頭來去看見說笑哭吃喝玩跑跳飛走坐站睡覺好不是要和跟朋友學校車球書畫紅黃藍綠白黑色風雨雲星亮光開關門窗高矮長短多少快慢新舊愛喜歡想什麼誰哪裡今明年月日早晚安成真習石葉哥還游泳再方也捉迷藏米得向話隻牛陽著鴨貝眉鼻孩子戲起弟急教落過興聰唱歌土季又雪妹馬春夏秋冬樂回很氣字羊青奶寶問個哈面爺遊東西南北生會能叫雞們就樹到都對請公做變嗎田打兒姐出太爬前進動玉住找總刀用禮念老文後班里后幼河婆筆甜竹尖勇聽謝果怕乖夢園拿冷鵝尾猴飯最告電放桃具';
 
 export const DEMO_STORY_HANT = {
   title: '小貓看星星',
