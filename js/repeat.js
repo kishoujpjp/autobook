@@ -599,7 +599,7 @@ function startPractice(items) {
     renderHome();
   }
 
-  // ---------- 成績頁（自繪獎盃/星星/按鈕） ----------
+  // ---------- 成績頁（左成績單＋右鼓勵區；點獎盃彩蛋重播） ----------
   function renderEnd() {
     const scored = answers.filter(Boolean);
     const avg = Math.round(scored.reduce((s, a) => s + a.score, 0) / (scored.length || 1));
@@ -608,14 +608,32 @@ function startPractice(items) {
     sfx.fanfare();
     confetti(2500, 150);
 
-    const trophy = el('div', { class: 'rep-trophy' });
-    trophy.innerHTML = SVG_TROPHY_BIG;
-    const stars = el('div', { class: 'rep-stars' });
-    for (let s = 0; s < 5; s++) {
-      const st = el('span', { class: 'rep-star', style: `animation-delay:${s * 0.12}s;` });
-      st.innerHTML = s < starN ? SVG_STAR : SVG_STAR_O;
-      stars.append(st);
+    // 大星星（依序入場：彈跳＋光環爆閃＋小火花），可重播
+    const stars = el('div', { class: 'rep-stars2' });
+    function playStars() {
+      stars.innerHTML = '';
+      for (let s = 0; s < 5; s++) {
+        const st = el('span', { class: 'rep-star2' });
+        st.innerHTML = s < starN ? SVG_STAR : SVG_STAR_O;
+        if (s < starN) {
+          st.classList.add('pop');
+          const delay = `${0.25 + s * 0.28}s`;
+          st.style.animationDelay = delay;
+          st.querySelector('svg').style.animationDelay = delay;
+        }
+        stars.append(st);
+      }
     }
+    playStars();
+
+    // 彩蛋：點獎盃重新釋放彩帶與星星動畫
+    const trophy = el('button', { class: 'rep-trophy2' });
+    trophy.innerHTML = SVG_TROPHY_BIG;
+    trophy.addEventListener('click', () => {
+      sfx.fanfare();
+      confetti(2500, 150);
+      playStars();
+    });
 
     const againBtn = el('button', { class: 'btn big berry rep-endbtn', onclick: () => { sfx.tap(); startPractice(items); } });
     const againIcon = el('span', { class: 'btn-svg' });
@@ -629,18 +647,23 @@ function startPractice(items) {
 
     root.innerHTML = '';
     root.append(
-      el('div', { class: 'card game-stage rep-end' },
-        trophy,
-        el('h2', { text: grade }),
-        stars,
-        el('p', { class: 'rep-avg', text: t('rep_avg', { n: avg }) }),
-        el('div', { class: 'rep-endlist' },
-          items.map((p, qi) => answers[qi] ? el('div', { class: 'rep-endrow' },
-            el('span', { text: p.text }),
-            el('span', { class: `rep-score-badge ${scoreCls(answers[qi].score)}`, text: String(answers[qi].score) }),
-          ) : null),
+      el('div', { class: 'card rep-end2' },
+        el('div', { class: 'end-list-col' },
+          el('h2', { text: `📋 ${t('rep_scoreboard')}` }),
+          el('div', { class: 'end-list' },
+            items.map((p, qi) => answers[qi] ? el('div', { class: 'end-row' },
+              el('span', { class: 'txt', text: p.text }),
+              el('span', { class: `mini-score ${scoreCls(answers[qi].score)}`, text: String(answers[qi].score) }),
+            ) : null),
+          ),
         ),
-        el('div', { class: 'row', style: 'justify-content:center;margin-top:22px;' }, againBtn, homeBtn),
+        el('div', { class: 'end-cheer' },
+          trophy,
+          stars,
+          el('div', { class: 'end-grade', text: grade }),
+          el('p', { class: 'rep-avg', text: t('rep_avg', { n: avg }) }),
+          el('div', { class: 'row', style: 'justify-content:center;margin-top:14px;' }, againBtn, homeBtn),
+        ),
       ),
     );
   }
