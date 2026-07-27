@@ -43,6 +43,13 @@ export const sfx = {
     tone(1567.98, 0, 0.1, 'sine', 0.15);
     tone(2093, 0.07, 0.14, 'sine', 0.12);
   },
+  /** 星星階梯音：第 i 顆（0~4）音高遞升，帶一點高八度亮光 */
+  star(i) {
+    const ladder = [523.25, 659.25, 783.99, 987.77, 1174.66]; // C5 E5 G5 B5 D6
+    const f = ladder[Math.min(i, ladder.length - 1)];
+    tone(f, 0, 0.22, 'triangle', 0.3);
+    tone(f * 2, 0.02, 0.12, 'sine', 0.1);
+  },
   whoosh() {
     const c = audioCtx();
     const len = 0.35 * c.sampleRate;

@@ -605,24 +605,30 @@ function startPractice(items) {
     const avg = Math.round(scored.reduce((s, a) => s + a.score, 0) / (scored.length || 1));
     const grade = avg >= 75 ? t('rep_end_great') : avg >= 50 ? t('rep_end_good') : t('rep_end_ok');
     const starN = Math.min(5, Math.max(1, Math.round(avg / 20)));
-    sfx.fanfare();
     confetti(2500, 150);
 
-    // 大星星（依序入場：彈跳＋光環爆閃＋小火花），可重播
+    // 大星星（依序入場：彈跳＋光環爆閃＋小火花＋階梯音效），可重播
     const stars = el('div', { class: 'rep-stars2' });
+    let starTimers = [];
     function playStars() {
+      for (const id of starTimers) clearTimeout(id);
+      starTimers = [];
       stars.innerHTML = '';
       for (let s = 0; s < 5; s++) {
         const st = el('span', { class: 'rep-star2' });
         st.innerHTML = s < starN ? SVG_STAR : SVG_STAR_O;
         if (s < starN) {
           st.classList.add('pop');
-          const delay = `${0.25 + s * 0.28}s`;
-          st.style.animationDelay = delay;
-          st.querySelector('svg').style.animationDelay = delay;
+          const delay = 0.25 + s * 0.28;
+          st.style.animationDelay = `${delay}s`;
+          st.querySelector('svg').style.animationDelay = `${delay}s`;
+          const idx = s;
+          starTimers.push(setTimeout(() => sfx.star(idx), delay * 1000 + 200));
         }
         stars.append(st);
       }
+      // 最後一顆落地後閃亮收尾
+      starTimers.push(setTimeout(() => sfx.sparkle(), (0.25 + (starN - 1) * 0.28) * 1000 + 550));
     }
     playStars();
 
@@ -630,7 +636,6 @@ function startPractice(items) {
     const trophy = el('button', { class: 'rep-trophy2' });
     trophy.innerHTML = SVG_TROPHY_BIG;
     trophy.addEventListener('click', () => {
-      sfx.fanfare();
       confetti(2500, 150);
       playStars();
     });
