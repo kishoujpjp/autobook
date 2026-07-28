@@ -90,7 +90,12 @@ async function call(model, body, opts = {}) {
  * Load failed）；故事生成要等模型寫完整篇才回傳，最容易中獎。
  * 改走 streamGenerateContent（SSE）讓資料持續流動，就不會被判定逾時。
  */
-async function callStreamText(model, body, { timeoutMs = 150000, stage = 'api' } = {}) {
+async function callStreamText(model, body, opts = {}) {
+  return (await callStream(model, body, opts)).text;
+}
+
+/** 串流共用底層：回傳 { text, inlineMime, inlineData }（inlineData 為 base64，分段自動串接） */
+async function callStream(model, body, { timeoutMs = 150000, stage = 'api' } = {}) {
   const key = settings.apiKey;
   if (!key) throw new Error('NO_KEY');
   const ac = new AbortController();
@@ -123,6 +128,8 @@ async function callStreamText(model, body, { timeoutMs = 150000, stage = 'api' }
     }
 
     let text = '';
+    let inlineMime = null;
+    const inlineParts = [];
     let buf = '';
     const takeLines = () => {
       let i;
@@ -135,7 +142,13 @@ async function callStreamText(model, body, { timeoutMs = 150000, stage = 'api' }
         try {
           const chunk = JSON.parse(payload);
           const parts = chunk?.candidates?.[0]?.content?.parts || [];
-          for (const p of parts) if (p.text) text += p.text;
+          for (const p of parts) {
+            if (p.text) text += p.text;
+            if (p.inlineData && p.inlineData.data) {
+              if (!inlineMime) inlineMime = p.inlineData.mimeType || '';
+              inlineParts.push(p.inlineData.data);
+            }
+          }
         } catch { /* 不完整的行，等下一個 chunk */ }
       }
     };
@@ -155,7 +168,7 @@ async function callStreamText(model, body, { timeoutMs = 150000, stage = 'api' }
       buf = (await res.text()) + '\n';
       takeLines();
     }
-    return text;
+    return { text, inlineMime, inlineParts };
   } catch (e) {
     if (!e.logged) { logErr(stage, model, e.message); e.logged = true; }
     throw e;
@@ -331,8 +344,30 @@ export async function detectPolys(text) {
 }
 
 /** 生成插圖，回傳 Blob */
-export async function generateImage(imagePrompt) {
-  const prompt = `Children's picture book illustration, soft watercolor style, cute and warm, bright cheerful colors, suitable for a 5-year-old. No text or letters in the image. Scene: ${imagePrompt}`;
+/**
+ * 合併串流回來的 base64 片段。分段可能是「各自完整的 base64」或
+ * 「同一段 base64 的切片」，先各自解碼（切片若剛好 4 的倍數亦等價），
+ * 解不開才退回字串串接後解碼。
+ */
+function joinB64(parts) {
+  if (parts.length === 1) return b64ToBytes(parts[0]);
+  try {
+    const arrs = parts.map(b64ToBytes);
+    const out = new Uint8Array(arrs.reduce((s, a) => s + a.length, 0));
+    let off = 0;
+    for (const a of arrs) { out.set(a, off); off += a.length; }
+    return out;
+  } catch {
+    return b64ToBytes(parts.join(''));
+  }
+}
+
+/**
+ * 串流生成圖片，回傳 Blob。
+ * 與故事同理：出圖要等模型畫完才回傳，行動 Safari 容易砍線（Load failed），
+ * 所以走 streamGenerateContent，圖片資料分段接收後再合併。
+ */
+async function streamImage(prompt) {
   const body = {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: {
@@ -340,18 +375,21 @@ export async function generateImage(imagePrompt) {
       imageConfig: { aspectRatio: '4:3' },
     },
   };
-  let resp;
+  let out;
   try {
-    resp = await call(settings.imageModel, body, { timeoutMs: 120000, stage: 'image' });
+    out = await callStream(settings.imageModel, body, { timeoutMs: 150000, stage: 'image' });
   } catch (e) {
-    // 某些模型版本不接受 imageConfig，退一步再試
+    // 網路/逾時再試也是一樣的結果，直接丟出；其餘（多為模型不吃 imageConfig）退一步重試
+    if (/網路錯誤|逾時/.test(e.message)) throw e;
     delete body.generationConfig.imageConfig;
-    resp = await call(settings.imageModel, body, { timeoutMs: 120000, stage: 'image' });
+    out = await callStream(settings.imageModel, body, { timeoutMs: 150000, stage: 'image' });
   }
-  const inline = firstInline(resp, 'image/');
-  if (!inline) throw new Error('NO_IMAGE');
-  const bytes = b64ToBytes(inline.data);
-  return new Blob([bytes], { type: inline.mimeType || 'image/png' });
+  if (!out.inlineParts.length) throw new Error('NO_IMAGE');
+  return new Blob([joinB64(out.inlineParts)], { type: out.inlineMime || 'image/png' });
+}
+
+export async function generateImage(imagePrompt) {
+  return streamImage(`Children's picture book illustration, soft watercolor style, cute and warm, bright cheerful colors, suitable for a 5-year-old. No text or letters in the image. Scene: ${imagePrompt}`);
 }
 
 /** 測試連線：打一次文字模型，成功回傳模型回覆，失敗丟出含完整訊息的錯誤 */
@@ -397,13 +435,8 @@ export async function testModels(onUpdate) {
     JSON.parse(firstText(resp)); // 解析不了視同失敗
   });
 
-  await run('diag_image', async () => {
-    const resp = await call(settings.imageModel, {
-      contents: [{ role: 'user', parts: [{ text: 'A single small red heart on a white background, minimal.' }] }],
-      generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
-    }, { timeoutMs: 120000, stage: 'test' });
-    if (!firstInline(resp, 'image/')) throw new Error('NO_IMAGE');
-  });
+  // 走與實際出圖相同的串流路徑，避免診斷通過但實際失敗的落差
+  await run('diag_image', () => streamImage('A single small red heart on a white background, minimal.'));
 
   // 走與實際發音完全相同的路徑（含朗讀指示），避免診斷通過但實際失敗的落差
   await run('diag_tts', () => ttsChar('好'));
@@ -438,24 +471,7 @@ export async function generatePhrases({ topic, count = 10, mode = 'word' }) {
 
 /** 跟讀配圖：回傳 Blob */
 export async function generatePhraseImage(text) {
-  const prompt = `A single cute, friendly illustration for a children's English flashcard showing: "${text}". Soft watercolor style, bright warm colors, simple composition on clean light background, no text, no letters, no words in the image.`;
-  const body = {
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { aspectRatio: '4:3' },
-    },
-  };
-  let resp;
-  try {
-    resp = await call(settings.imageModel, body, { timeoutMs: 120000, stage: 'image' });
-  } catch {
-    delete body.generationConfig.imageConfig;
-    resp = await call(settings.imageModel, body, { timeoutMs: 120000, stage: 'image' });
-  }
-  const inline = firstInline(resp, 'image/');
-  if (!inline) throw new Error('NO_IMAGE');
-  return new Blob([b64ToBytes(inline.data)], { type: inline.mimeType || 'image/png' });
+  return streamImage(`A single cute, friendly illustration for a children's English flashcard showing: "${text}". Soft watercolor style, bright warm colors, simple composition on clean light background, no text, no letters, no words in the image.`);
 }
 
 /** 任意文字 TTS（英文句子也可），回傳 WAV Blob */
