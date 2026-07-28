@@ -2,12 +2,13 @@
 // 顯示字形跟隨語系（資料仍存輸入時的原字形）；熟悉度依帳號×語系分開
 import { t, getLang } from './i18n.js';
 import { el, toast, confirmDialog, openModal, infoDialog } from './ui.js';
-import { sfx, playBlob, speakNative } from './sfx.js';
+import { sfx } from './sfx.js';
 import {
   settings, saveSettings, words, addWords, removeWords, setArchived,
-  getCard, cycleMark, idbGet, idbSet, hasAudioCached,
+  getCard, cycleMark, idbGet, idbSet,
 } from './store.js';
 import { ttsChar, errHintKey } from './gemini.js';
+import { speakChar } from './voice.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
 
 let root = null;
@@ -206,11 +207,9 @@ function render() {
         }
         void chip.offsetWidth;
         chip.classList.add('pop');
-        // 內建語音必須在手勢內「同步」呼叫（iOS），所以用同步索引決定路徑
+        // AI 快取 → 音節庫 → 內建語音（手勢內同步決策）
         const alt = getLang() === 'zh-Hans' ? t2s(w.ch) : s2t(w.ch);
-        const key = [w.ch, alt].find(hasAudioCached);
-        if (key) idbGet('audio', key).then((b) => b && playBlob(b)).catch(() => {});
-        else speakNative(w.ch);
+        speakChar(w.ch, [alt]);
       });
     } else {
       // 編輯模式：點按或滑過複選（在字卡上起手的拖曳不會捲動頁面）

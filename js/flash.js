@@ -4,11 +4,12 @@
 // 熟悉度紀錄依「帳號×語系」分開（store.cards）。
 import { t, getLang } from './i18n.js';
 import { el, toast } from './ui.js';
-import { sfx, playBlob, speakNative } from './sfx.js';
+import { sfx } from './sfx.js';
 import {
-  settings, saveSettings, words, isCooling, getCard, cycleMark, bumpFlash, idbGet, hasAudioCached,
+  settings, saveSettings, words, isCooling, getCard, cycleMark, bumpFlash,
 } from './store.js';
 import { WORDS } from './wordbank.js';
+import { speakChar } from './voice.js';
 import { convertTo } from './zhconv.js';
 
 const RECENT_AVOID = 5;                    // 避免短期內重複出同一張
@@ -256,10 +257,7 @@ export function startFlash(root, mode, onExit) {
         else if (mark === 'red') { sfx.unpop(); scheduleRetry(ch); }
         else sfx.tap();
         if (settings.tapSpeak) {
-          // 內建語音必須在手勢內同步呼叫（iOS）
-          const key = [ch, dispCh].find(hasAudioCached);
-          if (key) idbGet('audio', key).then((b) => b && playBlob(b)).catch(() => {});
-          else speakNative(ch);
+          speakChar(ch, [dispCh]); // AI 快取 → 音節庫 → 內建語音（手勢內同步決策）
         }
       });
       wrap.append(btn);

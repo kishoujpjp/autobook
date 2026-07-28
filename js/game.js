@@ -5,6 +5,7 @@ import { el, toast, confetti, infoDialog } from './ui.js';
 import { sfx, playBlob, speakNative } from './sfx.js';
 import { settings, saveSettings, words, bumpGame, getCard, idbGet, idbSet, hasAudioCached } from './store.js';
 import { ttsChar } from './gemini.js';
+import { playSyllable } from './voice.js';
 import { startFlash } from './flash.js';
 import { confirmDialog } from './ui.js';
 
@@ -227,17 +228,17 @@ function renderQuestion() {
 
   async function play() {
     speaker.classList.add('playing');
-    // 內建語音必須在手勢內同步呼叫（iOS），用同步索引決定路徑
+    // AI 快取 → 音節庫 → 內建語音（手勢內同步決策）
     const alt = getLang() === 'zh-Hans' ? t2s(q.ch) : s2t(q.ch);
     const key = [q.ch, alt].find(hasAudioCached);
     if (key) {
       const blob = await idbGet('audio', key).catch(() => null);
       if (blob) await playBlob(blob);
-      else speakNative(q.ch);
-    } else {
+      else if (!playSyllable(q.ch)) speakNative(q.ch);
+    } else if (!playSyllable(q.ch)) {
       speakNative(q.ch);
     }
-    speaker.classList.remove('playing');
+    setTimeout(() => speaker.classList.remove('playing'), 500);
   }
   speaker.addEventListener('click', () => { sfx.tap(); play(); });
 

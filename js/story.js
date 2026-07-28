@@ -11,6 +11,7 @@ import {
 } from './store.js';
 import { generateStory, generateImage, ttsChar, findNewChars, detectPolys, errHintKey } from './gemini.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
+import { playSyllable } from './voice.js';
 import { Fog } from './fog.js';
 
 let root = null;
@@ -569,16 +570,25 @@ function polyAt(story, i) {
 async function speakAt(story, dispCh, i) {
   const p = polyAt(story, i);
   const stored = [...story.text][i] || dispCh;
-  // 依序找：多音字所屬詞 → 原字形 → 顯示字形 → 繁簡另一邊（涵蓋舊版以顯示字形建立的快取）
-  // 用同步索引決定路徑：內建語音必須在手勢內同步呼叫（iOS）
-  const cands = p ? [`w:${p.word}`] : [];
-  cands.push(stored, dispCh, s2t(stored), t2s(stored));
-  const key = cands.find(hasAudioCached);
+
+  // 多音字：播所屬詞（AI 快取 → 內建語音整詞唸，會依詞境選對讀音）
+  if (p) {
+    if (hasAudioCached(`w:${p.word}`)) {
+      const blob = await idbGet('audio', `w:${p.word}`).catch(() => null);
+      if (blob) { playBlob(blob); return; }
+    }
+    speakNative(p.word);
+    return;
+  }
+
+  // 單字：AI 快取（原字形 → 顯示字形 → 繁簡另一邊）→ 音節庫 → 內建語音
+  const key = [stored, dispCh, s2t(stored), t2s(stored)].find(hasAudioCached);
   if (key) {
     const blob = await idbGet('audio', key).catch(() => null);
     if (blob) { playBlob(blob); return; }
   }
-  speakNative(stored); // AI 語音缺檔：用裝置內建語音頂上，保證有聲音
+  if (playSyllable(stored) || playSyllable(dispCh)) return;
+  speakNative(stored);
 }
 
 async function prepStoryVoice(story) {
