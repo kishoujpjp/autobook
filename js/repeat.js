@@ -3,7 +3,7 @@
 // 允許重複錄音刷分；左右邊緣箭頭或滑動換題（本輪沒分數不可往前）。
 import { t, getLang } from './i18n.js';
 import { el, toast, openModal, confirmDialog, infoDialog, confetti } from './ui.js';
-import { sfx, playBlob } from './sfx.js';
+import { sfx, playBlob, speakNative } from './sfx.js';
 import {
   settings, saveSettings, phrases, addPhrases, savePhrases,
   tagPhrases, clearPhraseTags, removePhrases, allPhraseTags, phraseGroupCount,
@@ -793,6 +793,7 @@ function startPractice(items) {
       speakBtn.classList.add('playing');
       if (!audioBlob) audioBlob = await getPhraseAudio(p.text);
       if (audioBlob) await playBlob(audioBlob);
+      else speakNative(p.text); // 缺檔用內建語音頂上
       speakBtn.classList.remove('playing');
     }
     speakBtn.addEventListener('click', () => { sfx.tap(); speak(); });

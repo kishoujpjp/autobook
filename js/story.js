@@ -2,7 +2,7 @@
 // 顯示時故事文字依語系做繁簡轉換（儲存保持生成當下的字形）
 import { t, getLang } from './i18n.js';
 import { el, toast, openModal, confirmDialog, infoDialog, confetti } from './ui.js';
-import { sfx, playBlob } from './sfx.js';
+import { sfx, playBlob, speakNative } from './sfx.js';
 import {
   settings, saveSettings, words, isHan, addWords, bumpUsed, bumpRead, setMark,
   stories, addStory, removeStory, getStory, saveStories, currentAccountId,
@@ -578,6 +578,7 @@ async function speakAt(story, dispCh, i) {
     const blob = await idbGet('audio', key).catch(() => null);
     if (blob) { playBlob(blob); return; }
   }
+  speakNative(stored); // AI 語音缺檔：用裝置內建語音頂上，保證有聲音
 }
 
 async function prepStoryVoice(story) {
@@ -634,6 +635,7 @@ async function prepStoryVoice(story) {
       failed.slice(0, 20).join('、') + (failed.length > 20 ? '…' : ''),
       lastErr ? lastErr.message : '',
       hint ? `👉 ${t(hint)}` : '',
+      t('tts_fallback_note'),
     ].filter(Boolean).join('\n'), true);
     return;
   }

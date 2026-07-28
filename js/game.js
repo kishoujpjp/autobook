@@ -2,7 +2,7 @@
 import { t, getLang } from './i18n.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
 import { el, toast, confetti, infoDialog } from './ui.js';
-import { sfx, playBlob } from './sfx.js';
+import { sfx, playBlob, speakNative } from './sfx.js';
 import { settings, saveSettings, words, bumpGame, getCard, idbGet, idbSet } from './store.js';
 import { ttsChar } from './gemini.js';
 import { startFlash } from './flash.js';
@@ -233,6 +233,7 @@ function renderQuestion() {
       if (alt !== q.ch) blob = await idbGet('audio', alt).catch(() => null);
     }
     if (blob) await playBlob(blob);
+    else speakNative(q.ch); // 缺檔用內建語音頂上
     speaker.classList.remove('playing');
   }
   speaker.addEventListener('click', () => { sfx.tap(); play(); });

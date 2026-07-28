@@ -111,3 +111,26 @@ export function playBlob(blob) {
     a.play().catch(() => resolve());
   });
 }
+
+/**
+ * 裝置內建語音（離線、永不失敗）：AI 語音缺檔時的後備。
+ * 中文一律 zh-TW（繁體＝資料核心，讀音以臺灣華語為準）；其他當英文唸。
+ * 回傳是否有唸出來。
+ */
+export function speakNative(text) {
+  if (!('speechSynthesis' in window)) return false;
+  try {
+    const zh = /\p{Script=Han}/u.test(text);
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = zh ? 'zh-TW' : 'en-US';
+    u.rate = 0.8; // 給小孩聽，放慢一點
+    const vs = speechSynthesis.getVoices();
+    const v = vs.find((x) => x.lang === u.lang)
+      || vs.find((x) => x.lang && x.lang.startsWith(zh ? 'zh' : 'en'));
+    if (v) u.voice = v;
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+    return true;
+  } catch { return false; }
+}

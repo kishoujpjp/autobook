@@ -2,7 +2,7 @@
 // 顯示字形跟隨語系（資料仍存輸入時的原字形）；熟悉度依帳號×語系分開
 import { t, getLang } from './i18n.js';
 import { el, toast, confirmDialog, openModal, infoDialog } from './ui.js';
-import { sfx, playBlob } from './sfx.js';
+import { sfx, playBlob, speakNative } from './sfx.js';
 import {
   settings, saveSettings, words, addWords, removeWords, setArchived,
   getCard, cycleMark, idbGet, idbSet,
@@ -212,6 +212,7 @@ function render() {
           if (alt !== w.ch) blob = await idbGet('audio', alt).catch(() => null);
         }
         if (blob) playBlob(blob);
+        else speakNative(w.ch); // 缺檔用內建語音頂上
       });
     } else {
       // 編輯模式：點按或滑過複選（在字卡上起手的拖曳不會捲動頁面）
@@ -290,6 +291,7 @@ async function fillAudio() {
       failed.slice(0, 20).join('、') + (failed.length > 20 ? '…' : ''),
       lastErr ? lastErr.message : '',
       hint ? `👉 ${t(hint)}` : '',
+      t('tts_fallback_note'),
     ].filter(Boolean).join('\n'), true);
     return;
   }

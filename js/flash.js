@@ -4,7 +4,7 @@
 // 熟悉度紀錄依「帳號×語系」分開（store.cards）。
 import { t, getLang } from './i18n.js';
 import { el, toast } from './ui.js';
-import { sfx, playBlob } from './sfx.js';
+import { sfx, playBlob, speakNative } from './sfx.js';
 import {
   settings, saveSettings, words, isCooling, getCard, cycleMark, bumpFlash, idbGet,
 } from './store.js';
@@ -259,6 +259,7 @@ export function startFlash(root, mode, onExit) {
           let blob = await idbGet('audio', ch).catch(() => null);
           if (!blob && dispCh !== ch) blob = await idbGet('audio', dispCh).catch(() => null);
           if (blob) playBlob(blob);
+          else speakNative(ch); // 缺檔用內建語音頂上
         }
       });
       wrap.append(btn);
