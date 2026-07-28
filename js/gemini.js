@@ -383,24 +383,57 @@ export async function ttsText(text) {
   return ttsChar(text);
 }
 
-/** 單字 TTS，回傳 WAV Blob */
-export async function ttsChar(ch) {
-  // TTS 模型需要明確的「朗讀」指示：單字/短句直接送會被當成聊天訊息，
-  // 模型想用文字回答而被 API 擋下（HTTP 400: Model tried to generate text）
-  const resp = await call(settings.ttsModel, {
-    contents: [{ role: 'user', parts: [{ text: `Read aloud in a warm, friendly voice: ${ch}` }] }],
-    generationConfig: {
-      responseModalities: ['AUDIO'],
-      speechConfig: {
-        voiceConfig: { prebuiltVoiceConfig: { voiceName: settings.voice || 'Leda' } },
-      },
-    },
-  }, { timeoutMs: 45000, apiKey: settings.ttsApiKey || null, stage: 'tts' });
-  const inline = firstInline(resp, 'audio/');
-  if (!inline) throw new Error('NO_AUDIO');
-  const bytes = b64ToBytes(inline.data);
-  // mimeType 形如 audio/L16;codec=pcm;rate=24000
-  const rateMatch = /rate=(\d+)/.exec(inline.mimeType || '');
-  const rate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
-  return pcmToWav(bytes, rate, 1);
+/**
+ * 單字／短句 TTS，回傳 WAV Blob。
+ * TTS 模型是「被要求只出聲音的 LLM」，有兩個坑要用指示講死：
+ * 1) 單字直接送會被當成聊天訊息 → 想用文字回答（HTTP 400，或 200 但沒有音訊）
+ * 2) 單一漢字會讓它猜錯語言（玉→tama、田→tan 是日語訓讀）→ 中文一律指定臺灣華語正式讀音
+ * 失敗會換一種提示重試，全失敗才丟 NO_AUDIO（附模型實際回應，見錯誤紀錄）。
+ */
+export async function ttsChar(text) {
+  const isZh = /\p{Script=Han}/u.test(text);
+  const prompts = isZh ? [
+    `請用標準臺灣華語（國語）的正式讀音朗讀，聲音溫柔親切。只朗讀冒號後的內容本身，不要回應、不要加任何其他字：${text}`,
+    `以下是朗讀稿。請一定用中文（臺灣華語）發音，絕對不要用日語、粵語或英語唸，只唸稿子本身：${text}`,
+  ] : [
+    `Read aloud in a warm, friendly voice, only the content after the colon: ${text}`,
+    `This is a script to read aloud in English. Say exactly this and nothing else: ${text}`,
+  ];
+
+  let detail = '';
+  for (let i = 0; i < prompts.length; i++) {
+    let resp;
+    try {
+      resp = await call(settings.ttsModel, {
+        contents: [{ role: 'user', parts: [{ text: prompts[i] }] }],
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: settings.voice || 'Leda' } },
+          },
+        },
+      }, { timeoutMs: 45000, apiKey: settings.ttsApiKey || null, stage: 'tts' });
+    } catch (e) {
+      // 模型想回文字被 API 擋（400）：換下一種提示再試；其他錯誤直接丟出
+      if (i < prompts.length - 1 && /generate text/i.test(e.message)) {
+        detail = e.message;
+        continue;
+      }
+      throw e;
+    }
+    const inline = firstInline(resp, 'audio/');
+    if (inline) {
+      const bytes = b64ToBytes(inline.data);
+      // mimeType 形如 audio/L16;codec=pcm;rate=24000
+      const rateMatch = /rate=(\d+)/.exec(inline.mimeType || '');
+      const rate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+      return pcmToWav(bytes, rate, 1);
+    }
+    // 有回應但沒有音訊：記下模型實際回了什麼，換下一種提示
+    const cand = (resp && resp.candidates && resp.candidates[0]) || null;
+    const txt = firstText(resp).slice(0, 60);
+    detail = `finishReason=${(cand && cand.finishReason) || '?'}${txt ? `，模型回了文字：「${txt}」` : ''}`;
+    logErr('tts', settings.ttsModel, `NO_AUDIO（提示 ${i + 1}/${prompts.length}）：${detail}`);
+  }
+  throw new Error(`NO_AUDIO：${detail}`);
 }

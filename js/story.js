@@ -301,7 +301,7 @@ function openReadSettings(story) {
     el('button', { class: 'btn sky', onclick: () => {
       sfx.tap();
       m.close();
-      prepStoryVoice(story, displayText(story, story.text));
+      prepStoryVoice(story);
     } }, '🔊 ', t('prep_voice')),
     el('button', { class: 'btn ghost', onclick: async () => {
       sfx.tap();
@@ -561,27 +561,26 @@ function polyAt(story, i) {
   return null;
 }
 
-/** 點讀／長按發音：多音字播所屬詞的音（讀音才正確），其他播單字音 */
+/**
+ * 點讀／長按發音：多音字播所屬詞的音（讀音才正確），其他播單字音。
+ * 快取以「儲存原字形」為主 key——繁體是資料核心，簡體顯示只是換皮，
+ * 這樣簡體同形字（髮/發 都顯示成 发）也能各播各的正確讀音。
+ */
 async function speakAt(story, dispCh, i) {
   const p = polyAt(story, i);
   if (p) {
     const blob = await idbGet('audio', `w:${p.word}`).catch(() => null);
     if (blob) { playBlob(blob); return; }
   }
-  speakIfCached(dispCh);
-}
-
-async function speakIfCached(ch) {
-  let blob = await idbGet('audio', ch).catch(() => null);
-  if (!blob) {
-    // 換一種字形再找（快取可能是在另一語系下準備的）
-    const alt = getLang() === 'zh-Hans' ? s2t(ch) : t2s(ch);
-    if (alt !== ch) blob = await idbGet('audio', alt).catch(() => null);
+  const stored = [...story.text][i] || dispCh;
+  // 依序找：原字形 → 顯示字形 → 繁簡另一邊（涵蓋舊版以顯示字形建立的快取）
+  for (const key of new Set([stored, dispCh, s2t(stored), t2s(stored)])) {
+    const blob = await idbGet('audio', key).catch(() => null);
+    if (blob) { playBlob(blob); return; }
   }
-  if (blob) playBlob(blob);
 }
 
-async function prepStoryVoice(story, dispText) {
+async function prepStoryVoice(story) {
   if (!settings.apiKey) { toast(t('game_need_key'), true); return; }
 
   const m = openModal('', { closable: false });
@@ -601,7 +600,8 @@ async function prepStoryVoice(story, dispText) {
     }
   } catch (e) { console.warn('poly detect failed', e); }
 
-  const uniq = [...new Set([...dispText].filter(isHan))];
+  // 以「儲存原字形」生成與快取（不用顯示字形：簡體同形字會撞 key、送簡體字也會讓 TTS 讀音不準）
+  const uniq = [...new Set([...story.text].filter(isHan))];
   const jobs = []; // { key, text }：單字 or 多音字所屬詞
   for (const ch of uniq) {
     const hit = await idbGet('audio', ch).catch(() => null);
