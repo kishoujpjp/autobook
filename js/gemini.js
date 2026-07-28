@@ -39,7 +39,8 @@ export function errHintKey(msg) {
   return null;
 }
 
-async function call(model, body, { timeoutMs = 90000, apiKey = null, stage = 'api' } = {}) {
+async function call(model, body, opts = {}) {
+  const { timeoutMs = 90000, apiKey = null, stage = 'api', _retry = true } = opts;
   const key = apiKey || settings.apiKey;
   if (!key) throw new Error('NO_KEY');
   const ac = new AbortController();
@@ -57,9 +58,14 @@ async function call(model, body, { timeoutMs = 90000, apiKey = null, stage = 'ap
         signal: ac.signal,
       });
     } catch (e) {
-      throw new Error(e && e.name === 'AbortError'
-        ? `逾時：${Math.round(timeoutMs / 1000)} 秒沒有回應`
-        : `網路錯誤：${(e && e.message) || e}`);
+      if (e && e.name === 'AbortError') throw new Error(`逾時：${Math.round(timeoutMs / 1000)} 秒沒有回應`);
+      // 行動網路偶發斷線（Safari「Load failed」）：等 1 秒自動重試一次
+      if (_retry) {
+        clearTimeout(timer);
+        await new Promise((r) => setTimeout(r, 1000));
+        return await call(model, body, { ...opts, _retry: false });
+      }
+      throw new Error(`網路錯誤：${(e && e.message) || e}`);
     }
     if (!res.ok) {
       let msg = `HTTP ${res.status}`;
@@ -71,7 +77,7 @@ async function call(model, body, { timeoutMs = 90000, apiKey = null, stage = 'ap
     }
     return await res.json();
   } catch (e) {
-    logErr(stage, model, e.message);
+    if (!e.logged) { logErr(stage, model, e.message); e.logged = true; }
     throw e;
   } finally {
     clearTimeout(timer);
@@ -148,14 +154,24 @@ export async function generateStory({ knownChars, mustInclude, priority, extraPr
       `另外輸出 image_prompt：用英文描述一張配圖（一個場景即可），風格為 soft watercolor children's picture book illustration, cute, warm, bright colors, no text, no words.`,
     ].filter(Boolean).join('\n');
 
-    const resp = await call(settings.textModel, {
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema: schema,
-        temperature: 1.0,
-      },
-    }, { stage: 'story' });
+    let resp;
+    try {
+      resp = await call(settings.textModel, {
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+          temperature: 1.0,
+        },
+      }, { stage: 'story' });
+    } catch (e) {
+      // 網路閃斷/逾時不中斷整輪：換下一次嘗試；其他錯誤（key/模型問題）直接丟出
+      if (/網路錯誤|逾時/.test(e.message)) {
+        notes.push(`第 ${attempt} 次：${e.message}`);
+        continue;
+      }
+      throw e;
+    }
 
     let data;
     try {
@@ -309,16 +325,8 @@ export async function testModels(onUpdate) {
     if (!firstInline(resp, 'image/')) throw new Error('NO_IMAGE');
   });
 
-  await run('diag_tts', async () => {
-    const resp = await call(settings.ttsModel, {
-      contents: [{ role: 'user', parts: [{ text: '好' }] }],
-      generationConfig: {
-        responseModalities: ['AUDIO'],
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: settings.voice || 'Leda' } } },
-      },
-    }, { timeoutMs: 45000, apiKey: settings.ttsApiKey || null, stage: 'test' });
-    if (!firstInline(resp, 'audio/')) throw new Error('NO_AUDIO');
-  });
+  // 走與實際發音完全相同的路徑（含朗讀指示），避免診斷通過但實際失敗的落差
+  await run('diag_tts', () => ttsChar('好'));
 
   return results;
 }
@@ -377,8 +385,10 @@ export async function ttsText(text) {
 
 /** 單字 TTS，回傳 WAV Blob */
 export async function ttsChar(ch) {
+  // TTS 模型需要明確的「朗讀」指示：單字/短句直接送會被當成聊天訊息，
+  // 模型想用文字回答而被 API 擋下（HTTP 400: Model tried to generate text）
   const resp = await call(settings.ttsModel, {
-    contents: [{ role: 'user', parts: [{ text: ch }] }],
+    contents: [{ role: 'user', parts: [{ text: `Read aloud in a warm, friendly voice: ${ch}` }] }],
     generationConfig: {
       responseModalities: ['AUDIO'],
       speechConfig: {
