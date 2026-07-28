@@ -84,6 +84,86 @@ async function call(model, body, opts = {}) {
   }
 }
 
+/**
+ * 串流版文字生成，回傳完整文字。
+ * 行動 Safari 會把「長時間沒有回應的單一請求」直接砍掉（約 60 秒，錯誤顯示
+ * Load failed）；故事生成要等模型寫完整篇才回傳，最容易中獎。
+ * 改走 streamGenerateContent（SSE）讓資料持續流動，就不會被判定逾時。
+ */
+async function callStreamText(model, body, { timeoutMs = 150000, stage = 'api' } = {}) {
+  const key = settings.apiKey;
+  if (!key) throw new Error('NO_KEY');
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    let res;
+    try {
+      res = await fetch(`${BASE}/${model}:streamGenerateContent?alt=sse`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': key,
+        },
+        body: JSON.stringify(body),
+        signal: ac.signal,
+      });
+    } catch (e) {
+      throw new Error(e && e.name === 'AbortError'
+        ? `逾時：${Math.round(timeoutMs / 1000)} 秒沒有回應`
+        : `網路錯誤：${(e && e.message) || e}`);
+    }
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try {
+        const err = await res.json();
+        const eo = Array.isArray(err) ? err[0] : err; // 串流端點的錯誤可能包在陣列裡
+        if (eo && eo.error && eo.error.message) msg = `HTTP ${res.status}：${eo.error.message.slice(0, 400)}`;
+      } catch { /* ignore */ }
+      throw new Error(msg);
+    }
+
+    let text = '';
+    let buf = '';
+    const takeLines = () => {
+      let i;
+      while ((i = buf.indexOf('\n')) !== -1) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + 1);
+        if (!line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        try {
+          const chunk = JSON.parse(payload);
+          const parts = chunk?.candidates?.[0]?.content?.parts || [];
+          for (const p of parts) if (p.text) text += p.text;
+        } catch { /* 不完整的行，等下一個 chunk */ }
+      }
+    };
+
+    if (res.body && res.body.getReader) {
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        takeLines();
+      }
+      buf += '\n';
+      takeLines();
+    } else {
+      buf = (await res.text()) + '\n';
+      takeLines();
+    }
+    return text;
+  } catch (e) {
+    if (!e.logged) { logErr(stage, model, e.message); e.logged = true; }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function firstText(resp) {
   const parts = resp?.candidates?.[0]?.content?.parts || [];
   return parts.map((p) => p.text || '').join('');
@@ -154,9 +234,9 @@ export async function generateStory({ knownChars, mustInclude, priority, extraPr
       `另外輸出 image_prompt：用英文描述一張配圖（一個場景即可），風格為 soft watercolor children's picture book illustration, cute, warm, bright colors, no text, no words.`,
     ].filter(Boolean).join('\n');
 
-    let resp;
+    let rawText;
     try {
-      resp = await call(settings.textModel, {
+      rawText = await callStreamText(settings.textModel, {
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         generationConfig: {
           responseMimeType: 'application/json',
@@ -175,7 +255,7 @@ export async function generateStory({ knownChars, mustInclude, priority, extraPr
 
     let data;
     try {
-      data = JSON.parse(firstText(resp));
+      data = JSON.parse(rawText);
     } catch {
       notes.push(`第 ${attempt} 次：模型輸出不是有效的 JSON`);
       continue; // JSON 壞掉就重試
@@ -219,7 +299,7 @@ export async function detectPolys(text) {
     '故事：',
     text,
   ].join('\n');
-  const resp = await call(settings.textModel, {
+  const rawText = await callStreamText(settings.textModel, {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: {
       responseMimeType: 'application/json',
@@ -241,7 +321,7 @@ export async function detectPolys(text) {
   }, { stage: 'poly' });
   let data;
   try {
-    data = JSON.parse(firstText(resp));
+    data = JSON.parse(rawText);
   } catch {
     return []; // 偵測失敗不影響主流程，缺多音字資料時點讀退回單字音
   }
