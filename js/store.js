@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.12.1';
+export const VERSION = '1.12.2';
 
 const LS = {
   settings: 'autobook.settings',
@@ -447,10 +447,24 @@ function tx(store, mode, fn) {
 }
 
 export const idbGet = (store, key) => tx(store, 'readonly', (s) => s.get(key));
-export const idbSet = (store, key, val) => tx(store, 'readwrite', (s) => s.put(val, key));
-export const idbDel = (store, key) => tx(store, 'readwrite', (s) => s.delete(key));
+export const idbSet = (store, key, val) => tx(store, 'readwrite', (s) => s.put(val, key))
+  .then((r) => { if (store === 'audio' && audioKeys) audioKeys.add(key); return r; });
+export const idbDel = (store, key) => tx(store, 'readwrite', (s) => s.delete(key))
+  .then((r) => { if (store === 'audio' && audioKeys) audioKeys.delete(key); return r; });
 export const idbKeys = (store) => tx(store, 'readonly', (s) => s.getAllKeys());
-export const idbClear = (store) => tx(store, 'readwrite', (s) => s.clear());
+export const idbClear = (store) => tx(store, 'readwrite', (s) => s.clear())
+  .then((r) => { if (store === 'audio') audioKeys = new Set(); return r; });
+
+// ---------- 語音快取 key 的同步索引 ----------
+// iOS 的 speechSynthesis 必須在使用者手勢的「同步」呼叫堆疊中觸發；
+// 點擊時不能先 await 查 IndexedDB 再決定要不要用內建語音，
+// 所以開站載入一次 key 清單，之後同步查、寫入時同步維護。
+let audioKeys = null;
+export function hasAudioCached(key) { return !!(audioKeys && audioKeys.has(key)); }
+export async function refreshAudioKeys() {
+  try { audioKeys = new Set(await idbKeys('audio')); } catch { audioKeys = new Set(); }
+}
+refreshAudioKeys();
 
 export async function clearAll() {
   localStorage.removeItem(LS.settings);

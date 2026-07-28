@@ -5,7 +5,7 @@ import { el, toast, confirmDialog, openModal, infoDialog } from './ui.js';
 import { sfx, playBlob, speakNative } from './sfx.js';
 import {
   settings, saveSettings, words, addWords, removeWords, setArchived,
-  getCard, cycleMark, idbGet, idbSet,
+  getCard, cycleMark, idbGet, idbSet, hasAudioCached,
 } from './store.js';
 import { ttsChar, errHintKey } from './gemini.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
@@ -191,9 +191,9 @@ function render() {
     chipByCh.set(w.ch, chip);
 
     if (!editMode) {
-      // 點一下：輪換熟悉度（白→綠→紅→白）＋唸字（已快取才唸）
+      // 點一下：輪換熟悉度（白→綠→紅→白）＋唸字（AI 快取優先，缺檔用內建語音）
       // 鎖定時：只發音，不改紅綠
-      chip.addEventListener('click', async () => {
+      chip.addEventListener('click', () => {
         if (settings.wordsLocked) {
           sfx.tap();
           chip.classList.remove('pop');
@@ -206,13 +206,11 @@ function render() {
         }
         void chip.offsetWidth;
         chip.classList.add('pop');
-        let blob = await idbGet('audio', w.ch).catch(() => null);
-        if (!blob) {
-          const alt = getLang() === 'zh-Hans' ? t2s(w.ch) : s2t(w.ch);
-          if (alt !== w.ch) blob = await idbGet('audio', alt).catch(() => null);
-        }
-        if (blob) playBlob(blob);
-        else speakNative(w.ch); // 缺檔用內建語音頂上
+        // 內建語音必須在手勢內「同步」呼叫（iOS），所以用同步索引決定路徑
+        const alt = getLang() === 'zh-Hans' ? t2s(w.ch) : s2t(w.ch);
+        const key = [w.ch, alt].find(hasAudioCached);
+        if (key) idbGet('audio', key).then((b) => b && playBlob(b)).catch(() => {});
+        else speakNative(w.ch);
       });
     } else {
       // 編輯模式：點按或滑過複選（在字卡上起手的拖曳不會捲動頁面）

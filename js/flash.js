@@ -6,7 +6,7 @@ import { t, getLang } from './i18n.js';
 import { el, toast } from './ui.js';
 import { sfx, playBlob, speakNative } from './sfx.js';
 import {
-  settings, saveSettings, words, isCooling, getCard, cycleMark, bumpFlash, idbGet,
+  settings, saveSettings, words, isCooling, getCard, cycleMark, bumpFlash, idbGet, hasAudioCached,
 } from './store.js';
 import { WORDS } from './wordbank.js';
 import { convertTo } from './zhconv.js';
@@ -256,10 +256,10 @@ export function startFlash(root, mode, onExit) {
         else if (mark === 'red') { sfx.unpop(); scheduleRetry(ch); }
         else sfx.tap();
         if (settings.tapSpeak) {
-          let blob = await idbGet('audio', ch).catch(() => null);
-          if (!blob && dispCh !== ch) blob = await idbGet('audio', dispCh).catch(() => null);
-          if (blob) playBlob(blob);
-          else speakNative(ch); // 缺檔用內建語音頂上
+          // 內建語音必須在手勢內同步呼叫（iOS）
+          const key = [ch, dispCh].find(hasAudioCached);
+          if (key) idbGet('audio', key).then((b) => b && playBlob(b)).catch(() => {});
+          else speakNative(ch);
         }
       });
       wrap.append(btn);

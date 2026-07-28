@@ -1,7 +1,7 @@
 // 設定頁：語系、API Key、模型、快取管理、版本
 import { t, setLang, getLang } from './i18n.js';
 import { el, toast, confirmDialog, infoDialog, openModal } from './ui.js';
-import { sfx, b64ToBytes } from './sfx.js';
+import { sfx, b64ToBytes, speakNative } from './sfx.js';
 import { testModels, errHintKey, readErrLog, clearErrLog } from './gemini.js';
 import {
   settings, saveSettings, clearAll, idbClear,
@@ -118,6 +118,12 @@ function render() {
         await idbClear('audio').catch(() => {});
         toast(t('set_cleared'));
       } }, '🔇 ', t('set_clear_audio')),
+      el('button', { class: 'btn ghost small', onclick: () => {
+        // 同步呼叫（不先 await）：這正是要驗證的 iOS 手勢限制
+        const ok = speakNative(t('native_test_text'));
+        const n = ('speechSynthesis' in window) ? speechSynthesis.getVoices().length : -1;
+        toast(ok ? t('native_test_sent', { n }) : t('native_test_unavail'), !ok);
+      } }, '🗣 ', t('native_test')),
       el('button', { class: 'btn ghost small', onclick: () => {
         sfx.tap();
         const { added } = addWords(DEMO_WORDS);

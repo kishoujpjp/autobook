@@ -133,9 +133,8 @@ function primeNative() {
   if (nativePrimed || !('speechSynthesis' in window)) return;
   nativePrimed = true;
   try {
-    const u = new SpeechSynthesisUtterance(' ');
-    u.volume = 0;
-    speechSynthesis.speak(u);
+    // 空字串＋預設音量：部分 iOS 版本會忽略 volume=0 的解鎖，空字串本身就無聲
+    speechSynthesis.speak(new SpeechSynthesisUtterance(''));
   } catch { /* ignore */ }
 }
 if (typeof document !== 'undefined') {

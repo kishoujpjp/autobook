@@ -3,7 +3,7 @@ import { t, getLang } from './i18n.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
 import { el, toast, confetti, infoDialog } from './ui.js';
 import { sfx, playBlob, speakNative } from './sfx.js';
-import { settings, saveSettings, words, bumpGame, getCard, idbGet, idbSet } from './store.js';
+import { settings, saveSettings, words, bumpGame, getCard, idbGet, idbSet, hasAudioCached } from './store.js';
 import { ttsChar } from './gemini.js';
 import { startFlash } from './flash.js';
 import { confirmDialog } from './ui.js';
@@ -227,13 +227,16 @@ function renderQuestion() {
 
   async function play() {
     speaker.classList.add('playing');
-    let blob = await idbGet('audio', q.ch).catch(() => null);
-    if (!blob) {
-      const alt = getLang() === 'zh-Hans' ? t2s(q.ch) : s2t(q.ch);
-      if (alt !== q.ch) blob = await idbGet('audio', alt).catch(() => null);
+    // 內建語音必須在手勢內同步呼叫（iOS），用同步索引決定路徑
+    const alt = getLang() === 'zh-Hans' ? t2s(q.ch) : s2t(q.ch);
+    const key = [q.ch, alt].find(hasAudioCached);
+    if (key) {
+      const blob = await idbGet('audio', key).catch(() => null);
+      if (blob) await playBlob(blob);
+      else speakNative(q.ch);
+    } else {
+      speakNative(q.ch);
     }
-    if (blob) await playBlob(blob);
-    else speakNative(q.ch); // 缺檔用內建語音頂上
     speaker.classList.remove('playing');
   }
   speaker.addEventListener('click', () => { sfx.tap(); play(); });

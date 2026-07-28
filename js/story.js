@@ -6,7 +6,7 @@ import { sfx, playBlob, speakNative } from './sfx.js';
 import {
   settings, saveSettings, words, isHan, addWords, bumpUsed, bumpRead, setMark,
   stories, addStory, removeStory, getStory, saveStories, currentAccountId,
-  idbGet, idbSet,
+  idbGet, idbSet, hasAudioCached,
   DEMO_STORY_HANT, DEMO_STORY_HANS,
 } from './store.js';
 import { generateStory, generateImage, ttsChar, findNewChars, detectPolys, errHintKey } from './gemini.js';
@@ -568,13 +568,13 @@ function polyAt(story, i) {
  */
 async function speakAt(story, dispCh, i) {
   const p = polyAt(story, i);
-  if (p) {
-    const blob = await idbGet('audio', `w:${p.word}`).catch(() => null);
-    if (blob) { playBlob(blob); return; }
-  }
   const stored = [...story.text][i] || dispCh;
-  // 依序找：原字形 → 顯示字形 → 繁簡另一邊（涵蓋舊版以顯示字形建立的快取）
-  for (const key of new Set([stored, dispCh, s2t(stored), t2s(stored)])) {
+  // 依序找：多音字所屬詞 → 原字形 → 顯示字形 → 繁簡另一邊（涵蓋舊版以顯示字形建立的快取）
+  // 用同步索引決定路徑：內建語音必須在手勢內同步呼叫（iOS）
+  const cands = p ? [`w:${p.word}`] : [];
+  cands.push(stored, dispCh, s2t(stored), t2s(stored));
+  const key = cands.find(hasAudioCached);
+  if (key) {
     const blob = await idbGet('audio', key).catch(() => null);
     if (blob) { playBlob(blob); return; }
   }
