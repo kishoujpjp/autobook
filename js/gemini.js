@@ -391,17 +391,21 @@ export async function ttsText(text) {
  * 失敗會換一種提示重試，全失敗才丟 NO_AUDIO（附模型實際回應，見錯誤紀錄）。
  */
 export async function ttsChar(text) {
+  // 指示本身用短英文（實測長中文指示會讓 preview TTS 大量回 finishReason=OTHER），
+  // 但語言用指示講死成臺灣華語；OTHER 多為暫時性失敗，同提示重試常會過
   const isZh = /\p{Script=Han}/u.test(text);
   const prompts = isZh ? [
-    `請用標準臺灣華語（國語）的正式讀音朗讀，聲音溫柔親切。只朗讀冒號後的內容本身，不要回應、不要加任何其他字：${text}`,
-    `以下是朗讀稿。請一定用中文（臺灣華語）發音，絕對不要用日語、粵語或英語唸，只唸稿子本身：${text}`,
+    `Say in Taiwanese Mandarin, warm and friendly: ${text}`,
+    `Read aloud in Mandarin Chinese with standard Taiwan pronunciation: ${text}`,
+    `Say in Taiwanese Mandarin, warm and friendly: ${text}`,
   ] : [
-    `Read aloud in a warm, friendly voice, only the content after the colon: ${text}`,
+    `Read aloud in a warm, friendly voice: ${text}`,
     `This is a script to read aloud in English. Say exactly this and nothing else: ${text}`,
   ];
 
   let detail = '';
   for (let i = 0; i < prompts.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 600)); // 暫時性失敗的退避間隔
     let resp;
     try {
       resp = await call(settings.ttsModel, {
