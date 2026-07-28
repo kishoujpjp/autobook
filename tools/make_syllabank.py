@@ -141,6 +141,11 @@ def main():
         'export function syllableOf(ch) {\n'
         '  return MAP.get(ch) || null;\n'
         '}\n'
+        '\n'
+        '/** 全部音節檔名（下載離線包用） */\n'
+        'export function allSyllables() {\n'
+        '  return [...new Set(MAP.values())];\n'
+        '}\n'
     )
     (ROOT / 'js' / 'readings.js').write_text(js, encoding='utf-8')
     print(f'js/readings.js：{len(js) // 1024} KB')

@@ -1,5 +1,7 @@
 // Service Worker：app shell 快取（cache-first），API 一律走網路
-const CACHE = 'autobook-v1.13.0';
+const CACHE = 'autobook-v1.13.1';
+// 音節音檔獨立持久快取：檔案不變，cache-first；版本更新時不清除（不用重抓 25MB）
+const SYL_CACHE = 'autobook-syl-1';
 const SHELL = [
   './',
   './index.html',
@@ -41,7 +43,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== SYL_CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
@@ -52,6 +54,17 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   // API 請求不快取
   if (url.origin !== location.origin) return;
+  // 音節音檔：cache-first（檔案內容不變，抓過就不再連網）
+  if (url.pathname.includes('/syl/')) {
+    e.respondWith(
+      caches.open(SYL_CACHE).then((c) =>
+        c.match(e.request).then((hit) => hit || fetch(e.request).then((res) => {
+          if (res.ok) c.put(e.request, res.clone());
+          return res;
+        }))),
+    );
+    return;
+  }
   const req = e.request.mode === 'navigate'
     ? new Request(e.request.url, { cache: 'no-cache' })
     : new Request(e.request, { cache: 'no-cache' });

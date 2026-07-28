@@ -11,6 +11,9 @@ import {
 } from './store.js';
 import { openAccountEditor } from './account.js';
 import { avatarEl } from './avatars.js';
+import { allSyllables } from './readings.js';
+
+const SYL_CACHE = 'autobook-syl-1'; // 與 sw.js 一致：音節音檔的持久快取
 
 let root = null;
 let onLangChange = null;
@@ -124,6 +127,8 @@ function render() {
         const n = ('speechSynthesis' in window) ? speechSynthesis.getVoices().length : -1;
         toast(ok ? t('native_test_sent', { n }) : t('native_test_unavail'), !ok);
       } }, '🗣 ', t('native_test')),
+      el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); downloadAllSyllables(); } },
+        '⬇️ ', t('set_dl_syl')),
       el('button', { class: 'btn ghost small', onclick: () => {
         sfx.tap();
         const { added } = addWords(DEMO_WORDS);
@@ -226,6 +231,29 @@ function openErrLog() {
     el('button', { class: 'btn berry small', onclick: () => { sfx.tap(); clearErrLog(); m.close(); toast(t('set_cleared')); } },
       '🗑 ', t('errlog_clear')),
   );
+}
+
+// ============ 音節發音離線包 ============
+/** 把全部音節 mp3 抓進持久快取（App 更新不會清掉）；已抓過的跳過，可中斷後續按 */
+async function downloadAllSyllables() {
+  if (!('caches' in window)) { toast(t('syl_dl_unavail'), true); return; }
+  const syls = allSyllables();
+  const cache = await caches.open(SYL_CACHE);
+  const existing = new Set((await cache.keys()).map((r) => new URL(r.url).pathname.split('/').pop()));
+  const missing = syls.filter((s) => !existing.has(`${s}.mp3`));
+  if (!missing.length) { toast(t('syl_dl_done')); return; }
+
+  const pm = progressModal('⬇️', t('syl_dl_ing'));
+  let done = 0, fail = 0;
+  const BATCH = 10;
+  for (let i = 0; i < missing.length; i += BATCH) {
+    await Promise.all(missing.slice(i, i + BATCH).map((s) =>
+      cache.add(`syl/${s}.mp3`).catch(() => { fail++; })));
+    done = Math.min(missing.length, i + BATCH);
+    pm.step(done, missing.length);
+  }
+  pm.close();
+  toast(fail ? t('syl_dl_partial', { n: fail }) : t('syl_dl_done'), !!fail);
 }
 
 // ============ 完整備份（含 AI 生成的圖片與語音快取） ============

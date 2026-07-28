@@ -1300,3 +1300,8 @@ for (const line of RAW.split('\n')) {
 export function syllableOf(ch) {
   return MAP.get(ch) || null;
 }
+
+/** 全部音節檔名（下載離線包用） */
+export function allSyllables() {
+  return [...new Set(MAP.values())];
+}
