@@ -4,21 +4,63 @@ import { pcmToWav, b64ToBytes } from './sfx.js';
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-async function call(model, body, { timeoutMs = 90000, apiKey = null } = {}) {
+// ---------- 錯誤紀錄（設定頁「錯誤紀錄」可查看，除錯用） ----------
+const ERRLOG_KEY = 'autobook.errlog';
+const ERRLOG_MAX = 30;
+
+export function readErrLog() {
+  try { return JSON.parse(localStorage.getItem(ERRLOG_KEY)) || []; } catch { return []; }
+}
+export function clearErrLog() { localStorage.removeItem(ERRLOG_KEY); }
+
+function logErr(stage, model, msg) {
+  try {
+    const log = readErrLog();
+    log.unshift({ t: Date.now(), stage, model, msg: String(msg).slice(0, 500) });
+    localStorage.setItem(ERRLOG_KEY, JSON.stringify(log.slice(0, ERRLOG_MAX)));
+  } catch { /* 空間滿等狀況不影響主流程 */ }
+}
+
+/** 依錯誤訊息回傳「常見原因提示」的 i18n key；對不上回 null */
+export function errHintKey(msg) {
+  const s = String(msg);
+  if (/NO_AUDIO|NO_IMAGE/.test(s)) return 'hint_nodata';
+  if (/逾時|TIMEOUT/i.test(s)) return 'hint_timeout';
+  if (/網路錯誤|Failed to fetch|NetworkError|Load failed/i.test(s)) return 'hint_network';
+  if (/API key not valid|API_KEY_INVALID|API key expired/i.test(s)) return 'hint_badkey';
+  const m = /HTTP (\d{3})/.exec(s);
+  if (!m) return null;
+  const c = +m[1];
+  if (c === 400) return 'hint_400';
+  if (c === 401 || c === 403) return 'hint_403';
+  if (c === 404) return 'hint_404';
+  if (c === 429) return 'hint_429';
+  if (c >= 500) return 'hint_5xx';
+  return null;
+}
+
+async function call(model, body, { timeoutMs = 90000, apiKey = null, stage = 'api' } = {}) {
   const key = apiKey || settings.apiKey;
   if (!key) throw new Error('NO_KEY');
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const res = await fetch(`${BASE}/${model}:generateContent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': key,
-      },
-      body: JSON.stringify(body),
-      signal: ac.signal,
-    });
+    let res;
+    try {
+      res = await fetch(`${BASE}/${model}:generateContent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': key,
+        },
+        body: JSON.stringify(body),
+        signal: ac.signal,
+      });
+    } catch (e) {
+      throw new Error(e && e.name === 'AbortError'
+        ? `逾時：${Math.round(timeoutMs / 1000)} 秒沒有回應`
+        : `網路錯誤：${(e && e.message) || e}`);
+    }
     if (!res.ok) {
       let msg = `HTTP ${res.status}`;
       try {
@@ -28,6 +70,9 @@ async function call(model, body, { timeoutMs = 90000, apiKey = null } = {}) {
       throw new Error(msg);
     }
     return await res.json();
+  } catch (e) {
+    logErr(stage, model, e.message);
+    throw e;
   } finally {
     clearTimeout(timer);
   }
@@ -78,6 +123,7 @@ export async function generateStory({ knownChars, mustInclude, priority, extraPr
   };
 
   let best = null;
+  const notes = []; // 每次嘗試的失敗原因（除錯用）
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     if (onStatus) onStatus(attempt);
@@ -109,15 +155,19 @@ export async function generateStory({ knownChars, mustInclude, priority, extraPr
         responseSchema: schema,
         temperature: 1.0,
       },
-    });
+    }, { stage: 'story' });
 
     let data;
     try {
       data = JSON.parse(firstText(resp));
     } catch {
+      notes.push(`第 ${attempt} 次：模型輸出不是有效的 JSON`);
       continue; // JSON 壞掉就重試
     }
-    if (!data.story || !data.title) continue;
+    if (!data.story || !data.title) {
+      notes.push(`第 ${attempt} 次：缺少 title/story 欄位`);
+      continue;
+    }
 
     const newChars = findNewChars(data.story, knownSet);
     const result = {
@@ -127,11 +177,15 @@ export async function generateStory({ knownChars, mustInclude, priority, extraPr
       newChars,
     };
     if (newChars.length <= maxNew) return result;
+    notes.push(`第 ${attempt} 次：表外新字 ${newChars.length} 個（${newChars.slice(0, 10).join('、')}）`);
     if (!best || newChars.length < best.newChars.length) best = result;
   }
 
   if (best) return best; // 接受新字最少的一次
-  throw new Error('GEN_FAIL');
+  const err = new Error('GEN_FAIL');
+  err.detail = notes.join('\n');
+  logErr('story', settings.textModel, `GEN_FAIL：${notes.join('；')}`);
+  throw err;
 }
 
 /**
@@ -168,8 +222,13 @@ export async function detectPolys(text) {
         required: ['items'],
       },
     },
-  });
-  const data = JSON.parse(firstText(resp));
+  }, { stage: 'poly' });
+  let data;
+  try {
+    data = JSON.parse(firstText(resp));
+  } catch {
+    return []; // 偵測失敗不影響主流程，缺多音字資料時點讀退回單字音
+  }
   return (data.items || []).filter((p) =>
     p && typeof p.char === 'string' && typeof p.word === 'string' &&
     [...p.char].length === 1 && p.word.includes(p.char) && text.includes(p.word));
@@ -187,11 +246,11 @@ export async function generateImage(imagePrompt) {
   };
   let resp;
   try {
-    resp = await call(settings.imageModel, body, { timeoutMs: 120000 });
+    resp = await call(settings.imageModel, body, { timeoutMs: 120000, stage: 'image' });
   } catch (e) {
     // 某些模型版本不接受 imageConfig，退一步再試
     delete body.generationConfig.imageConfig;
-    resp = await call(settings.imageModel, body, { timeoutMs: 120000 });
+    resp = await call(settings.imageModel, body, { timeoutMs: 120000, stage: 'image' });
   }
   const inline = firstInline(resp, 'image/');
   if (!inline) throw new Error('NO_IMAGE');
@@ -203,8 +262,65 @@ export async function generateImage(imagePrompt) {
 export async function testConnection() {
   const resp = await call(settings.textModel, {
     contents: [{ role: 'user', parts: [{ text: '請回答：好' }] }],
-  }, { timeoutMs: 30000 });
+  }, { timeoutMs: 30000, stage: 'test' });
   return firstText(resp) || '(空回覆)';
+}
+
+/**
+ * 全面診斷：依生成繪本實際用到的方式，逐一測試文字、JSON 結構輸出、插圖、語音四項。
+ * onUpdate(key, state)：state 為 'run' 或 {ok, msg}；回傳全部結果。
+ */
+export async function testModels(onUpdate) {
+  const results = [];
+  const run = async (key, fn) => {
+    if (onUpdate) onUpdate(key, 'run');
+    let r;
+    try { await fn(); r = { key, ok: true }; }
+    catch (e) { r = { key, ok: false, msg: e.message }; }
+    results.push(r);
+    if (onUpdate) onUpdate(key, r);
+  };
+
+  await run('diag_text', () => call(settings.textModel, {
+    contents: [{ role: 'user', parts: [{ text: '請回答：好' }] }],
+  }, { timeoutMs: 30000, stage: 'test' }));
+
+  await run('diag_json', async () => {
+    const resp = await call(settings.textModel, {
+      contents: [{ role: 'user', parts: [{ text: '輸出一個 JSON：title 填「好」、story 填「好」、image_prompt 填「ok」。' }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: { title: { type: 'STRING' }, story: { type: 'STRING' }, image_prompt: { type: 'STRING' } },
+          required: ['title', 'story', 'image_prompt'],
+        },
+        temperature: 1.0,
+      },
+    }, { timeoutMs: 45000, stage: 'test' });
+    JSON.parse(firstText(resp)); // 解析不了視同失敗
+  });
+
+  await run('diag_image', async () => {
+    const resp = await call(settings.imageModel, {
+      contents: [{ role: 'user', parts: [{ text: 'A single small red heart on a white background, minimal.' }] }],
+      generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+    }, { timeoutMs: 120000, stage: 'test' });
+    if (!firstInline(resp, 'image/')) throw new Error('NO_IMAGE');
+  });
+
+  await run('diag_tts', async () => {
+    const resp = await call(settings.ttsModel, {
+      contents: [{ role: 'user', parts: [{ text: '好' }] }],
+      generationConfig: {
+        responseModalities: ['AUDIO'],
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: settings.voice || 'Leda' } } },
+      },
+    }, { timeoutMs: 45000, apiKey: settings.ttsApiKey || null, stage: 'test' });
+    if (!firstInline(resp, 'audio/')) throw new Error('NO_AUDIO');
+  });
+
+  return results;
 }
 
 /** AI 出跟讀題：回傳英文單字/短句陣列 */
@@ -227,7 +343,7 @@ export async function generatePhrases({ topic, count = 10, mode = 'word' }) {
         required: ['items'],
       },
     },
-  });
+  }, { stage: 'phrase' });
   const data = JSON.parse(firstText(resp));
   return (data.items || []).filter((s) => typeof s === 'string' && s.trim());
 }
@@ -244,10 +360,10 @@ export async function generatePhraseImage(text) {
   };
   let resp;
   try {
-    resp = await call(settings.imageModel, body, { timeoutMs: 120000 });
+    resp = await call(settings.imageModel, body, { timeoutMs: 120000, stage: 'image' });
   } catch {
     delete body.generationConfig.imageConfig;
-    resp = await call(settings.imageModel, body, { timeoutMs: 120000 });
+    resp = await call(settings.imageModel, body, { timeoutMs: 120000, stage: 'image' });
   }
   const inline = firstInline(resp, 'image/');
   if (!inline) throw new Error('NO_IMAGE');
@@ -269,7 +385,7 @@ export async function ttsChar(ch) {
         voiceConfig: { prebuiltVoiceConfig: { voiceName: settings.voice || 'Leda' } },
       },
     },
-  }, { timeoutMs: 45000, apiKey: settings.ttsApiKey || null });
+  }, { timeoutMs: 45000, apiKey: settings.ttsApiKey || null, stage: 'tts' });
   const inline = firstInline(resp, 'audio/');
   if (!inline) throw new Error('NO_AUDIO');
   const bytes = b64ToBytes(inline.data);

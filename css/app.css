@@ -1584,3 +1584,32 @@ details.adv[open] summary::before { content: "▾ "; }
 .gate-opts { display: flex; gap: 16px; justify-content: center; padding-bottom: 8px; }
 
 .hidden { display: none !important; }
+
+/* ============ 連線診斷與錯誤紀錄 ============ */
+.diag-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 2px;
+  border-bottom: 2px dashed #F0E2C6;
+}
+.diag-name { font-size: 20px; font-weight: 800; }
+.diag-status { font-size: 24px; }
+.diag-note {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--berry-deep);
+  white-space: pre-wrap;
+  word-break: break-all;
+  padding: 4px 2px 8px;
+}
+.diag-note:empty { display: none; }
+
+.errlog-row { padding: 8px 2px; border-bottom: 2px dashed #F0E2C6; }
+.errlog-meta { font-size: 14px; font-weight: 700; color: var(--ink-soft); }
+.errlog-msg {
+  font-size: 16px;
+  font-weight: 600;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

@@ -7,7 +7,7 @@ import {
   settings, saveSettings, words, addWords, removeWords, setArchived,
   getCard, cycleMark, idbGet, idbSet,
 } from './store.js';
-import { ttsChar } from './gemini.js';
+import { ttsChar, errHintKey } from './gemini.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
 
 let root = null;
@@ -272,21 +272,28 @@ async function fillAudio() {
   ));
 
   let done = 0, fail = 0, lastErr = null;
+  const failed = [];
   for (const ch of missing) {
     try {
       const blob = await ttsChar(ch);
       await idbSet('audio', ch, blob);
-    } catch (e) { fail++; lastErr = e; console.warn('tts failed', ch, e); }
+    } catch (e) { fail++; lastErr = e; failed.push(ch); console.warn('tts failed', ch, e); }
     done++;
     msg.textContent = `${t('game_prep')} ${done}/${missing.length}`;
     fill.style.width = `${Math.round((done / missing.length) * 100)}%`;
   }
   m.close();
-  if (fail === missing.length && lastErr) {
-    infoDialog(t('err_title'), `${lastErr.message}${t('err_hint')}`, true);
+  if (fail) {
+    const hint = lastErr && errHintKey(lastErr.message);
+    infoDialog(t('err_title'), [
+      t('tts_fail_detail', { n: fail, total: missing.length }),
+      failed.slice(0, 20).join('、') + (failed.length > 20 ? '…' : ''),
+      lastErr ? lastErr.message : '',
+      hint ? `👉 ${t(hint)}` : '',
+    ].filter(Boolean).join('\n'), true);
     return;
   }
-  toast(fail ? t('game_prep_fail') : t('prep_voice_done'), !!fail);
+  toast(t('prep_voice_done'));
 }
 
 function statChip(num, label) {

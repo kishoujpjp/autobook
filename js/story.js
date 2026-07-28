@@ -9,7 +9,7 @@ import {
   idbGet, idbSet,
   DEMO_STORY_HANT, DEMO_STORY_HANS,
 } from './store.js';
-import { generateStory, generateImage, ttsChar, findNewChars, detectPolys } from './gemini.js';
+import { generateStory, generateImage, ttsChar, findNewChars, detectPolys, errHintKey } from './gemini.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
 import { Fog } from './fog.js';
 
@@ -534,8 +534,13 @@ async function runGeneration(mustInclude, extraPrompt) {
     console.error(e);
     m.close();
     if (e.message === 'NO_KEY') toast(t('api_missing'), true);
-    else if (e.message === 'GEN_FAIL') toast(t('gen_fail'), true);
-    else infoDialog(t('err_title'), `${e.message}${t('err_hint')}`, true);
+    else if (e.message === 'GEN_FAIL') {
+      // 附上每次嘗試失敗的原因（JSON 壞掉／缺欄位／表外字太多）
+      infoDialog(t('err_title'), `${t('gen_fail')}${e.detail ? `\n\n${e.detail}` : ''}`, true);
+    } else {
+      const hint = errHintKey(e.message);
+      infoDialog(t('err_title'), `${e.message}${hint ? `\n👉 ${t(hint)}` : ''}${t('err_hint')}`, true);
+    }
   }
 }
 
@@ -610,21 +615,29 @@ async function prepStoryVoice(story, dispText) {
   if (!jobs.length) { m.close(); toast(t('prep_voice_done')); return; }
 
   let done = 0, fail = 0, lastErr = null;
+  const failed = [];
   for (const j of jobs) {
     try {
       const blob = await ttsChar(j.text);
       await idbSet('audio', j.key, blob);
-    } catch (e) { fail++; lastErr = e; console.warn('tts failed', j.key, e); }
+    } catch (e) { fail++; lastErr = e; failed.push(j.text); console.warn('tts failed', j.key, e); }
     done++;
     msg.textContent = `${t('game_prep')} ${done}/${jobs.length}`;
     fill.style.width = `${Math.round((done / jobs.length) * 100)}%`;
   }
   m.close();
-  if (fail === jobs.length && lastErr) {
-    infoDialog(t('err_title'), `${lastErr.message}${t('err_hint')}`, true);
+  if (fail) {
+    // 部分或全部失敗：顯示失敗數量、失敗的字與具體錯誤＋對策
+    const hint = lastErr && errHintKey(lastErr.message);
+    infoDialog(t('err_title'), [
+      t('tts_fail_detail', { n: fail, total: jobs.length }),
+      failed.slice(0, 20).join('、') + (failed.length > 20 ? '…' : ''),
+      lastErr ? lastErr.message : '',
+      hint ? `👉 ${t(hint)}` : '',
+    ].filter(Boolean).join('\n'), true);
     return;
   }
-  toast(fail ? t('game_prep_fail') : t('prep_voice_done'), !!fail);
+  toast(t('prep_voice_done'));
 }
 
 export function refreshStoryPage() { render(); }

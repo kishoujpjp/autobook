@@ -2,7 +2,7 @@
 import { t, setLang, getLang } from './i18n.js';
 import { el, toast, confirmDialog, infoDialog, openModal } from './ui.js';
 import { sfx, b64ToBytes } from './sfx.js';
-import { testConnection } from './gemini.js';
+import { testModels, errHintKey, readErrLog, clearErrLog } from './gemini.js';
 import {
   settings, saveSettings, clearAll, idbClear,
   addWords, DEMO_WORDS, VERSION,
@@ -78,25 +78,16 @@ function render() {
     toast('OK!');
   });
   const testBtn = el('button', { class: 'btn sky small' }, '📡 ', t('set_test'));
-  testBtn.addEventListener('click', async () => {
+  testBtn.addEventListener('click', () => {
     sfx.tap();
     settings.apiKey = keyInput.value.trim();
     saveSettings();
     if (!settings.apiKey) { toast(t('api_missing'), true); return; }
-    testBtn.disabled = true;
-    testBtn.textContent = t('test_running');
-    try {
-      await testConnection();
-      sfx.sparkle();
-      await infoDialog(t('test_ok_title'), t('test_ok'));
-    } catch (e) {
-      console.error('test connection failed', e);
-      await infoDialog(t('err_title'), `${e.message}${t('err_hint')}`, true);
-    }
-    testBtn.disabled = false;
-    testBtn.textContent = '';
-    testBtn.append('📡 ', t('set_test'));
+    runDiagnostics();
   });
+
+  const errlogBtn = el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); openErrLog(); } },
+    '📋 ', t('errlog_title'));
 
   const ttsKeyInput = el('input', {
     class: 'text-input', type: 'password',
@@ -113,7 +104,7 @@ function render() {
     el('div', { class: 'field-label', text: `🔑 ${t('set_api')}` }),
     keyInput,
     el('p', { class: 'settings-note', text: t('set_api_note') }),
-    el('div', { class: 'row', style: 'margin-top:12px;' }, testBtn),
+    el('div', { class: 'row', style: 'margin-top:12px;' }, testBtn, errlogBtn),
     el('div', { class: 'field-label', text: `🔊 ${t('set_tts_key')}` }),
     ttsKeyInput,
     advancedModels(),
@@ -169,6 +160,66 @@ function render() {
       el('span', { style: 'color:var(--ink-soft);', text: `v${VERSION}` }),
     ),
   ));
+}
+
+// ============ 連線診斷與錯誤紀錄 ============
+/** 逐項測試：文字／JSON 結構輸出／插圖／語音，即時顯示 ✅❌ 與失敗原因＋對策 */
+async function runDiagnostics() {
+  const m = openModal(`🩺 ${t('diag_title')}`);
+  const rows = new Map();
+  for (const key of ['diag_text', 'diag_json', 'diag_image', 'diag_tts']) {
+    const status = el('span', { class: 'diag-status', text: '…' });
+    const note = el('div', { class: 'diag-note' });
+    m.body.append(
+      el('div', { class: 'diag-row' }, el('span', { class: 'diag-name', text: t(key) }), status),
+      note,
+    );
+    rows.set(key, { status, note });
+  }
+  const summary = el('p', { class: 'settings-note', text: t('diag_running') });
+  m.body.append(summary);
+
+  const results = await testModels((key, state) => {
+    const r = rows.get(key);
+    if (!r) return;
+    if (state === 'run') { r.status.textContent = '⏳'; return; }
+    r.status.textContent = state.ok ? '✅' : '❌';
+    if (!state.ok) {
+      const hint = errHintKey(state.msg);
+      r.note.textContent = state.msg + (hint ? `\n👉 ${t(hint)}` : '');
+    }
+  });
+
+  const bad = results.filter((r) => !r.ok);
+  summary.textContent = bad.length ? t('diag_some_fail', { n: bad.length }) : t('diag_all_ok');
+  if (!bad.length) sfx.sparkle();
+}
+
+/** 最近 30 筆 API 錯誤（時間｜階段｜模型｜訊息），可複製回報 */
+function openErrLog() {
+  const m = openModal(`📋 ${t('errlog_title')}`);
+  const log = readErrLog();
+  if (!log.length) {
+    m.body.append(el('p', { class: 'settings-note', text: t('errlog_empty') }));
+    return;
+  }
+  const stageNames = { story: t('errlog_st_story'), image: t('errlog_st_image'), tts: t('errlog_st_tts'), poly: t('errlog_st_poly'), test: t('errlog_st_test'), phrase: t('errlog_st_phrase'), api: 'API' };
+  for (const e of log) {
+    m.body.append(el('div', { class: 'errlog-row' },
+      el('div', { class: 'errlog-meta', text: `${new Date(e.t).toLocaleString()}｜${stageNames[e.stage] || e.stage}｜${e.model}` }),
+      el('div', { class: 'errlog-msg', text: e.msg }),
+    ));
+  }
+  m.foot.append(
+    el('button', { class: 'btn ghost small', onclick: async () => {
+      sfx.tap();
+      const text = log.map((e) => `${new Date(e.t).toISOString()} [${e.stage}] ${e.model}: ${e.msg}`).join('\n');
+      try { await navigator.clipboard.writeText(text); toast(t('errlog_copied')); }
+      catch { toast('✗', true); }
+    } }, '📋 ', t('errlog_copy')),
+    el('button', { class: 'btn berry small', onclick: () => { sfx.tap(); clearErrLog(); m.close(); toast(t('set_cleared')); } },
+      '🗑 ', t('errlog_clear')),
+  );
 }
 
 // ============ 完整備份（含 AI 生成的圖片與語音快取） ============
