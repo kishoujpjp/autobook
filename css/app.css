@@ -195,43 +195,49 @@ button {
   overflow: hidden;
 }
 
+/* 橫向：左欄標題＋圖＋翻頁鈕（圖下方），右欄整欄給文字；圖文空間利用最大化 */
 .story-layout {
   flex: 1;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-  gap: 24px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-areas:
+    'title text'
+    'fig   text'
+    'pager text';
+  gap: 14px 24px;
   align-items: stretch;
 }
-
-.fig-col, .text-col {
+.story-layout .story-title { grid-area: title; margin-bottom: 0; }
+.story-layout .fig-card { grid-area: fig; align-self: start; }
+/* 插圖高度受視窗高度約束：扣掉頁首、標題、圖卡文案、翻頁鈕與分頁列後的剩餘高度，
+   大螢幕（iPad 橫向）由欄寬決定 → 圖比最大化；小視窗自動縮圖，翻頁鈕不會被擠出畫面 */
+.story-layout .fig-wrap { width: min(100%, calc((100vh - 500px) * 4 / 3)); margin: 0 auto; }
+.story-layout .text-card { grid-area: text; }
+/* 翻頁鈕列：橫向時在圖片下方置中（DOM 順序＝下一頁在左、上一頁在右） */
+.story-pager {
+  grid-area: pager;
+  align-self: start;
   display: flex;
-  flex-direction: column;
-  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
 }
 
 .text-card {
-  flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   padding: 12px;
-  margin-bottom: 14px;
+  overflow: hidden; /* 極小視窗時保底：寧可裁掉也不讓字溢出卡片邊緣 */
 }
 
+/* 頁高由 JS 鎖成整行倍數：不可手滑捲動、無捲軸，整行完整顯示不溢出 */
 .story-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
   padding: 10px;
-}
-
-.story-controls {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
 }
 
 .page-btn {
@@ -260,10 +266,21 @@ button {
 }
 
 @media (max-width: 860px), (orientation: portrait) {
-  .story-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); gap: 14px; }
-  .fig-wrap { width: min(100%, calc(24vh * 4 / 3)); margin: 0 auto; }
+  /* 直向：圖在上、字在下，最下面一排是翻頁按鈕列（上一頁在左、下一頁在右） */
+  .story-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'title'
+      'fig'
+      'text'
+      'pager';
+    gap: 12px;
+  }
+  .story-layout .fig-wrap { width: min(100%, calc(30vh * 4 / 3)); margin: 0 auto; }
+  .story-pager { flex-direction: row-reverse; }
   .fig-card { padding: 12px; }
-  .story-title { font-size: 26px; margin-bottom: 8px; }
+  .story-title { font-size: 26px; }
 }
 
 .fig-card {
@@ -347,12 +364,18 @@ button {
   box-shadow: 0 5px 0 #E9B93C;
 }
 .zi.hl:active { box-shadow: 0 1px 0 #E9B93C; }
-.zi.pop { animation: zipop 0.35s ease; }
-@keyframes zipop {
-  0% { transform: scale(1); }
-  40% { transform: scale(1.22) rotate(-4deg); }
-  100% { transform: scale(1); }
+/* 標註模式：紅綠輪換（與認字卡同色系）＋長按發音，禁用長按選字 */
+.zi {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
+.zi.mk-g { background: #E3F6D3; color: #3E8B1F; box-shadow: 0 5px 0 #A9D889; }
+.zi.mk-g:active { box-shadow: 0 1px 0 #A9D889; }
+.zi.mk-r { background: #FFE0E9; color: var(--berry-deep); box-shadow: 0 5px 0 #F0A9C2; }
+.zi.mk-r:active { box-shadow: 0 1px 0 #F0A9C2; }
+/* 回彈只放大不旋轉（與字卡 fcpop 一致） */
+.zi.pop { animation: fcpop 0.3s ease; }
 
 .punct {
   width: 40px;
@@ -1454,8 +1477,8 @@ details.adv[open] summary::before { content: "▾ "; }
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 12px);
   right: 20px;
-  width: 68px;
-  height: 68px;
+  width: 84px;
+  height: 84px;
   border-radius: 50%;
   background: var(--card);
   border: 4px solid #fff;
@@ -1472,7 +1495,7 @@ details.adv[open] summary::before { content: "▾ "; }
 .page > .spread:first-child,
 .fc-stage > .spread:first-child,
 .rep-stage > .spread:first-child {
-  margin-right: 88px;
+  margin-right: 106px;
 }
 
 .avatar {

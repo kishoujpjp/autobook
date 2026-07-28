@@ -134,6 +134,47 @@ export async function generateStory({ knownChars, mustInclude, priority, extraPr
   throw new Error('GEN_FAIL');
 }
 
+/**
+ * 偵測故事中的多音字（破音字）：回傳 [{char, word}]。
+ * word 是該字在文中所屬的詞（故事裡實際連續出現的字串）；
+ * 之後 TTS 以「整個詞」為單位快取，點讀多音字時播詞的音，避免單字唸錯讀音。
+ */
+export async function detectPolys(text) {
+  const prompt = [
+    '以下是一篇給幼兒的中文故事。請找出正文中的「多音字（破音字）」：',
+    '指在這篇故事中的讀音，和這個字「單獨唸一個字」時最常見讀音不同的字。',
+    '每個回報兩個欄位：char（單一個字）、word（它在故事中所屬的詞，2~3 個字，必須是故事中實際連續出現、且包含該字的字串）。',
+    '只列讀音真的不同、需要注意的；沒有就回傳空陣列。',
+    '',
+    '故事：',
+    text,
+  ].join('\n');
+  const resp = await call(settings.textModel, {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'OBJECT',
+        properties: {
+          items: {
+            type: 'ARRAY',
+            items: {
+              type: 'OBJECT',
+              properties: { char: { type: 'STRING' }, word: { type: 'STRING' } },
+              required: ['char', 'word'],
+            },
+          },
+        },
+        required: ['items'],
+      },
+    },
+  });
+  const data = JSON.parse(firstText(resp));
+  return (data.items || []).filter((p) =>
+    p && typeof p.char === 'string' && typeof p.word === 'string' &&
+    [...p.char].length === 1 && p.word.includes(p.char) && text.includes(p.word));
+}
+
 /** 生成插圖，回傳 Blob */
 export async function generateImage(imagePrompt) {
   const prompt = `Children's picture book illustration, soft watercolor style, cute and warm, bright cheerful colors, suitable for a 5-year-old. No text or letters in the image. Scene: ${imagePrompt}`;

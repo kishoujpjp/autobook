@@ -4,7 +4,7 @@ import { t, getLang } from './i18n.js';
 import { el, toast, confirmDialog, openModal, infoDialog } from './ui.js';
 import { sfx, playBlob } from './sfx.js';
 import {
-  settings, words, addWords, removeWords, setArchived,
+  settings, saveSettings, words, addWords, removeWords, setArchived,
   getCard, cycleMark, idbGet, idbSet,
 } from './store.js';
 import { ttsChar } from './gemini.js';
@@ -105,6 +105,12 @@ function render() {
   const fillBtn = el('button', { class: 'btn sky small', onclick: () => { sfx.tap(); fillAudio(); } },
     '🔊 ', t('words_fill_audio'));
 
+  // 鎖定：點字只發音，不改紅綠（防小孩亂按）
+  const lockBtn = el('button', {
+    class: `btn small ${settings.wordsLocked ? 'berry' : 'ghost'}`,
+    onclick: () => { sfx.tap(); settings.wordsLocked = !settings.wordsLocked; saveSettings(); render(); },
+  }, settings.wordsLocked ? `🔒 ${t('words_unlock')}` : `🔓 ${t('words_lock')}`);
+
   const editBtn = el('button', {
     class: `btn small ${editMode ? 'mint' : 'ghost'}`,
     onclick: () => { sfx.tap(); editMode = !editMode; selected.clear(); render(); },
@@ -146,13 +152,14 @@ function render() {
   root.append(el('div', { class: 'spread', style: 'margin-bottom:10px;' },
     seg,
     el('div', { class: 'row' },
-      editMode ? archBtn : fillBtn,
-      editMode ? delBtn : null,
+      editMode ? archBtn : lockBtn,
+      editMode ? delBtn : fillBtn,
       editBtn,
     ),
   ));
   root.append(el('p', { class: 'settings-note', style: 'margin-bottom:12px;',
-    text: editMode ? `👉 ${t('words_edit_hint')}` : `👉 ${t('words_mark_hint')}` }));
+    text: editMode ? `👉 ${t('words_edit_hint')}`
+      : settings.wordsLocked ? `👉 ${t('words_lock_hint')}` : `👉 ${t('words_mark_hint')}` }));
 
   // ---- 字格 ----
   const now = Date.now();
@@ -185,12 +192,18 @@ function render() {
 
     if (!editMode) {
       // 點一下：輪換熟悉度（白→綠→紅→白）＋唸字（已快取才唸）
+      // 鎖定時：只發音，不改紅綠
       chip.addEventListener('click', async () => {
-        const mark = cycleMark(w.ch);
-        chip.classList.remove('mk-g', 'mk-r', 'pop');
-        if (mark === 'green') { chip.classList.add('mk-g'); sfx.correct(); }
-        else if (mark === 'red') { chip.classList.add('mk-r'); sfx.unpop(); }
-        else sfx.tap();
+        if (settings.wordsLocked) {
+          sfx.tap();
+          chip.classList.remove('pop');
+        } else {
+          const mark = cycleMark(w.ch);
+          chip.classList.remove('mk-g', 'mk-r', 'pop');
+          if (mark === 'green') { chip.classList.add('mk-g'); sfx.correct(); }
+          else if (mark === 'red') { chip.classList.add('mk-r'); sfx.unpop(); }
+          else sfx.tap();
+        }
         void chip.offsetWidth;
         chip.classList.add('pop');
         let blob = await idbGet('audio', w.ch).catch(() => null);

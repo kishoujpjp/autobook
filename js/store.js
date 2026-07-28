@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.10.1';
+export const VERSION = '1.11.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -19,6 +19,8 @@ const DEFAULT_SETTINGS = {
   lang: 'zh-Hant',
   tapSpeak: true,
   storyFont: 'small', // small | big
+  storyMode: 'hl',        // 故事點讀：'hl' 高亮模式（小孩自讀）| 'mark' 標註模式（親子共讀，紅綠輪換）
+  wordsLocked: false,     // 字表鎖定：點字只發音，不改紅綠
   weakMode: false,        // 不熟模式：遊戲只出紅字與白字
   wordLen: 'all',         // 認詞彙長度：'2' | '3' | 'all'
   repStrict: 'std',       // 跟讀評分嚴格度：'easy' | 'std' | 'hard'
@@ -94,6 +96,16 @@ export function cycleMark(ch) {
   c.markedAt = c.mark ? Date.now() : 0;
   saveWords();
   return c.mark;
+}
+
+/** 直接設定熟悉度（故事標註等其他入口用）：各入口共用同一份紀錄，以最後一次標註為準 */
+export function setMark(ch, mark) {
+  const w = words.find((x) => x.ch === ch);
+  if (!w) return;
+  const c = ensureCard(w);
+  c.mark = mark;
+  c.markedAt = mark ? Date.now() : 0;
+  saveWords();
 }
 
 export function bumpFlash(chs) {

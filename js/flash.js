@@ -29,6 +29,7 @@ function isWeak(w) {
 export function startFlash(root, mode, onExit) {
   const seq = [];
   let idx = -1;
+  let lastCycleAt = 0;                      // 防誤觸：上次輪換熟悉度的時間
   const retryQueue = [];                    // 標紅的字：{ch, due}
 
   // ---------- 出題池 ----------
@@ -239,6 +240,10 @@ export function startFlash(root, mode, onExit) {
       if (!btnsByCh.has(ch)) btnsByCh.set(ch, []);
       btnsByCh.get(ch).push(btn);
       btn.addEventListener('click', async () => {
+        // 防誤觸：短時間內連點不重複輪換
+        const nowT = Date.now();
+        if (nowT - lastCycleAt < 450) return;
+        lastCycleAt = nowT;
         const mark = cycleMark(ch);
         // 同一張卡裡相同的字全部同步變色
         for (const b of btnsByCh.get(ch)) {
