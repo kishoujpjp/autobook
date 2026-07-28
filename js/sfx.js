@@ -116,21 +116,51 @@ export function playBlob(blob) {
  * 裝置內建語音（離線、永不失敗）：AI 語音缺檔時的後備。
  * 中文一律 zh-TW（繁體＝資料核心，讀音以臺灣華語為準）；其他當英文唸。
  * 回傳是否有唸出來。
+ *
+ * iOS WebKit 有幾個已知怪癖，這裡逐一處理：
+ * - 語音要在「使用者手勢中」先講過一次才解鎖 → 首次觸控時 primeNative()
+ * - utterance 沒保留引用會被 GC，聲音出不來 → 存進 module 變數
+ * - cancel() 後引擎偶發卡在 paused → speak 後補 resume()
+ * - getVoices() 首次呼叫常是空陣列 → 監聽 voiceschanged；找不到聲音就靠 u.lang
  */
+let nativeU = null;
+if (typeof speechSynthesis !== 'undefined') {
+  try { speechSynthesis.addEventListener('voiceschanged', () => speechSynthesis.getVoices()); } catch { /* 舊瀏覽器 */ }
+}
+
+let nativePrimed = false;
+function primeNative() {
+  if (nativePrimed || !('speechSynthesis' in window)) return;
+  nativePrimed = true;
+  try {
+    const u = new SpeechSynthesisUtterance(' ');
+    u.volume = 0;
+    speechSynthesis.speak(u);
+  } catch { /* ignore */ }
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('pointerdown', primeNative, { once: true, capture: true });
+}
+
 export function speakNative(text) {
   if (!('speechSynthesis' in window)) return false;
   try {
+    primeNative();
     const zh = /\p{Script=Han}/u.test(text);
     const u = new SpeechSynthesisUtterance(text);
     u.lang = zh ? 'zh-TW' : 'en-US';
     u.rate = 0.8; // 給小孩聽，放慢一點
     const vs = speechSynthesis.getVoices();
-    const v = vs.find((x) => x.lang === u.lang)
-      || vs.find((x) => x.lang && x.lang.startsWith(zh ? 'zh' : 'en'));
+    const v = vs.find((x) => (x.lang || '').replace('_', '-') === u.lang)
+      || vs.find((x) => (x.lang || '').startsWith(zh ? 'zh' : 'en'));
     if (v) u.voice = v;
     if (currentAudio) { currentAudio.pause(); currentAudio = null; }
-    speechSynthesis.cancel();
+    nativeU = u; // 保留引用避免 GC
+    u.onend = () => { if (nativeU === u) nativeU = null; };
+    u.onerror = u.onend;
+    if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
     speechSynthesis.speak(u);
+    speechSynthesis.resume();
     return true;
   } catch { return false; }
 }
