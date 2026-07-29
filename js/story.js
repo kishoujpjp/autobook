@@ -17,6 +17,7 @@ import { Fog } from './fog.js';
 let root = null;
 let currentId = null;
 let fog = null;
+let pageResize = null; // 目前這次 render 的 resize 監聽（重繪前要先移除，避免累積）
 
 export function initStory(rootEl) {
   root = rootEl;
@@ -32,15 +33,21 @@ function displayText(story, text) {
   return convertTo(text, lang);
 }
 
-/** 點到的顯示字 → 字表裡對應的原字（找不到回傳 null） */
-function bankCharFor(dispCh) {
+/** 顯示字 → 字表原字 的查表（一次建好，點擊時 O(1)；原字形優先於繁簡另一形） */
+function buildBankMap() {
   const lang = getLang();
-  const w = words.find((x) => x.ch === dispCh || convertTo(x.ch, lang) === dispCh);
-  return w ? w.ch : null;
+  const map = new Map();
+  for (const w of words) map.set(w.ch, w.ch);
+  for (const w of words) {
+    const d = convertTo(w.ch, lang);
+    if (!map.has(d)) map.set(d, w.ch);
+  }
+  return map;
 }
 
 export function render() {
   if (fog) { fog.destroy(); fog = null; }
+  if (pageResize) { window.removeEventListener('resize', pageResize); pageResize = null; }
   root.innerHTML = '';
   const story = currentId ? getStory(currentId) : null;
   root.classList.toggle('story-fixed', !!story);
@@ -136,7 +143,8 @@ export function render() {
   upBtn.addEventListener('click', () => { sfx.tap(); flip(-1); });
   downBtn.addEventListener('click', () => { sfx.tap(); flip(1); });
   scroll.addEventListener('scroll', () => requestAnimationFrame(updatePager));
-  window.addEventListener('resize', () => { sizeText(); updatePager(); });
+  pageResize = () => { sizeText(); updatePager(); };
+  window.addEventListener('resize', pageResize);
 
   // 直向：圖上字下，最下排按鈕列；橫向：翻頁鈕移到圖片下方（下一頁在左、上一頁在右）
   root.append(el('div', { class: 'story-layout' },
@@ -152,6 +160,7 @@ export function render() {
   // ---- 文字按鈕 ----
   const hanIndices = [];
   const chars = [...dispText];
+  const bankMap = buildBankMap();
 
   function markCls(mk) {
     return mk === 'green' ? ' mk-g' : mk === 'red' ? ' mk-r' : '';
@@ -184,7 +193,7 @@ export function render() {
       btn.classList.remove('pop');
       void btn.offsetWidth; // 重新觸發動畫
       btn.classList.add('pop');
-      const bankCh = bankCharFor(ch);
+      const bankCh = bankMap.get(ch) || null;
 
       if (mode === 'hl') {
         const on = !btn.classList.contains('hl');
@@ -193,7 +202,7 @@ export function render() {
           highlights.add(i);
           sfx.pop();
           if (bankCh) bumpRead(bankCh, 1);
-          if (settings.tapSpeak) speakAt(story, ch, i);
+          if (settings.storySpeak) speakAt(story, ch, i);
         } else {
           highlights.delete(i);
           sfx.unpop();
@@ -211,7 +220,8 @@ export function render() {
         else if (next === 'red') sfx.unpop();
         else sfx.tap();
         if (bankCh) setMark(bankCh, next);
-        if (settings.tapSpeak && next) speakAt(story, ch, i);
+        // 發音規則：標綠（已學會）不發音；標紅發音一次幫忙複習；清除不發音
+        if (settings.storySpeak && next === 'red') speakAt(story, ch, i);
         story.marksBy[currentAccountId] = Object.fromEntries(marks);
       }
       saveStories();
@@ -220,20 +230,36 @@ export function render() {
     textWrap.append(btn);
   });
 
-  // ---- 迷霧與進度（高亮模式數高亮；標註模式紅綠都算，迷霧隨白字減少而打開） ----
+  // ---- 迷霧與進度（高亮模式數高亮；標註模式紅綠都算） ----
+  // 閱讀中只推進度條、迷霧不打開；全部讀完才一次揭曉：
+  // 迷霧分批散開（配階梯音）→ 圖片放大回彈＋魔法星星＋彩帶＋完成音
+  let celebrated = false; // 這次 render 是否已放過揭曉動畫（重開已完成的書不重播）
   function doneCount() {
     return mode === 'hl' ? highlights.size : marks.size;
+  }
+  function celebrate() {
+    if (!fog) return;
+    fog.revealAll({
+      onStep: (i) => sfx.star(i),
+      onDone: () => {
+        figWrap.classList.remove('reveal-bounce');
+        void figWrap.offsetWidth;
+        figWrap.classList.add('reveal-bounce');
+        spawnMagicStars(figWrap);
+        sfx.fanfare();
+        confetti();
+      },
+    });
   }
   function updateProgress() {
     const total = hanIndices.length || 1;
     const ratio = doneCount() / total;
     progressFill.style.width = `${Math.round(ratio * 100)}%`;
-    if (fog) fog.setRatio(ratio);
     if (ratio >= 0.999) {
-      if (fogHint.textContent !== t('fog_hint_done')) {
-        fogHint.textContent = t('fog_hint_done');
-        sfx.fanfare();
-        confetti();
+      fogHint.textContent = t('fog_hint_done');
+      if (!celebrated) {
+        celebrated = true;
+        celebrate();
       }
     } else {
       fogHint.textContent = `${t('fog_hint_locked')}（${t('read_progress')} ${doneCount()}/${total}）`;
@@ -242,16 +268,31 @@ export function render() {
 
   requestAnimationFrame(() => {
     fog = new Fog(fogCanvas, story.id);
-    // 進場時直接顯示既有進度（不做動畫堆疊）
+    // 進場：已完成的書直接亮圖（不重播動畫）；未完成一律全罩迷霧
     const total = hanIndices.length || 1;
-    fog.revealed = Math.floor(fog.total * (doneCount() / total));
-    if (doneCount() >= total) fog.revealed = fog.total;
+    const done = doneCount() >= total;
+    fog.revealed = done ? fog.total : 0;
     fog.draw(1);
-    fog.canvas.style.opacity = fog.revealed >= fog.total ? '0' : '1';
+    fog.canvas.style.opacity = done ? '0' : '1';
+    if (done) celebrated = true;
     updateProgress();
     sizeText();
     updatePager();
   });
+}
+
+/** 揭曉時灑在插圖上的魔法星星 */
+function spawnMagicStars(host) {
+  const glyphs = ['✨', '⭐', '🌟'];
+  for (let i = 0; i < 12; i++) {
+    const s = el('span', { class: 'magic-star', text: glyphs[i % glyphs.length] });
+    s.style.left = `${6 + Math.random() * 84}%`;
+    s.style.top = `${6 + Math.random() * 84}%`;
+    s.style.fontSize = `${22 + Math.random() * 26}px`;
+    s.style.animationDelay = `${(Math.random() * 0.45).toFixed(2)}s`;
+    host.append(s);
+    setTimeout(() => s.remove(), 2200);
+  }
 }
 
 // ---------- 閱讀設定（集中故事頁的工具鈕） ----------
@@ -293,9 +334,22 @@ function openReadSettings(story) {
   };
   fontSeg.append(mkFont('small', `🔡 ${t('font_small')}`), mkFont('big', `🔠 ${t('font_big')}`));
 
+  // 點字發音開關（標註模式下：標綠不發音、標紅發音一次）
+  const speakSw = el('button', { class: `switch${settings.storySpeak ? ' on' : ''}` });
+  speakSw.addEventListener('click', () => {
+    sfx.tap();
+    settings.storySpeak = !settings.storySpeak;
+    saveSettings();
+    speakSw.classList.toggle('on', settings.storySpeak);
+  });
+
   m.body.append(
     el('div', { class: 'field-label', text: t('rs_mode') }), modeSeg,
     el('div', { class: 'field-label', text: t('rs_font') }), fontSeg,
+    el('div', { class: 'settings-line', style: 'margin-top:14px;' },
+      el('span', { text: `🗣️ ${t('rs_speak')}` }), speakSw,
+    ),
+    el('p', { class: 'settings-note', text: t('rs_speak_note') }),
   );
 
   m.foot.append(
@@ -368,11 +422,6 @@ function openShelfModal() {
 
 // ---------- 生成面板 ----------
 function openGenModal() {
-  if (words.length < 10 && settings.apiKey) {
-    toast(t('gen_need_words'), true);
-    return;
-  }
-
   const m = openModal(`✨ ${t('gen_title')}`);
   const selected = new Set();
 
@@ -412,7 +461,16 @@ function openGenModal() {
   );
 
   m.foot.append(
+    el('button', { class: 'btn ghost', onclick: () => {
+      sfx.tap();
+      m.close();
+      openManualModal();
+    } }, '📝 ', t('manual_add')),
     el('button', { class: 'btn big berry', onclick: () => {
+      if (words.length < 10 && settings.apiKey) {
+        toast(t('gen_need_words'), true);
+        return;
+      }
       sfx.whoosh();
       // 今日新字：直接加入字表，並列為本次必用字
       const todayChars = [...new Set([...todayInput.value].filter(isHan))];
@@ -422,6 +480,94 @@ function openGenModal() {
       runGeneration(must, promptInput.value.trim());
     } }, '🪄 ', t('gen_go')),
   );
+}
+
+// ---------- 手動加入繪本（自己輸入文字＋上傳插圖） ----------
+function openManualModal() {
+  const m = openModal(`📝 ${t('manual_add')}`);
+
+  const titleInput = el('input', {
+    class: 'text-input', placeholder: t('manual_title_ph'),
+    autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
+  });
+  const textInput = el('textarea', {
+    class: 'text-area', placeholder: t('manual_text_ph'), style: 'min-height:180px;',
+  });
+
+  let imgBlob = null;
+  const fileInput = el('input', { type: 'file', accept: 'image/*', style: 'display:none;' });
+  const preview = el('img', {
+    alt: '', style: 'display:none;max-width:100%;border-radius:16px;margin-top:10px;',
+  });
+  const pickBtn = el('button', { class: 'btn ghost small' }, '🖼 ', t('manual_pick_img'));
+  pickBtn.addEventListener('click', () => { sfx.tap(); fileInput.click(); });
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    try {
+      imgBlob = await downscaleImage(file, 1280);
+      preview.src = URL.createObjectURL(imgBlob);
+      preview.style.display = 'block';
+    } catch (e) {
+      console.warn(e);
+      toast(t('acc_img_fail'), true);
+    }
+  });
+
+  m.body.append(
+    el('div', { class: 'field-label', text: t('manual_title_label') }), titleInput,
+    el('div', { class: 'field-label', text: t('manual_text_label') }), textInput,
+    el('div', { class: 'field-label', text: t('manual_img_label') }),
+    el('div', {}, pickBtn, preview, fileInput),
+  );
+
+  m.foot.append(el('button', { class: 'btn big mint', onclick: async () => {
+    const text = textInput.value.trim();
+    if (!text || ![...text].some(isHan)) { toast(t('manual_need_text'), true); return; }
+    sfx.tap();
+    const lang = getLang();
+    const title = titleInput.value.trim() || [...text].slice(0, 8).join('');
+    const bankSet = new Set(words.map((w) => convertTo(w.ch, lang)));
+    const id = `s${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
+    const story = {
+      id, title, text, lang,
+      createdAt: Date.now(),
+      newChars: findNewChars(text, bankSet),
+      hasImage: false,
+      manual: true,
+    };
+    if (imgBlob) {
+      await idbSet('images', id, imgBlob).catch(() => {});
+      story.hasImage = true;
+    }
+    // 與 AI 生成一致：記錄字表用字次數
+    const storySet = new Set([...text]);
+    bumpUsed(words.filter((w) => storySet.has(convertTo(w.ch, lang))).map((w) => w.ch));
+    await addStory(story);
+    currentId = id;
+    m.close();
+    sfx.sparkle();
+    render();
+  } }, '💾 ', t('manual_save')));
+}
+
+/** 上傳圖縮到最長邊 max（維持比例）回傳 JPEG blob */
+function downscaleImage(file, max) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.width * k));
+      canvas.height = Math.max(1, Math.round(img.height * k));
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/jpeg', 0.85);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('img load failed')); };
+    img.src = url;
+  });
 }
 
 // ---------- 語音輸入 ----------

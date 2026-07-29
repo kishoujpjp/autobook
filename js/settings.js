@@ -8,6 +8,7 @@ import {
   addWords, DEMO_WORDS, VERSION,
   accounts, currentAccount,
   BACKUP_KEYS, idbKeys, idbGet, idbSet,
+  flushSaves, cancelPendingSaves,
 } from './store.js';
 import { openAccountEditor } from './account.js';
 import { avatarEl } from './avatars.js';
@@ -290,6 +291,7 @@ function progressModal(emoji, label) {
 }
 
 async function exportBackup() {
+  flushSaves(); // 延遲中的寫入先落盤，備份才是最新資料
   const pm = progressModal('📤', t('backup_preparing'));
   try {
     const data = {
@@ -370,6 +372,7 @@ async function importBackupFile(file) {
 
   const pm = progressModal('📥', t('backup_importing'));
   try {
+    cancelPendingSaves(); // 不讓延遲寫入在 reload 前把舊資料蓋回匯入的內容
     // localStorage（保留這台裝置已填的金鑰）
     for (const [key, raw] of Object.entries(data.local)) {
       if (key === 'autobook.settings') {

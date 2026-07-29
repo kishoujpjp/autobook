@@ -66,23 +66,42 @@ export class Fog {
     this.draw(1);
   }
 
-  /** ratio 0~1，換算要揭開幾格；有新格會做散開動畫 */
-  setRatio(ratio) {
-    const target = ratio >= 0.999 ? this.total : Math.floor(this.total * ratio);
-    if (target > this.revealed) {
+  /**
+   * 全讀完的揭曉：把剩下的格分批散開（每批呼叫 onStep(i)，配階梯音），
+   * 全開後整層淡出，結束時呼叫 onDone（接圖片回彈與彩帶）。
+   */
+  revealAll({ onStep, onDone, batches = 5, interval = 240 } = {}) {
+    clearTimeout(this._revealTimer);
+    const remaining = this.total - this.revealed;
+    if (remaining <= 0) {
+      this.canvas.style.opacity = '0';
+      if (onDone) onDone();
+      return;
+    }
+    const per = Math.ceil(remaining / batches);
+    let batch = 0;
+    const step = () => {
       const now = performance.now();
+      const target = Math.min(this.total, this.revealed + per);
       for (let i = this.revealed; i < target; i++) {
         this.animCells.push({ idx: i, start: now });
       }
       this.revealed = target;
       this._animate();
-    } else if (target < this.revealed) {
-      this.revealed = target;
-      this.animCells = [];
-      this.draw(1);
-    }
-    this.canvas.style.opacity = this.revealed >= this.total ? '0' : '1';
-    this.canvas.style.transition = 'opacity 1.2s ease';
+      if (onStep) onStep(batch);
+      batch++;
+      if (this.revealed < this.total) {
+        this._revealTimer = setTimeout(step, interval);
+      } else {
+        // 等最後一批散開動畫跑完再淡出整層
+        this._revealTimer = setTimeout(() => {
+          this.canvas.style.transition = 'opacity 0.6s ease';
+          this.canvas.style.opacity = '0';
+          this._revealTimer = setTimeout(() => { if (onDone) onDone(); }, 400);
+        }, 650);
+      }
+    };
+    step();
   }
 
   _animate() {
@@ -149,5 +168,6 @@ export class Fog {
 
   destroy() {
     cancelAnimationFrame(this.raf);
+    clearTimeout(this._revealTimer);
   }
 }

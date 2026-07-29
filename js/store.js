@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.13.4';
+export const VERSION = '1.14.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS = {
   tapSpeak: true,
   storyFont: 'small', // small | big
   storyMode: 'hl',        // 故事點讀：'hl' 高亮模式（小孩自讀）| 'mark' 標註模式（親子共讀，紅綠輪換）
+  storySpeak: true,       // 故事點字發音（標註模式下：標綠不發音、標紅發音一次）
   wordsLocked: false,     // 字表鎖定：點字只發音，不改紅綠
   weakMode: false,        // 不熟模式：遊戲只出紅字與白字
   wordLen: 'all',         // 認詞彙長度：'2' | '3' | 'all'
@@ -42,6 +43,37 @@ function load(key, fallback) {
 }
 function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
 
+// ---------- 延遲寫入（效能） ----------
+// 字表與故事在點讀/標註時每一下都會「存檔」，同步 stringify＋寫 localStorage
+// 連點時會卡頓。改成合併延遲寫入：閒置 400ms 後才真正寫；
+// 離開頁面（pagehide / 切到背景）時強制 flush，資料不會掉。
+const pendingSaves = new Map(); // key -> getter
+let saveTimer = 0;
+function scheduleSave(key, getter) {
+  pendingSaves.set(key, getter);
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSaves, 400);
+}
+/** 立刻把延遲中的寫入全部落盤（備份匯出前要先呼叫） */
+export function flushSaves() {
+  clearTimeout(saveTimer);
+  saveTimer = 0;
+  for (const [key, getter] of pendingSaves) save(key, getter());
+  pendingSaves.clear();
+}
+/** 丟棄延遲中的寫入（匯入備份/清除資料後 reload 前呼叫，避免舊資料在 pagehide 蓋回去） */
+export function cancelPendingSaves() {
+  clearTimeout(saveTimer);
+  saveTimer = 0;
+  pendingSaves.clear();
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', flushSaves);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushSaves();
+  });
+}
+
 // ---------- settings ----------
 export const settings = Object.assign({}, DEFAULT_SETTINGS, load(LS.settings, {}));
 export function saveSettings() { save(LS.settings, settings); }
@@ -59,22 +91,23 @@ if (settings.textModel === 'gemini-2.5-flash') {
 // cards＝熟悉度紀錄，依「帳號|語系」分開：{ 'accId|lang': {mark, markedAt, flashCount, ok, ng} }
 //   mark＝'green'(學會)/'red'(還不會)/null；flashCount＝字卡出現次數；ok/ng＝聽音認字答對/錯
 export let words = load(LS.words, []);
-export function saveWords() { save(LS.words, words); }
+export function saveWords() { scheduleSave(LS.words, () => words); }
 
-/** 熟悉度紀錄的鍵：目前帳號＋目前語系 */
-export function cardKey() {
-  return `${currentAccountId}|${settings.lang}`;
+/** 熟悉度紀錄的鍵：指定帳號（預設目前帳號）＋目前語系 */
+export function cardKey(accId) {
+  return `${accId || currentAccountId}|${settings.lang}`;
 }
 
 const EMPTY_CARD = Object.freeze({ mark: null, markedAt: 0, flashCount: 0, ok: 0, ng: 0 });
 
-export function getCard(w) {
-  return (w.cards && w.cards[cardKey()]) || EMPTY_CARD;
+/** accId 可指定要看哪個帳號的紀錄（家長檢視小孩用），省略＝目前帳號 */
+export function getCard(w, accId) {
+  return (w.cards && w.cards[cardKey(accId)]) || EMPTY_CARD;
 }
 
-export function ensureCard(w) {
+export function ensureCard(w, accId) {
   if (!w.cards) w.cards = {};
-  const k = cardKey();
+  const k = cardKey(accId);
   if (!w.cards[k]) w.cards[k] = { mark: null, markedAt: 0, flashCount: 0, ok: 0, ng: 0 };
   return w.cards[k];
 }
@@ -87,11 +120,11 @@ export function isCooling(w, now = Date.now()) {
   return c.mark === 'green' && now - c.markedAt < GREEN_COOLDOWN_MS;
 }
 
-/** 點按循環：null → green → red → null，回傳新狀態 */
-export function cycleMark(ch) {
+/** 點按循環：null → green → red → null，回傳新狀態；accId 可代別的帳號標（家長檢視小孩用） */
+export function cycleMark(ch, accId) {
   const w = words.find((x) => x.ch === ch);
   if (!w) return null;
-  const c = ensureCard(w);
+  const c = ensureCard(w, accId);
   c.mark = c.mark === null ? 'green' : c.mark === 'green' ? 'red' : null;
   c.markedAt = c.mark ? Date.now() : 0;
   saveWords();
@@ -209,7 +242,7 @@ export function bumpGame(ch, correct) {
 //          polys:  [{ char, word }] }                  多音字與所屬詞（每本偵測一次）
 // 舊版全域 highlights 於故事頁首次開啟時遷移給當時的帳號
 export let stories = load(LS.stories, []);
-export function saveStories() { save(LS.stories, stories); }
+export function saveStories() { scheduleSave(LS.stories, () => stories); }
 
 const MAX_STORIES = 24;
 
@@ -471,6 +504,7 @@ export async function refreshAudioKeys() {
 refreshAudioKeys();
 
 export async function clearAll() {
+  cancelPendingSaves(); // 不讓延遲寫入把清掉的資料寫回去
   localStorage.removeItem(LS.settings);
   localStorage.removeItem(LS.words);
   localStorage.removeItem(LS.stories);

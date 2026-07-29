@@ -6,15 +6,18 @@ import { sfx } from './sfx.js';
 import {
   settings, saveSettings, words, addWords, removeWords, setArchived,
   getCard, cycleMark, idbGet, idbSet,
+  accounts, currentAccount,
 } from './store.js';
 import { ttsChar, errHintKey } from './gemini.js';
 import { speakChar } from './voice.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
+import { avatarEl } from './avatars.js';
 
 let root = null;
 let editMode = false;
 let selected = new Set();
 let sortMode = 'new'; // new | least | most | weak
+let viewAccId = null; // 家長檢視的小孩帳號 id（null＝自己）
 
 export function initWords(rootEl) {
   root = rootEl;
@@ -24,10 +27,11 @@ export function initWords(rootEl) {
 export function refreshWordsPage() {
   editMode = false;
   selected.clear();
+  viewAccId = null;
   render();
 }
 
-function sortedWords() {
+function sortedWords(acc) {
   const list = [...words];
   if (sortMode === 'new') list.sort((a, b) => b.addedAt - a.addedAt);
   else if (sortMode === 'least') list.sort((a, b) => a.usedCount - b.usedCount || b.addedAt - a.addedAt);
@@ -35,10 +39,10 @@ function sortedWords() {
   else if (sortMode === 'weak') {
     // 最不熟：標紅在前（錯多優先），再來白字（錯多優先），學會的最後
     const rank = (w) => {
-      const c = getCard(w);
+      const c = getCard(w, acc);
       return c.mark === 'red' ? 0 : c.mark === null ? 1 : 2;
     };
-    list.sort((a, b) => rank(a) - rank(b) || getCard(b).ng - getCard(a).ng || b.addedAt - a.addedAt);
+    list.sort((a, b) => rank(a) - rank(b) || getCard(b, acc).ng - getCard(a, acc).ng || b.addedAt - a.addedAt);
   }
   // 入庫的一律排最後
   list.sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0));
@@ -49,36 +53,75 @@ function render() {
   root.innerHTML = '';
   root.append(el('div', { class: 'h1' }, '🗂️ ', t('words_title')));
 
-  // ---- 新增區 ----
-  const input = el('textarea', { class: 'text-area', placeholder: t('words_add_ph') });
-  const addBtn = el('button', { class: 'btn mint' }, '➕ ', t('words_add'));
-  addBtn.addEventListener('click', () => {
-    sfx.tap();
-    const { added, dup, collide } = addWords(input.value);
-    if (added) {
-      sfx.sparkle();
-      let msg = t('words_added', { n: added });
-      if (dup) msg += ' ' + t('words_dup', { n: dup });
-      toast(msg);
-      if (collide && collide.length) {
-        toast(t('words_collide', { list: collide.join('、') }), true);
-      }
-      input.value = '';
-      render();
-    } else if (dup) {
-      toast(t('words_dup', { n: dup }), true);
-    }
-  });
-  root.append(el('div', { class: 'card' },
-    input,
-    el('div', { class: 'row', style: 'margin-top:14px;justify-content:flex-end;' }, addBtn),
-  ));
+  // 小孩模式：可以看字表，但固定鎖定——沒有新增/整理/補齊發音，點字只發音
+  const kidMode = currentAccount().role === 'kid';
+  if (kidMode) viewAccId = null;
+  if (viewAccId && !accounts.some((a) => a.id === viewAccId)) viewAccId = null;
+  const acc = viewAccId; // getCard/cycleMark 的帳號參數（null＝目前帳號）
+  // 家長檢視小孩時不受鎖定影響（切過來就是要幫小孩改紅綠；鎖定是防小孩亂按自己的）
+  const locked = kidMode || (!viewAccId && settings.wordsLocked);
 
-  // ---- 統計（熟悉度依目前帳號×語系） ----
+  // ---- 新增區（小孩模式不顯示） ----
+  if (!kidMode) {
+    const input = el('textarea', { class: 'text-area', placeholder: t('words_add_ph') });
+    const addBtn = el('button', { class: 'btn mint' }, '➕ ', t('words_add'));
+    addBtn.addEventListener('click', () => {
+      sfx.tap();
+      const { added, dup, collide } = addWords(input.value);
+      if (added) {
+        sfx.sparkle();
+        let msg = t('words_added', { n: added });
+        if (dup) msg += ' ' + t('words_dup', { n: dup });
+        toast(msg);
+        if (collide && collide.length) {
+          toast(t('words_collide', { list: collide.join('、') }), true);
+        }
+        input.value = '';
+        render();
+      } else if (dup) {
+        toast(t('words_dup', { n: dup }), true);
+      }
+    });
+    root.append(el('div', { class: 'card' },
+      input,
+      el('div', { class: 'row', style: 'margin-top:14px;justify-content:flex-end;' }, addBtn),
+    ));
+  }
+
+  // ---- 家長檢視小孩紀錄（有小孩帳號才顯示） ----
+  const kids = accounts.filter((a) => a.role === 'kid');
+  if (!kidMode && kids.length) {
+    const row = el('div', { class: 'view-acct-row' });
+    const mkView = (id, account, label) => {
+      const b = el('button', { class: `view-acct${viewAccId === id ? ' on' : ''}` },
+        avatarEl(account, 'avatar view-avatar'),
+        el('span', { text: label }),
+      );
+      b.addEventListener('click', () => {
+        sfx.tap();
+        if (viewAccId === id) return;
+        viewAccId = id;
+        selected.clear();
+        render();
+      });
+      return b;
+    };
+    row.append(mkView(null, currentAccount(), t('words_view_mine')));
+    for (const k of kids) row.append(mkView(k.id, k, k.name));
+    root.append(el('div', { class: 'card', style: 'padding:14px 16px;margin-bottom:14px;' },
+      row,
+      viewAccId
+        ? el('p', { class: 'settings-note', style: 'margin-top:8px;',
+            text: `👀 ${t('words_view_hint', { n: accounts.find((a) => a.id === viewAccId).name })}` })
+        : null,
+    ));
+  }
+
+  // ---- 統計（熟悉度依檢視帳號×語系） ----
   const total = words.length;
   const unused = words.filter((w) => w.usedCount === 0).length;
-  const learned = words.filter((w) => getCard(w).mark === 'green').length;
-  const weak = words.filter((w) => getCard(w).mark === 'red').length;
+  const learned = words.filter((w) => getCard(w, acc).mark === 'green').length;
+  const weak = words.filter((w) => getCard(w, acc).mark === 'red').length;
 
   root.append(el('div', { class: 'stats-row' },
     statChip(total, `${t('words_total')}${t('words_total_u')}`),
@@ -95,7 +138,8 @@ function render() {
     return;
   }
 
-  // ---- 排序 + 工具列 ----
+  // ---- 排序 + 工具列（小孩模式只留排序） ----
+  let toolRefresher = null; // 編輯模式工具鈕的刷新（選取數字），setSel 用
   const seg = el('div', { class: 'seg' },
     segBtn('new', t('words_sort_new')),
     segBtn('weak', t('words_sort_weak')),
@@ -103,64 +147,72 @@ function render() {
     segBtn('most', t('words_sort_most')),
   );
 
-  const fillBtn = el('button', { class: 'btn sky small', onclick: () => { sfx.tap(); fillAudio(); } },
-    '🔊 ', t('words_fill_audio'));
+  if (kidMode) {
+    editMode = false;
+    root.append(el('div', { class: 'spread', style: 'margin-bottom:10px;' }, seg));
+    root.append(el('p', { class: 'settings-note', style: 'margin-bottom:12px;',
+      text: `👉 ${t('words_kid_hint')}` }));
+  } else {
+    const fillBtn = el('button', { class: 'btn sky small', onclick: () => { sfx.tap(); fillAudio(); } },
+      '🔊 ', t('words_fill_audio'));
 
-  // 鎖定：點字只發音，不改紅綠（防小孩亂按）
-  const lockBtn = el('button', {
-    class: `btn small ${settings.wordsLocked ? 'berry' : 'ghost'}`,
-    onclick: () => { sfx.tap(); settings.wordsLocked = !settings.wordsLocked; saveSettings(); render(); },
-  }, settings.wordsLocked ? `🔒 ${t('words_unlock')}` : `🔓 ${t('words_lock')}`);
+    // 鎖定：點字只發音，不改紅綠（防小孩亂按）
+    const lockBtn = el('button', {
+      class: `btn small ${settings.wordsLocked ? 'berry' : 'ghost'}`,
+      onclick: () => { sfx.tap(); settings.wordsLocked = !settings.wordsLocked; saveSettings(); render(); },
+    }, settings.wordsLocked ? `🔒 ${t('words_unlock')}` : `🔓 ${t('words_lock')}`);
 
-  const editBtn = el('button', {
-    class: `btn small ${editMode ? 'mint' : 'ghost'}`,
-    onclick: () => { sfx.tap(); editMode = !editMode; selected.clear(); render(); },
-  }, editMode ? `✅ ${t('words_edit_done')}` : `🧹 ${t('words_edit')}`);
+    const editBtn = el('button', {
+      class: `btn small ${editMode ? 'mint' : 'ghost'}`,
+      onclick: () => { sfx.tap(); editMode = !editMode; selected.clear(); render(); },
+    }, editMode ? `✅ ${t('words_edit_done')}` : `🧹 ${t('words_edit')}`);
 
-  // 編輯模式：刪除選取 + 入庫/出庫
-  const delBtn = el('button', { class: 'btn berry small' });
-  const archBtn = el('button', { class: 'btn ghost small' });
-  function refreshToolBtns() {
-    delBtn.textContent = '';
-    delBtn.append('🗑 ', t('words_del_multi', { n: selected.size }));
-    delBtn.disabled = selected.size === 0;
-    const allArchived = selected.size > 0 &&
-      [...selected].every((ch) => words.find((w) => w.ch === ch)?.archived);
-    archBtn.textContent = '';
-    archBtn.append('📦 ', t(allArchived ? 'words_unarchive' : 'words_archive', { n: selected.size }));
-    archBtn.disabled = selected.size === 0;
-    archBtn.dataset.mode = allArchived ? 'un' : 'in';
-  }
-  refreshToolBtns();
-  delBtn.addEventListener('click', async () => {
-    sfx.tap();
-    const yes = await confirmDialog(t('words_del_multi_confirm', { n: selected.size }));
-    if (yes) {
-      removeWords([...selected]);
+    // 編輯模式：刪除選取 + 入庫/出庫
+    const delBtn = el('button', { class: 'btn berry small' });
+    const archBtn = el('button', { class: 'btn ghost small' });
+    function refreshToolBtns() {
+      delBtn.textContent = '';
+      delBtn.append('🗑 ', t('words_del_multi', { n: selected.size }));
+      delBtn.disabled = selected.size === 0;
+      const allArchived = selected.size > 0 &&
+        [...selected].every((ch) => words.find((w) => w.ch === ch)?.archived);
+      archBtn.textContent = '';
+      archBtn.append('📦 ', t(allArchived ? 'words_unarchive' : 'words_archive', { n: selected.size }));
+      archBtn.disabled = selected.size === 0;
+      archBtn.dataset.mode = allArchived ? 'un' : 'in';
+    }
+    refreshToolBtns();
+    toolRefresher = refreshToolBtns;
+    delBtn.addEventListener('click', async () => {
+      sfx.tap();
+      const yes = await confirmDialog(t('words_del_multi_confirm', { n: selected.size }));
+      if (yes) {
+        removeWords([...selected]);
+        selected.clear();
+        render();
+      }
+    });
+    archBtn.addEventListener('click', () => {
+      sfx.tap();
+      const un = archBtn.dataset.mode === 'un';
+      setArchived([...selected], !un);
+      toast(t(un ? 'words_unarchived_done' : 'words_archived_done', { n: selected.size }));
       selected.clear();
       render();
-    }
-  });
-  archBtn.addEventListener('click', () => {
-    sfx.tap();
-    const un = archBtn.dataset.mode === 'un';
-    setArchived([...selected], !un);
-    toast(t(un ? 'words_unarchived_done' : 'words_archived_done', { n: selected.size }));
-    selected.clear();
-    render();
-  });
+    });
 
-  root.append(el('div', { class: 'spread', style: 'margin-bottom:10px;' },
-    seg,
-    el('div', { class: 'row' },
-      editMode ? archBtn : lockBtn,
-      editMode ? delBtn : fillBtn,
-      editBtn,
-    ),
-  ));
-  root.append(el('p', { class: 'settings-note', style: 'margin-bottom:12px;',
-    text: editMode ? `👉 ${t('words_edit_hint')}`
-      : settings.wordsLocked ? `👉 ${t('words_lock_hint')}` : `👉 ${t('words_mark_hint')}` }));
+    root.append(el('div', { class: 'spread', style: 'margin-bottom:10px;' },
+      seg,
+      el('div', { class: 'row' },
+        editMode ? archBtn : lockBtn,
+        editMode ? delBtn : fillBtn,
+        editBtn,
+      ),
+    ));
+    root.append(el('p', { class: 'settings-note', style: 'margin-bottom:12px;',
+      text: editMode ? `👉 ${t('words_edit_hint')}`
+        : settings.wordsLocked ? `👉 ${t('words_lock_hint')}` : `👉 ${t('words_mark_hint')}` }));
+  }
 
   // ---- 字格 ----
   const now = Date.now();
@@ -172,15 +224,15 @@ function render() {
     if (!chip) return;
     if (on) selected.add(ch); else selected.delete(ch);
     chip.classList.toggle('sel', on);
-    refreshToolBtns();
+    if (toolRefresher) toolRefresher();
   }
 
   function markCls(w) {
-    const m = getCard(w).mark;
+    const m = getCard(w, acc).mark;
     return m === 'green' ? ' mk-g' : m === 'red' ? ' mk-r' : '';
   }
 
-  for (const w of sortedWords()) {
+  for (const w of sortedWords(acc)) {
     const fresh = !w.archived && now - w.addedAt < 48 * 3600 * 1000;
     const chip = el('button', {
       class: `word-chip${fresh ? ' fresh' : ''}${selected.has(w.ch) ? ' sel' : ''}${markCls(w)}${w.archived ? ' arch' : ''}`,
@@ -193,13 +245,13 @@ function render() {
 
     if (!editMode) {
       // 點一下：輪換熟悉度（白→綠→紅→白）＋唸字（AI 快取優先，缺檔用內建語音）
-      // 鎖定時：只發音，不改紅綠
+      // 鎖定或小孩模式：只發音，不改紅綠；檢視小孩時改的是該小孩的紀錄
       chip.addEventListener('click', () => {
-        if (settings.wordsLocked) {
+        if (locked) {
           sfx.tap();
           chip.classList.remove('pop');
         } else {
-          const mark = cycleMark(w.ch);
+          const mark = cycleMark(w.ch, acc);
           chip.classList.remove('mk-g', 'mk-r', 'pop');
           if (mark === 'green') { chip.classList.add('mk-g'); sfx.correct(); }
           else if (mark === 'red') { chip.classList.add('mk-r'); sfx.unpop(); }

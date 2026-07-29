@@ -1,5 +1,6 @@
 // 帳號：右上角頭像鈕、切換帳號、家長確認（算術門）、帳號編輯器
-// 小孩帳號看不到「字表」「設定」分頁；小孩切到家長帳號要先過家長確認。
+// 小孩帳號看不到「設定」分頁（字表看得到，但固定鎖定只能點字發音）；
+// 小孩切到家長帳號要先過家長確認。
 import { t } from './i18n.js';
 import { el, toast, openModal, confirmDialog } from './ui.js';
 import { sfx } from './sfx.js';
@@ -27,10 +28,10 @@ export function refreshAvatarBtn() {
   avatarBtn.append(avatarEl(currentAccount()));
 }
 
-/** 依目前帳號套用分頁權限 */
+/** 依目前帳號套用分頁權限（字表小孩也能看，words.js 內自行鎖定） */
 export function applyRole() {
   const kid = currentAccount().role === 'kid';
-  for (const name of ['words', 'settings']) {
+  for (const name of ['settings']) {
     const tab = document.querySelector(`#tabbar .tab[data-page="${name}"]`);
     if (tab) tab.style.display = kid ? 'none' : '';
     if (kid) {
