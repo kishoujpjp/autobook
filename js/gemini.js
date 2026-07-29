@@ -419,8 +419,9 @@ export async function testModels(onUpdate) {
     contents: [{ role: 'user', parts: [{ text: '請回答：好' }] }],
   }, { timeoutMs: 30000, stage: 'test' }));
 
+  // 走與實際故事生成相同的串流路徑，避免診斷通過但實際失敗的落差
   await run('diag_json', async () => {
-    const resp = await call(settings.textModel, {
+    const raw = await callStreamText(settings.textModel, {
       contents: [{ role: 'user', parts: [{ text: '輸出一個 JSON：title 填「好」、story 填「好」、image_prompt 填「ok」。' }] }],
       generationConfig: {
         responseMimeType: 'application/json',
@@ -432,7 +433,7 @@ export async function testModels(onUpdate) {
         temperature: 1.0,
       },
     }, { timeoutMs: 45000, stage: 'test' });
-    JSON.parse(firstText(resp)); // 解析不了視同失敗
+    JSON.parse(raw); // 解析不了視同失敗
   });
 
   // 走與實際出圖相同的串流路徑，避免診斷通過但實際失敗的落差

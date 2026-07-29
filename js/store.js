@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.13.3';
+export const VERSION = '1.13.4';
 
 const LS = {
   settings: 'autobook.settings',
@@ -203,7 +203,11 @@ export function bumpGame(ch, correct) {
 }
 
 // ---------- 故事 ----------
-// story: { id, title, text, lang, createdAt, newChars:[], highlights:[idx], hasImage, demo }
+// story: { id, title, text, lang, createdAt, newChars:[], hasImage, demo,
+//          hlBy:   { 帳號id: [索引] },                 高亮模式的紀錄（依帳號分開）
+//          marksBy:{ 帳號id: { 索引: 'green'|'red' } }, 標註模式的紀錄（依帳號分開）
+//          polys:  [{ char, word }] }                  多音字與所屬詞（每本偵測一次）
+// 舊版全域 highlights 於故事頁首次開啟時遷移給當時的帳號
 export let stories = load(LS.stories, []);
 export function saveStories() { save(LS.stories, stories); }
 
