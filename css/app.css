@@ -487,6 +487,12 @@ button {
   flex: 0 0 auto;
 }
 .book-del:active { transform: translateY(3px); box-shadow: 0 1px 0 #F0A9C2; }
+.book-edit {
+  background: #E0F7F4;
+  color: var(--mint-deep);
+  box-shadow: 0 4px 0 #A8DED8;
+}
+.book-edit:active { transform: translateY(3px); box-shadow: 0 1px 0 #A8DED8; }
 
 /* ============ 生成面板（modal） ============ */
 .modal-mask {

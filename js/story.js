@@ -405,6 +405,15 @@ function openShelfModal() {
       m.close();
       render();
     });
+    const editBtn = el('button', { class: 'book-del book-edit', text: '✏️' });
+    editBtn.addEventListener('click', () => {
+      sfx.tap();
+      openEditStoryModal(s, () => {
+        m.close();
+        if (currentId === s.id) render();
+        openShelfModal();
+      });
+    });
     const delBtn = el('button', { class: 'book-del', text: '🗑' });
     delBtn.addEventListener('click', async () => {
       sfx.tap();
@@ -416,8 +425,46 @@ function openShelfModal() {
         render();
       }
     });
-    m.body.append(el('div', { class: 'book-row' }, openBtn, delBtn));
+    m.body.append(el('div', { class: 'book-row' }, openBtn, editBtn, delBtn));
   }
+}
+
+// ---------- 編輯故事（書架的 ✏️） ----------
+// 編輯框固定顯示/輸入繁體（資料核心是繁體，簡體介面顯示時自動轉換）。
+// 內文變動後，索引式的點讀/標註紀錄與多音字資料都會失效，一律重設。
+function openEditStoryModal(story, onSaved) {
+  const m = openModal(`✏️ ${t('story_edit')}`);
+  const titleInput = el('input', { class: 'text-input', value: s2t(story.title) });
+  const textArea = el('textarea', { class: 'text-area', style: 'min-height:220px;margin-top:4px;' });
+  textArea.value = s2t(story.text);
+
+  const saveBtn = el('button', { class: 'btn mint' }, '💾 ', t('acc_save'));
+  saveBtn.addEventListener('click', () => {
+    sfx.tap();
+    const text = textArea.value.trim();
+    if (!text || ![...text].some(isHan)) { toast(t('manual_need_text'), true); return; }
+    story.title = titleInput.value.trim() || [...text].slice(0, 8).join('');
+    story.text = text;
+    story.lang = 'zh-Hant';
+    story.hlBy = {};
+    story.marksBy = {};
+    delete story.polys; // 下次開啟重新偵測多音字
+    const bankHant = new Set(words.map((w) => convertTo(w.ch, 'zh-Hant')));
+    story.newChars = findNewChars(text, bankHant);
+    saveStories();
+    m.close();
+    toast(t('story_edit_done'));
+    if (onSaved) onSaved();
+  });
+
+  m.body.append(
+    el('div', { class: 'field-label', style: 'margin-top:0;', text: t('manual_title_label') }),
+    titleInput,
+    el('div', { class: 'field-label', text: t('story_edit_text') }),
+    textArea,
+    el('p', { class: 'settings-note', text: t('story_edit_note') }),
+  );
+  m.foot.append(saveBtn);
 }
 
 // ---------- 故事元素比例雷達圖（生成面板用） ----------
