@@ -1,7 +1,7 @@
 // 遊戲頁：聽音認字。開始前先把 10 題語音緩存好，之後重複利用。
 import { t, getLang } from './i18n.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
-import { el, toast, confetti, infoDialog } from './ui.js';
+import { el, toast, confetti, infoDialog, openModal } from './ui.js';
 import { sfx, playBlob, speakNative } from './sfx.js';
 import { settings, saveSettings, words, bumpGame, getCard, idbGet, idbSet, hasAudioCached } from './store.js';
 import { ttsChar } from './gemini.js';
@@ -53,11 +53,10 @@ function renderIntro() {
         if (!(await weakModeGate())) return;
         startPrep();
       }),
-      entry('🃏', t('game_menu_flash'), t('game_menu_flash_desc'), 'flash', async () => {
+      entry('🃏', t('game_menu_flash'), t('game_menu_flash_desc'), 'flash', () => {
         sfx.tap();
         if (words.length < 4) { toast(t('game_need_words'), true); return; }
-        if (!(await weakModeGate())) return;
-        startFlash(root, 'char', renderIntro);
+        openFlashMenu();
       }),
       entry('🧩', t('game_menu_word'), t('game_menu_word_desc'), 'word', async () => {
         sfx.tap();
@@ -71,6 +70,161 @@ function renderIntro() {
         el('span', { text: `🔥 ${t('weak_mode')}` }), weakSwitch,
       ),
     ),
+  );
+}
+
+// ---------- 認字卡：出題範圍選單與選字頁 ----------
+let pickSort = 'weak';     // 選字清單排序：weak | new | least | most
+const pickSel = new Set(); // 已選的字（切換排序時保留）
+
+function openFlashMenu() {
+  const m = openModal(`🃏 ${t('game_menu_flash')}`);
+  const mk = (cls, emoji, label, onclick) =>
+    el('button', { class: `btn big ${cls}`, style: 'width:100%;justify-content:center;', onclick }, `${emoji} `, label);
+  m.body.append(
+    el('div', { style: 'display:flex;flex-direction:column;gap:12px;padding:6px 0;min-width:min(340px,72vw);' },
+      mk('mint', '🚀', t('flash_start_all'), async () => {
+        sfx.tap();
+        m.close();
+        if (!(await weakModeGate())) return;
+        startFlash(root, 'char', renderIntro);
+      }),
+      mk('sky', '🎯', t('flash_pick'), () => {
+        sfx.tap();
+        m.close();
+        pickSel.clear();
+        renderFlashPicker();
+      }),
+    ),
+  );
+}
+
+/** 選字頁的字池：入庫的不出（跟出題規則一致） */
+function pickerPool() {
+  return words.filter((w) => !w.archived);
+}
+
+function sortedPicker() {
+  const list = pickerPool();
+  if (pickSort === 'new') list.sort((a, b) => b.addedAt - a.addedAt);
+  else if (pickSort === 'least') list.sort((a, b) => a.usedCount - b.usedCount || b.addedAt - a.addedAt);
+  else if (pickSort === 'most') list.sort((a, b) => b.usedCount - a.usedCount);
+  else {
+    // 熟悉度（顏色）：標紅在前（錯多優先），再來白字，學會的最後
+    const rank = (w) => {
+      const c = getCard(w);
+      return c.mark === 'red' ? 0 : c.mark === null ? 1 : 2;
+    };
+    list.sort((a, b) => rank(a) - rank(b) || getCard(b).ng - getCard(a).ng || b.addedAt - a.addedAt);
+  }
+  return list;
+}
+
+function renderFlashPicker() {
+  root.innerHTML = '';
+
+  const backBtn = el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); renderIntro(); } },
+    '↩️ ', t('flash_back'));
+
+  const seg = el('div', { class: 'seg' });
+  const mkSort = (val, label) => {
+    const b = el('button', { class: pickSort === val ? 'on' : '', text: label });
+    b.addEventListener('click', () => { sfx.tap(); pickSort = val; renderFlashPicker(); });
+    return b;
+  };
+  seg.append(
+    mkSort('weak', t('words_sort_weak')),
+    mkSort('new', t('words_sort_new')),
+    mkSort('least', t('words_sort_least')),
+    mkSort('most', t('words_sort_most')),
+  );
+
+  const startBtn = el('button', { class: 'btn mint' });
+  const allBtn = el('button', { class: 'btn ghost small', text: t('flash_pick_all') });
+  const clearBtn = el('button', { class: 'btn ghost small', text: t('flash_pick_clear') });
+
+  function refreshStart() {
+    startBtn.textContent = '';
+    startBtn.append('🃏 ', t('flash_pick_start', { n: pickSel.size }));
+    startBtn.disabled = pickSel.size === 0;
+  }
+  startBtn.addEventListener('click', () => {
+    if (!pickSel.size) return;
+    sfx.sparkle();
+    startFlash(root, 'char', renderIntro, { onlyChs: new Set(pickSel) });
+  });
+
+  const grid = el('div', { class: 'word-grid' });
+  const chipByCh = new Map();
+
+  function setSel(ch, on) {
+    if (on) pickSel.add(ch); else pickSel.delete(ch);
+    const chip = chipByCh.get(ch);
+    if (chip) chip.classList.toggle('sel', on);
+    refreshStart();
+  }
+  function syncChips() {
+    for (const [ch, chip] of chipByCh) chip.classList.toggle('sel', pickSel.has(ch));
+    refreshStart();
+  }
+  allBtn.addEventListener('click', () => { sfx.tap(); for (const w of pickerPool()) pickSel.add(w.ch); syncChips(); });
+  clearBtn.addEventListener('click', () => { sfx.tap(); pickSel.clear(); syncChips(); });
+
+  const markCls = (w) => {
+    const m = getCard(w).mark;
+    return m === 'green' ? ' mk-g' : m === 'red' ? ' mk-r' : '';
+  };
+
+  for (const w of sortedPicker()) {
+    const chip = el('button', {
+      class: `word-chip${pickSel.has(w.ch) ? ' sel' : ''}${markCls(w)}`,
+      'data-ch': w.ch,
+      style: 'touch-action:none;', // 在字卡上起手的拖曳不會捲動頁面
+    },
+      el('span', { class: 'w', text: convertTo(w.ch, getLang()) }),
+      el('span', { class: 'u', text: t('used_times', { n: w.usedCount }) }),
+    );
+    chipByCh.set(w.ch, chip);
+    grid.append(chip);
+  }
+  refreshStart();
+
+  // 拖選（與字表整理模式同款）：起手那格決定是選取還是取消
+  let dragging = false;
+  let dragOn = true;
+  grid.addEventListener('pointerdown', (e) => {
+    const chip = e.target.closest('.word-chip');
+    if (!chip) return;
+    e.preventDefault();
+    dragging = true;
+    const ch = chip.dataset.ch;
+    dragOn = !pickSel.has(ch);
+    sfx.tap();
+    setSel(ch, dragOn);
+    try { chip.releasePointerCapture(e.pointerId); } catch { /* 合成事件沒有有效 pointerId */ }
+  });
+  grid.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    const chip = under && under.closest('.word-chip');
+    if (chip && chip.dataset.ch) {
+      const ch = chip.dataset.ch;
+      if (pickSel.has(ch) !== dragOn) { sfx.tap(); setSel(ch, dragOn); }
+    }
+  });
+  const stopDrag = () => { dragging = false; };
+  grid.addEventListener('pointerup', stopDrag);
+  grid.addEventListener('pointercancel', stopDrag);
+  grid.addEventListener('pointerleave', stopDrag);
+
+  root.append(
+    el('div', { class: 'spread' },
+      el('div', { class: 'row' }, backBtn, el('div', { class: 'h1', style: 'margin:0;' }, '🎯 ', t('flash_pick'))),
+      el('div', { class: 'row' }, allBtn, clearBtn, startBtn),
+    ),
+    el('div', { class: 'spread', style: 'margin:10px 0;' }, seg),
+    el('p', { class: 'settings-note', style: 'margin-bottom:12px;', text: `👉 ${t('flash_pick_hint')}` }),
+    grid,
   );
 }
 

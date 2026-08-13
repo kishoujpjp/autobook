@@ -31,7 +31,9 @@ function isWeak(w) {
   return getCard(w).mark !== 'green';       // 紅或白
 }
 
-export function startFlash(root, mode, onExit) {
+export function startFlash(root, mode, onExit, opts = {}) {
+  // 指定出題範圍（選字出題）：只出這些字，且不受綠字冷卻與不熟模式限制
+  const only = opts.onlyChs || null;
   const seq = [];
   let idx = -1;
   let lastCycleAt = 0;                      // 防誤觸：上次輪換熟悉度的時間
@@ -96,6 +98,7 @@ export function startFlash(root, mode, onExit) {
     const now = Date.now();
     return words.filter((w) => {
       if (w.archived) return false;
+      if (only) return only.has(w.ch);
       if (settings.weakMode) return isWeak(w);
       return relax || !isCooling(w, now);
     });
