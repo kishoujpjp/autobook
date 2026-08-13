@@ -55,6 +55,7 @@ function render() {
       el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); openAccountEditor(null, render); } },
         '➕ ', t('acc_add')),
     ),
+    parentGateLine(),
     el('p', { class: 'settings-note', text: t('acc_note') }),
   ));
 
@@ -427,6 +428,19 @@ function tapSpeakLine() {
   });
   return el('div', { class: 'settings-line' },
     el('span', { text: `🗣️ ${t('set_tap_speak')}` }), sw,
+  );
+}
+
+function parentGateLine() {
+  const sw = el('button', { class: `switch${settings.parentGateOn ? ' on' : ''}` });
+  sw.addEventListener('click', () => {
+    sfx.tap();
+    settings.parentGateOn = !settings.parentGateOn;
+    saveSettings();
+    sw.classList.toggle('on', settings.parentGateOn);
+  });
+  return el('div', { class: 'settings-line', style: 'margin-top:12px;' },
+    el('span', { text: `🔒 ${t('set_parent_gate')}` }), sw,
   );
 }
 

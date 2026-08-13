@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.15.0';
+export const VERSION = '1.15.1';
 
 const LS = {
   settings: 'autobook.settings',
@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS = {
   storyMode: 'hl',        // 故事點讀：'hl' 高亮模式（小孩自讀）| 'mark' 標註模式（親子共讀，紅綠輪換）
   storySpeak: true,       // 故事點字發音（標註模式下：標綠不發音、標紅發音一次）
   wordsLocked: false,     // 字表鎖定：點字只發音，不改紅綠
+  parentGateOn: true,     // 切回家長帳號要通過算術確認（關閉＝直接切換）
   weakMode: false,        // 不熟模式：遊戲只出紅字與白字
   wordLen: 'all',         // 認詞彙長度：'2' | '3' | 'all'
   repStrict: 'std',       // 跟讀評分嚴格度：'easy' | 'std' | 'hard'

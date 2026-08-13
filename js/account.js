@@ -6,7 +6,7 @@ import { el, toast, openModal, confirmDialog } from './ui.js';
 import { sfx } from './sfx.js';
 import {
   accounts, saveAccounts, currentAccount, setCurrentAccount,
-  removeAccount, parentCount, idbSet, idbDel,
+  removeAccount, parentCount, idbSet, idbDel, settings,
 } from './store.js';
 import { PRESETS, presetSvg, avatarEl } from './avatars.js';
 
@@ -75,6 +75,7 @@ function openSwitchModal() {
 
 // ---------- 家長確認（算術門） ----------
 export function parentGate() {
+  if (!settings.parentGateOn) return Promise.resolve(true);
   return new Promise((resolve) => {
     // 個位數加減
     let a = 2 + ((Math.random() * 8) | 0);
