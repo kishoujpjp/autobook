@@ -638,6 +638,42 @@ button {
 }
 .gen-log-line { white-space: pre-wrap; word-break: break-all; }
 
+/* ============ 故事元素比例雷達圖 ============ */
+.mix-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.mix-radar {
+  width: min(340px, 80vw);
+  touch-action: none; /* 拖頂點時不捲動頁面 */
+  user-select: none;
+  -webkit-user-select: none;
+}
+.mr-grid {
+  fill: none;
+  stroke: rgba(74, 59, 42, 0.15);
+  stroke-width: 1.5;
+}
+.mr-value {
+  fill: rgba(255, 138, 61, 0.22);
+  stroke: var(--primary);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+.mr-handle {
+  fill: var(--primary);
+  stroke: #fff;
+  stroke-width: 3;
+  cursor: grab;
+}
+.mr-label {
+  font-size: 17px;
+  font-weight: 800;
+  fill: var(--ink-soft);
+}
+
 /* ============ 遊戲頁 ============ */
 .game-stage {
   max-width: 900px;

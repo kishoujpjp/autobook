@@ -9,7 +9,7 @@ import {
   idbGet, idbSet, hasAudioCached,
   DEMO_STORY_HANT, DEMO_STORY_HANS,
 } from './store.js';
-import { generateStory, generateImage, ttsChar, findNewChars, detectPolys, errHintKey, setLogListener } from './gemini.js';
+import { generateStory, generateImage, pickImageStyle, ttsChar, findNewChars, detectPolys, errHintKey, setLogListener } from './gemini.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
 import { playSyllable } from './voice.js';
 import { Fog } from './fog.js';
@@ -420,6 +420,112 @@ function openShelfModal() {
   }
 }
 
+// ---------- 故事元素比例雷達圖（生成面板用） ----------
+// 五軸 0~10，頂點可拖；數值存 settings.storyMix（記住上次設定）
+function mixRadar() {
+  const AXES = [
+    { key: 'warm', label: t('mix_warm') },
+    { key: 'fun', label: t('mix_fun') },
+    { key: 'conflict', label: t('mix_conflict') },
+    { key: 'sad', label: t('mix_sad') },
+    { key: 'mistake', label: t('mix_mistake') },
+  ];
+  const mix = Object.assign({ warm: 8, fun: 8, conflict: 2, sad: 0, mistake: 2 }, settings.storyMix);
+  settings.storyMix = mix;
+
+  const S = 300, C = S / 2, R = 96;
+  const NS = 'http://www.w3.org/2000/svg';
+  const mk = (tag, attrs) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    return n;
+  };
+  const ang = (i) => -Math.PI / 2 + i * (2 * Math.PI / AXES.length);
+  const pt = (i, v) => [C + Math.cos(ang(i)) * R * (v / 10), C + Math.sin(ang(i)) * R * (v / 10)];
+  const ringPts = (v) => AXES.map((_, i) => pt(i, v).join(',')).join(' ');
+
+  const svg = mk('svg', { viewBox: `0 0 ${S} ${S}`, class: 'mix-radar' });
+  svg.append(mk('polygon', { points: ringPts(10), class: 'mr-grid' }));
+  svg.append(mk('polygon', { points: ringPts(5), class: 'mr-grid' }));
+  AXES.forEach((_, i) => {
+    const [x, y] = pt(i, 10);
+    svg.append(mk('line', { x1: C, y1: C, x2: x, y2: y, class: 'mr-grid' }));
+  });
+  const poly = mk('polygon', { class: 'mr-value' });
+  svg.append(poly);
+  const handles = AXES.map(() => { const c = mk('circle', { r: 11, class: 'mr-handle' }); svg.append(c); return c; });
+  const labels = AXES.map((_, i) => {
+    const [x, y] = pt(i, 10);
+    const l = mk('text', {
+      x: C + (x - C) * 1.28, y: C + (y - C) * 1.28,
+      class: 'mr-label', 'text-anchor': 'middle', 'dominant-baseline': 'middle',
+    });
+    svg.append(l);
+    return l;
+  });
+
+  function update() {
+    // 值 0 也留一點半徑，手把不會擠在圓心疊住
+    const vis = (a) => Math.max(mix[a.key], 0.5);
+    poly.setAttribute('points', AXES.map((a, i) => pt(i, vis(a)).join(',')).join(' '));
+    AXES.forEach((a, i) => {
+      const [x, y] = pt(i, vis(a));
+      handles[i].setAttribute('cx', x);
+      handles[i].setAttribute('cy', y);
+      labels[i].textContent = `${a.label} ${mix[a.key]}`;
+    });
+  }
+  update();
+
+  // 拖動：以角度找最近的軸，把指標位置投影到該軸算數值
+  const toLocal = (e) => {
+    const r = svg.getBoundingClientRect();
+    const s = S / r.width;
+    return [(e.clientX - r.left) * s - C, (e.clientY - r.top) * s - C];
+  };
+  const angDiff = (a, b) => {
+    let d = Math.abs(a - b) % (2 * Math.PI);
+    return d > Math.PI ? 2 * Math.PI - d : d;
+  };
+  let dragI = -1;
+  const setFromPointer = (e) => {
+    const [x, y] = toLocal(e);
+    const v = (x * Math.cos(ang(dragI)) + y * Math.sin(ang(dragI))) / R * 10;
+    const nv = Math.max(0, Math.min(10, Math.round(v)));
+    if (nv !== mix[AXES[dragI].key]) {
+      mix[AXES[dragI].key] = nv;
+      update();
+    }
+  };
+  svg.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const [x, y] = toLocal(e);
+    const pa = Math.atan2(y, x);
+    let best = 0, bestD = Infinity;
+    AXES.forEach((_, i) => {
+      const d = angDiff(pa, ang(i));
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    dragI = best;
+    setFromPointer(e);
+    try { svg.setPointerCapture(e.pointerId); } catch { /* 合成事件沒有有效 pointerId */ }
+  });
+  svg.addEventListener('pointermove', (e) => { if (dragI !== -1) setFromPointer(e); });
+  const stopDrag = () => { if (dragI !== -1) { dragI = -1; saveSettings(); } };
+  svg.addEventListener('pointerup', stopDrag);
+  svg.addEventListener('pointercancel', stopDrag);
+
+  const randBtn = el('button', { class: 'btn ghost small', text: `🎲 ${t('mix_random')}` });
+  randBtn.addEventListener('click', () => {
+    sfx.tap();
+    for (const a of AXES) mix[a.key] = (Math.random() * 11) | 0;
+    update();
+    saveSettings();
+  });
+
+  return el('div', { class: 'mix-wrap' }, svg, randBtn);
+}
+
 // ---------- 生成面板 ----------
 function openGenModal() {
   const m = openModal(`✨ ${t('gen_title')}`);
@@ -450,13 +556,27 @@ function openGenModal() {
   const micBtn = el('button', { class: 'mic-btn', text: '🎤' });
   setupMic(micBtn, promptInput);
 
+  // 生成插圖 toggle（記住上次設定）
+  const imgSw = el('button', { class: `switch${settings.genImage ? ' on' : ''}` });
+  imgSw.addEventListener('click', () => {
+    sfx.tap();
+    settings.genImage = !settings.genImage;
+    saveSettings();
+    imgSw.classList.toggle('on', settings.genImage);
+  });
+
   m.body.append(
     el('div', { class: 'field-label', text: `🌱 ${t('gen_today')}` }),
     todayInput,
     el('div', { class: 'field-label', text: t('gen_must') }),
     grid,
+    el('div', { class: 'field-label', text: `🎛️ ${t('gen_mix')}` }),
+    mixRadar(),
     el('div', { class: 'field-label', text: t('gen_extra') }),
     el('div', { class: 'row', style: 'flex-wrap:nowrap;align-items:flex-start;' }, promptInput, micBtn),
+    el('div', { class: 'settings-line', style: 'margin-top:12px;' },
+      el('span', { text: `🖼️ ${t('gen_image')}` }), imgSw,
+    ),
     settings.apiKey ? null : el('p', { class: 'settings-note', text: `⚠️ ${t('demo_mode')}` }),
   );
 
@@ -634,19 +754,12 @@ async function runGeneration(mustInclude, extraPrompt) {
       imagePrompt = '';
       newChars = findNewChars(text, new Set(bankConv));
     } else {
-      // 優先使用次數少的字
-      const priority = [...words]
-        .sort((a, b) => a.usedCount - b.usedCount)
-        .slice(0, 15)
-        .map((w) => convertTo(w.ch, lang))
-        .filter((ch) => !mustInclude.includes(ch));
-
       const result = await generateStory({
         knownChars: bankConv,
         mustInclude: mustInclude.map((ch) => convertTo(ch, lang)),
-        priority,
         extraPrompt,
-        lang,
+        mix: settings.storyMix,
+        wantImage: settings.genImage,
         onStatus: () => { msg.textContent = t('gen_writing'); },
       });
       ({ title, text, newChars } = result);
@@ -667,12 +780,13 @@ async function runGeneration(mustInclude, extraPrompt) {
     };
 
     // 產插圖
-    if (settings.apiKey && imagePrompt) {
+    if (settings.apiKey && settings.genImage && imagePrompt) {
       emoji.textContent = '🎨';
       msg.textContent = t('gen_drawing');
-      addLog(`🎨 ${t('gen_log_img')}（${settings.imageModel}）…`);
+      const style = pickImageStyle(); // 風格池隨機選一種，畫風多樣化
+      addLog(`🎨 ${t('gen_log_img')}（${settings.imageModel}｜${style.name}）…`);
       try {
-        const blob = await generateImage(imagePrompt);
+        const blob = await generateImage(imagePrompt, style);
         await idbSet('images', id, blob);
         story.hasImage = true;
         addLog(`✅ ${t('gen_log_img_ok')}`);
@@ -680,6 +794,8 @@ async function runGeneration(mustInclude, extraPrompt) {
         console.warn('image failed', e);
         addLog(`⚠️ ${t('gen_log_img_fail')}：${e.message}`);
       }
+    } else if (settings.apiKey && !settings.genImage) {
+      addLog(`⏭️ ${t('gen_log_img_skip')}`);
     }
 
     // 記錄用字次數（以生成語系字形比對回字表原字）

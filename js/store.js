@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.15.3';
+export const VERSION = '1.16.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -25,6 +25,9 @@ const DEFAULT_SETTINGS = {
   parentGateOn: true,     // 切回家長帳號要通過算術確認（關閉＝直接切換）
   weakMode: false,        // 不熟模式：遊戲只出紅字與白字
   wordLen: 'all',         // 認詞彙長度：'2' | '3' | 'all'
+  genImage: true,         // 做新繪本時生成插圖
+  // 故事元素比例（0~10，生成面板雷達圖）：溫馨/有趣/衝突/悲傷/犯錯
+  storyMix: { warm: 8, fun: 8, conflict: 2, sad: 0, mistake: 2 },
   repStrict: 'std',       // 跟讀評分嚴格度：'easy' | 'std' | 'hard'
 
   textModel: 'gemini-3-flash-preview',

@@ -226,24 +226,77 @@ export function findNewChars(text, knownSet) {
   return out;
 }
 
+/** 洗牌（Fisher–Yates）：字表注入提示詞前打亂，避免模型每次看到同樣的開頭 */
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = (Math.random() * (i + 1)) | 0;
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ---------- 故事元素比例（雷達圖）→ 提示詞 ----------
+// 直接給模型百分比數字跟隨度很差；改成「檔位→具體寫作指令」＋輕重排序。
+// 檔位：0＝不提、1~3＝低、4~6＝中、7~10＝高（tiers[0/1/2]）
+const MIX_AXES = [
+  { key: 'warm', name: '溫馨', tiers: [
+    '帶一點溫馨的互動',
+    '要有溫馨的親情或友情橋段',
+    '整體氛圍以溫馨關愛為主'] },
+  { key: 'fun', name: '有趣', tiers: [
+    '帶一點幽默',
+    '要有好玩有趣的情節',
+    '以有趣好笑為主軸，要讓小朋友發笑'] },
+  { key: 'conflict', name: '衝突', tiers: [
+    '可以有很小的分歧或阻礙',
+    '要有一個小衝突（例如朋友吵架、心愛的東西壞了），結尾要解決',
+    '衝突是故事主軸：明顯的矛盾或困難貫穿全篇，最後才化解'] },
+  { key: 'sad', name: '悲傷', tiers: [
+    '可以有一小段令人難過的情節',
+    '要有一段明顯難過的情節（例如失去、分離）',
+    '悲傷是故事重點：主角經歷深刻的難過，情感要真摯'] },
+  { key: 'mistake', name: '犯錯', tiers: [
+    '主角可以有小小的疏忽',
+    '主角要犯一個錯誤，並在故事中發現與改正',
+    '犯錯與改正是故事主軸：主角犯下明顯的錯，經歷後果並學到教訓'] },
+];
+
+function mixSection(mix) {
+  const active = MIX_AXES
+    .map((a) => ({ ...a, v: Math.max(0, Math.min(10, Math.round((mix && mix[a.key]) || 0))) }))
+    .filter((a) => a.v > 0)
+    .sort((x, y) => y.v - x.v);
+  const lines = ['【故事氛圍】'];
+  if (active.length) {
+    lines.push(`氛圍比重（由重到輕）：${active.map((a) => a.name).join('＞')}`);
+    for (const a of active) lines.push(`- ${a.name}：${a.tiers[a.v >= 7 ? 2 : a.v >= 4 ? 1 : 0]}`);
+  } else {
+    lines.push('溫馨、有趣、正向。');
+  }
+  lines.push('不論氛圍如何，內容必須適合 5 歲幼兒，結局要溫暖正向。');
+  return lines;
+}
+
 /**
- * 生成故事。會驗證新字數量，超過 2 個自動重試（最多 3 次），
+ * 生成故事。會驗證新字數量，超過 5 個自動重試（最多 3 次），
  * 全部失敗時回傳新字最少的一次。
+ * @param mix 故事元素比例 {warm, fun, conflict, sad, mistake}（0~10）
+ * @param wantImage 要不要一併要求 image_prompt（關閉插圖時省掉）
  * @returns {title, text, imagePrompt, newChars}
  */
-export async function generateStory({ knownChars, mustInclude, priority, extraPrompt, lang, onStatus }) {
+export async function generateStory({ knownChars, mustInclude, extraPrompt, mix, wantImage = true, onStatus }) {
   const knownSet = new Set(knownChars);
-  const langName = lang === 'zh-Hans' ? '简体中文' : '繁體中文';
-  const maxNew = 2;
+  const maxNew = 5;
 
   const schema = {
     type: 'OBJECT',
     properties: {
       title: { type: 'STRING' },
       story: { type: 'STRING' },
-      image_prompt: { type: 'STRING' },
+      ...(wantImage ? { image_prompt: { type: 'STRING' } } : {}),
     },
-    required: ['title', 'story', 'image_prompt'],
+    required: wantImage ? ['title', 'story', 'image_prompt'] : ['title', 'story'],
   };
 
   let best = null;
@@ -256,21 +309,22 @@ export async function generateStory({ knownChars, mustInclude, priority, extraPr
       ? `\n注意：上一次你用了太多表外字（${best.newChars.join('、')}），這次務必把表外字控制在 ${maxNew} 個以內，優先只用認字表中的字改寫。`
       : '';
     const prompt = [
-      `你是幼兒繪本作家，為5歲小朋友寫一個溫馨、有趣、正向的小故事。使用${langName}。`,
+      `你是幼兒繪本作家，為5歲小朋友寫一個小故事。使用繁體中文。`,
       `【認字表】（正文幾乎只能用這些字）：`,
-      knownChars.join(''),
+      shuffle(knownChars).join(''),
+      ``,
+      ...mixSection(mix),
       ``,
       `規則：`,
       `1. 故事正文只能使用認字表中的字。整篇最多允許出現 ${maxNew} 個「表外新字」（同一個新字重複出現只算 1 個）。認字表以外的字愈少愈好。`,
       `2. 標點符號不受限制，請正常使用標點。不可使用阿拉伯數字與英文字母。`,
-      `3. 正文長度約 180～220 個字。`,
+      `3. 正文長度約 150～180 個字。`,
       mustInclude.length ? `4. 這些字必須出現在正文中：${mustInclude.join('、')}` : `4. （無指定必用字）`,
-      priority.length ? `5. 請盡量多使用這些較少練習的字：${priority.join('、')}` : `5. （無優先字）`,
-      `6. 標題要短（8 個字以內），盡量也用認字表中的字。`,
-      extraPrompt ? `7. 額外要求：${extraPrompt}` : ``,
+      `5. 標題要短（8 個字以內），盡量也用認字表中的字。`,
+      extraPrompt ? `6. 額外要求：${extraPrompt}` : ``,
       feedback,
       ``,
-      `另外輸出 image_prompt：用英文描述一張配圖（一個場景即可），風格為 soft watercolor children's picture book illustration, cute, warm, bright colors, no text, no words.`,
+      wantImage ? `另外輸出 image_prompt：用英文描述一張配圖的場景（一個場景即可），只描述畫面內容與角色動作，不要指定畫風。` : ``,
     ].filter(Boolean).join('\n');
 
     let rawText;
@@ -311,7 +365,7 @@ export async function generateStory({ knownChars, mustInclude, priority, extraPr
     const result = {
       title: data.title.trim(),
       text: data.story.trim(),
-      imagePrompt: data.image_prompt || '',
+      imagePrompt: wantImage ? (data.image_prompt || '') : '',
       newChars,
     };
     if (newChars.length <= maxNew) return result;
@@ -418,8 +472,22 @@ async function streamImage(prompt) {
   return new Blob([joinB64(out.inlineParts)], { type: out.inlineMime || 'image/png' });
 }
 
-export async function generateImage(imagePrompt) {
-  return streamImage(`Children's picture book illustration, soft watercolor style, cute and warm, bright cheerful colors, suitable for a 5-year-old. No text or letters in the image. Scene: ${imagePrompt}`);
+// ---------- 插圖風格池：每次出圖隨機選一種，畫風多樣化 ----------
+export const IMAGE_STYLES = [
+  { name: '柔和水彩', en: 'soft watercolor children\'s picture book illustration, gentle brush strokes, warm bright colors' },
+  { name: '蠟筆手繪', en: 'crayon and oil pastel children\'s drawing style, childlike hand-drawn texture, playful vivid colors' },
+  { name: '剪紙拼貼', en: 'paper-cut collage children\'s book illustration, layered textured paper shapes, bold cheerful colors' },
+  { name: '扁平卡通', en: 'flat vector cartoon illustration for kids, bold simple shapes, bright happy colors, clean composition' },
+  { name: '色鉛筆繪本', en: 'colored pencil storybook illustration, soft grainy texture, warm cozy tones, gentle details' },
+];
+
+export function pickImageStyle() {
+  return IMAGE_STYLES[(Math.random() * IMAGE_STYLES.length) | 0];
+}
+
+export async function generateImage(imagePrompt, style) {
+  const s = style || pickImageStyle();
+  return streamImage(`Children's picture book illustration in ${s.en} style. Cute, warm and friendly, suitable for a 5-year-old. No text, letters or words in the image. Scene: ${imagePrompt}`);
 }
 
 /** 測試連線：打一次文字模型，成功回傳模型回覆，失敗丟出含完整訊息的錯誤 */
