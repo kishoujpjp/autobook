@@ -619,6 +619,25 @@ button {
 }
 .loading-scene p { font-size: 26px; font-weight: 800; margin-top: 18px; color: var(--ink-soft); }
 
+/* 生成視窗的進度 log（除錯用） */
+.gen-log {
+  margin: 0 4px 14px;
+  min-width: min(520px, 74vw);
+  max-height: 30vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  text-align: left;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.gen-log-line { white-space: pre-wrap; word-break: break-all; }
+
 /* ============ 遊戲頁 ============ */
 .game-stage {
   max-width: 900px;

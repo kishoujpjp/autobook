@@ -19,6 +19,15 @@ function logErr(stage, model, msg) {
     log.unshift({ t: Date.now(), stage, model, msg: String(msg).slice(0, 500) });
     localStorage.setItem(ERRLOG_KEY, JSON.stringify(log.slice(0, ERRLOG_MAX)));
   } catch { /* 空間滿等狀況不影響主流程 */ }
+  emitLog(`⚠️ [${stage}] ${msg}`);
+}
+
+// ---------- 生成進度 log（生成視窗即時顯示，除錯用） ----------
+let logListener = null;
+/** 生成視窗訂閱 API 層的進度/錯誤訊息；傳 null 取消訂閱 */
+export function setLogListener(fn) { logListener = fn; }
+function emitLog(msg) {
+  if (logListener) { try { logListener(msg); } catch { /* 顯示失敗不影響主流程 */ } }
 }
 
 /** 依錯誤訊息回傳「常見原因提示」的 i18n key；對不上回 null */
@@ -62,6 +71,7 @@ async function call(model, body, opts = {}) {
       // 行動網路偶發斷線（Safari「Load failed」）：等 1 秒自動重試一次
       if (_retry) {
         clearTimeout(timer);
+        emitLog(`🔁 [${stage}] 網路錯誤（${(e && e.message) || e}），1 秒後自動重試…`);
         await new Promise((r) => setTimeout(r, 1000));
         return await call(model, body, { ...opts, _retry: false });
       }
@@ -95,11 +105,16 @@ async function callStreamText(model, body, opts = {}) {
 }
 
 /** 串流共用底層：回傳 { text, inlineMime, inlineData }（inlineData 為 base64，分段自動串接） */
-async function callStream(model, body, { timeoutMs = 150000, stage = 'api' } = {}) {
+async function callStream(model, body, opts = {}) {
+  const { timeoutMs = 150000, stage = 'api', _retry = true } = opts;
   const key = settings.apiKey;
   if (!key) throw new Error('NO_KEY');
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
+  // 連線失敗與讀流中斷都包成「網路錯誤」；逾時（自己 abort）另外標
+  const netErr = (e) => new Error(e && e.name === 'AbortError'
+    ? `逾時：${Math.round(timeoutMs / 1000)} 秒沒有回應`
+    : `網路錯誤：${(e && e.message) || e}`);
   try {
     let res;
     try {
@@ -113,9 +128,7 @@ async function callStream(model, body, { timeoutMs = 150000, stage = 'api' } = {
         signal: ac.signal,
       });
     } catch (e) {
-      throw new Error(e && e.name === 'AbortError'
-        ? `逾時：${Math.round(timeoutMs / 1000)} 秒沒有回應`
-        : `網路錯誤：${(e && e.message) || e}`);
+      throw netErr(e);
     }
     if (!res.ok) {
       let msg = `HTTP ${res.status}`;
@@ -153,23 +166,35 @@ async function callStream(model, body, { timeoutMs = 150000, stage = 'api' } = {
       }
     };
 
-    if (res.body && res.body.getReader) {
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
+    try {
+      if (res.body && res.body.getReader) {
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          takeLines();
+        }
+        buf += '\n';
+        takeLines();
+      } else {
+        buf = (await res.text()) + '\n';
         takeLines();
       }
-      buf += '\n';
-      takeLines();
-    } else {
-      buf = (await res.text()) + '\n';
-      takeLines();
+    } catch (e) {
+      // 讀到一半斷線（行動 Safari 常見 Load failed）也算網路錯誤
+      throw netErr(e);
     }
     return { text, inlineMime, inlineParts };
   } catch (e) {
+    // 行動網路偶發斷線：等 1 秒自動重試一次（與 call() 相同策略；逾時不重試）
+    if (_retry && e.message.startsWith('網路錯誤')) {
+      clearTimeout(timer);
+      emitLog(`🔁 [${stage}] ${e.message}，1 秒後自動重試…`);
+      await new Promise((r) => setTimeout(r, 1000));
+      return await callStream(model, body, { ...opts, _retry: false });
+    }
     if (!e.logged) { logErr(stage, model, e.message); e.logged = true; }
     throw e;
   } finally {
@@ -226,6 +251,7 @@ export async function generateStory({ knownChars, mustInclude, priority, extraPr
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     if (onStatus) onStatus(attempt);
+    emitLog(`✍️ 第 ${attempt}/3 次撰寫（${settings.textModel}）…`);
     const feedback = best
       ? `\n注意：上一次你用了太多表外字（${best.newChars.join('、')}），這次務必把表外字控制在 ${maxNew} 個以內，優先只用認字表中的字改寫。`
       : '';
@@ -261,6 +287,7 @@ export async function generateStory({ knownChars, mustInclude, priority, extraPr
       // 網路閃斷/逾時不中斷整輪：換下一次嘗試；其他錯誤（key/模型問題）直接丟出
       if (/網路錯誤|逾時/.test(e.message)) {
         notes.push(`第 ${attempt} 次：${e.message}`);
+        emitLog(`❌ 第 ${attempt} 次失敗：${e.message}`);
         continue;
       }
       throw e;
@@ -271,10 +298,12 @@ export async function generateStory({ knownChars, mustInclude, priority, extraPr
       data = JSON.parse(rawText);
     } catch {
       notes.push(`第 ${attempt} 次：模型輸出不是有效的 JSON`);
+      emitLog(`❌ 第 ${attempt} 次失敗：模型輸出不是有效的 JSON`);
       continue; // JSON 壞掉就重試
     }
     if (!data.story || !data.title) {
       notes.push(`第 ${attempt} 次：缺少 title/story 欄位`);
+      emitLog(`❌ 第 ${attempt} 次失敗：缺少 title/story 欄位`);
       continue;
     }
 
@@ -287,10 +316,11 @@ export async function generateStory({ knownChars, mustInclude, priority, extraPr
     };
     if (newChars.length <= maxNew) return result;
     notes.push(`第 ${attempt} 次：表外新字 ${newChars.length} 個（${newChars.slice(0, 10).join('、')}）`);
+    emitLog(`🔁 第 ${attempt} 次：表外新字 ${newChars.length} 個（${newChars.slice(0, 10).join('、')}），重寫`);
     if (!best || newChars.length < best.newChars.length) best = result;
   }
 
-  if (best) return best; // 接受新字最少的一次
+  if (best) { emitLog(`⚠️ 三次都超標，採用新字最少的一次（${best.newChars.length} 個）`); return best; }
   const err = new Error('GEN_FAIL');
   err.detail = notes.join('\n');
   logErr('story', settings.textModel, `GEN_FAIL：${notes.join('；')}`);

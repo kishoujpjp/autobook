@@ -9,7 +9,7 @@ import {
   idbGet, idbSet, hasAudioCached,
   DEMO_STORY_HANT, DEMO_STORY_HANS,
 } from './store.js';
-import { generateStory, generateImage, ttsChar, findNewChars, detectPolys, errHintKey } from './gemini.js';
+import { generateStory, generateImage, ttsChar, findNewChars, detectPolys, errHintKey, setLogListener } from './gemini.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
 import { playSyllable } from './voice.js';
 import { Fog } from './fog.js';
@@ -603,7 +603,18 @@ async function runGeneration(mustInclude, extraPrompt) {
   const m = openModal('', { closable: false });
   const emoji = el('span', { class: 'big-emoji', text: '🧚' });
   const msg = el('p', { text: t('gen_writing') });
-  m.body.append(el('div', { class: 'loading-scene' }, emoji, msg));
+  // 進度 log：顯示目前生成到哪個階段；出錯時原因直接留在視窗裡好除錯
+  const logBox = el('div', { class: 'gen-log' });
+  const addLog = (line) => {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    logBox.append(el('div', { class: 'gen-log-line', text: `${hh}:${mm}:${ss} ${line}` }));
+    logBox.scrollTop = logBox.scrollHeight;
+  };
+  setLogListener(addLog);
+  m.body.append(el('div', { class: 'loading-scene' }, emoji, msg), logBox);
 
   // AI 生成一律用繁體（簡體顯示交給 app 轉換，避免混淆）；示範模式沿用語系版本
   const lang = settings.apiKey ? 'zh-Hant' : getLang();
@@ -613,6 +624,7 @@ async function runGeneration(mustInclude, extraPrompt) {
   try {
     let title, text, imagePrompt, newChars;
 
+    addLog(t('gen_log_start'));
     if (!settings.apiKey) {
       // 示範模式
       await new Promise((r) => setTimeout(r, 1200));
@@ -640,6 +652,8 @@ async function runGeneration(mustInclude, extraPrompt) {
       ({ title, text, newChars } = result);
       imagePrompt = result.imagePrompt;
     }
+    addLog(`✅ ${t('gen_log_story_ok')}：「${title}」`);
+    if (newChars.length) addLog(`🆕 ${t('gen_log_newchars')}：${newChars.join('、')}`);
 
     const id = `s${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
     const story = {
@@ -656,12 +670,15 @@ async function runGeneration(mustInclude, extraPrompt) {
     if (settings.apiKey && imagePrompt) {
       emoji.textContent = '🎨';
       msg.textContent = t('gen_drawing');
+      addLog(`🎨 ${t('gen_log_img')}（${settings.imageModel}）…`);
       try {
         const blob = await generateImage(imagePrompt);
         await idbSet('images', id, blob);
         story.hasImage = true;
+        addLog(`✅ ${t('gen_log_img_ok')}`);
       } catch (e) {
         console.warn('image failed', e);
+        addLog(`⚠️ ${t('gen_log_img_fail')}：${e.message}`);
       }
     }
 
@@ -674,20 +691,28 @@ async function runGeneration(mustInclude, extraPrompt) {
 
     await addStory(story);
     currentId = id;
+    setLogListener(null);
     m.close();
     sfx.sparkle();
     render();
   } catch (e) {
     console.error(e);
-    m.close();
-    if (e.message === 'NO_KEY') toast(t('api_missing'), true);
-    else if (e.message === 'GEN_FAIL') {
-      // 附上每次嘗試失敗的原因（JSON 壞掉／缺欄位／表外字太多）
-      infoDialog(t('err_title'), `${t('gen_fail')}${e.detail ? `\n\n${e.detail}` : ''}`, true);
+    setLogListener(null);
+    if (e.message === 'NO_KEY') { m.close(); toast(t('api_missing'), true); return; }
+    // 失敗時視窗留著，log 保留完整過程好除錯；按「好」才關
+    emoji.textContent = '😢';
+    if (e.message === 'GEN_FAIL') {
+      msg.textContent = t('gen_fail');
+      addLog(`❌ ${t('gen_fail')}`);
     } else {
+      msg.textContent = t('err_title');
+      addLog(`❌ ${e.message}`);
       const hint = errHintKey(e.message);
-      infoDialog(t('err_title'), `${e.message}${hint ? `\n👉 ${t(hint)}` : ''}${t('err_hint')}`, true);
+      if (hint) addLog(`👉 ${t(hint)}`);
     }
+    m.foot.append(el('button', { class: 'btn', text: t('ok'), onclick: () => { sfx.tap(); m.close(); } }));
+  } finally {
+    setLogListener(null);
   }
 }
 
