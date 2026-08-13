@@ -16,7 +16,7 @@
   --sun: #FFD93D;
   --leaf: #7DC855;
   --hl: #FFE08A;
-  --hl-ink: #B4690E;
+  --hl-ink: #7A4504; /* 黃底上的字要夠深才好認（原 #B4690E 偏淡） */
   --shadow: 0 6px 0 rgba(74, 59, 42, 0.12);
   --shadow-press: 0 2px 0 rgba(74, 59, 42, 0.12);
   --radius: 26px;
@@ -493,6 +493,12 @@ button {
   box-shadow: 0 4px 0 #A8DED8;
 }
 .book-edit:active { transform: translateY(3px); box-shadow: 0 1px 0 #A8DED8; }
+.edit-story-img {
+  width: 100%;
+  border-radius: 16px;
+  margin-top: 14px;
+  display: block;
+}
 
 /* ============ 生成面板（modal） ============ */
 .modal-mask {

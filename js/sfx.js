@@ -24,6 +24,9 @@ function tone(freq, start, dur, type = 'sine', gain = 0.25, glide = 0) {
 export const sfx = {
   pop()   { tone(880, 0, 0.09, 'sine', 0.2, 1320); },
   unpop() { tone(660, 0, 0.09, 'sine', 0.15, 440); },
+  // 故事點讀高亮用：極輕的短提示音，不干擾親子唸讀
+  tick()  { tone(1200, 0, 0.045, 'sine', 0.06); },
+  tock()  { tone(800, 0, 0.045, 'sine', 0.05); },
   tap()   { tone(520, 0, 0.06, 'triangle', 0.15); },
   correct() {
     tone(523.25, 0,    0.12, 'triangle', 0.28);

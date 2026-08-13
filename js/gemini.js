@@ -49,7 +49,7 @@ export function errHintKey(msg) {
 }
 
 async function call(model, body, opts = {}) {
-  const { timeoutMs = 90000, apiKey = null, stage = 'api', _retry = true } = opts;
+  const { timeoutMs = 90000, apiKey = null, stage = 'api', _retries = 2 } = opts;
   const key = apiKey || settings.apiKey;
   if (!key) throw new Error('NO_KEY');
   const ac = new AbortController();
@@ -68,12 +68,13 @@ async function call(model, body, opts = {}) {
       });
     } catch (e) {
       if (e && e.name === 'AbortError') throw new Error(`逾時：${Math.round(timeoutMs / 1000)} 秒沒有回應`);
-      // 行動網路偶發斷線（Safari「Load failed」）：等 1 秒自動重試一次
-      if (_retry) {
+      // 行動網路偶發斷線（Safari「Load failed」）：自動重試 2 次（1 秒、3 秒退避）
+      if (_retries > 0) {
         clearTimeout(timer);
-        emitLog(`🔁 [${stage}] 網路錯誤（${(e && e.message) || e}），1 秒後自動重試…`);
-        await new Promise((r) => setTimeout(r, 1000));
-        return await call(model, body, { ...opts, _retry: false });
+        const delay = _retries === 2 ? 1000 : 3000;
+        emitLog(`🔁 [${stage}] 網路錯誤（${(e && e.message) || e}），${delay / 1000} 秒後自動重試…`);
+        await new Promise((r) => setTimeout(r, delay));
+        return await call(model, body, { ...opts, _retries: _retries - 1 });
       }
       throw new Error(`網路錯誤：${(e && e.message) || e}`);
     }
@@ -106,7 +107,7 @@ async function callStreamText(model, body, opts = {}) {
 
 /** 串流共用底層：回傳 { text, inlineMime, inlineData }（inlineData 為 base64，分段自動串接） */
 async function callStream(model, body, opts = {}) {
-  const { timeoutMs = 150000, stage = 'api', _retry = true } = opts;
+  const { timeoutMs = 150000, stage = 'api', _retries = 2 } = opts;
   const key = settings.apiKey;
   if (!key) throw new Error('NO_KEY');
   const ac = new AbortController();
@@ -188,12 +189,13 @@ async function callStream(model, body, opts = {}) {
     }
     return { text, inlineMime, inlineParts };
   } catch (e) {
-    // 行動網路偶發斷線：等 1 秒自動重試一次（與 call() 相同策略；逾時不重試）
-    if (_retry && e.message.startsWith('網路錯誤')) {
+    // 行動網路偶發斷線：自動重試 2 次（1 秒、3 秒退避；與 call() 相同策略；逾時不重試）
+    if (_retries > 0 && e.message.startsWith('網路錯誤')) {
       clearTimeout(timer);
-      emitLog(`🔁 [${stage}] ${e.message}，1 秒後自動重試…`);
-      await new Promise((r) => setTimeout(r, 1000));
-      return await callStream(model, body, { ...opts, _retry: false });
+      const delay = _retries === 2 ? 1000 : 3000;
+      emitLog(`🔁 [${stage}] ${e.message}，${delay / 1000} 秒後自動重試…`);
+      await new Promise((r) => setTimeout(r, delay));
+      return await callStream(model, body, { ...opts, _retries: _retries - 1 });
     }
     if (!e.logged) { logErr(stage, model, e.message); e.logged = true; }
     throw e;
@@ -224,6 +226,39 @@ export function findNewChars(text, knownSet) {
     if (isHan(ch) && !knownSet.has(ch) && !out.includes(ch)) out.push(ch);
   }
   return out;
+}
+
+// ---------- 思考設定：少想快寫 ----------
+// 會思考的模型（gemini-3 / gemini-2.5 文字系）收到請求後可能沉默 30~60 秒才吐第一個字，
+// SSE 連線這段時間沒有資料流動，行動 Safari 會把閒置連線砍掉（Load failed）。
+// 把思考壓到最低：第一批字幾秒內就到，連線開始流動就不會被砍；幼兒繪本也不需要深思。
+let thinkUnsupported = false; // 模型不吃 thinkingConfig（HTTP 400）時記住，之後不再送
+function thinkCfg(model) {
+  if (thinkUnsupported) return {};
+  if (/^gemini-3/.test(model)) return { thinkingConfig: { thinkingLevel: 'low' } };
+  if (/^gemini-2\.5/.test(model)) return { thinkingConfig: { thinkingBudget: 0 } };
+  return {};
+}
+
+/** 帶 thinkingConfig 呼叫串流文字；遇 HTTP 400（模型不支援）自動拿掉重試一次 */
+async function callStreamTextThink(model, generationConfig, prompt, opts) {
+  const cfg = thinkCfg(model);
+  try {
+    return await callStreamText(model, {
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { ...generationConfig, ...cfg },
+    }, opts);
+  } catch (e) {
+    if (cfg.thinkingConfig && /HTTP 400/.test(e.message)) {
+      thinkUnsupported = true;
+      emitLog(`⚠️ 模型不支援 thinkingConfig（${e.message.slice(0, 80)}），改用預設重試`);
+      return await callStreamText(model, {
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig,
+      }, opts);
+    }
+    throw e;
+  }
 }
 
 /** 洗牌（Fisher–Yates）：字表注入提示詞前打亂，避免模型每次看到同樣的開頭 */
@@ -331,14 +366,11 @@ export async function generateStory({ knownChars, mustInclude, extraPrompt, mix,
 
     let rawText;
     try {
-      rawText = await callStreamText(settings.textModel, {
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: schema,
-          temperature: 0.9, // 1.0 → 0.9：降一點隨機性讓句構更穩（缺字/怪詞變少）
-        },
-      }, { stage: 'story' });
+      rawText = await callStreamTextThink(settings.textModel, {
+        responseMimeType: 'application/json',
+        responseSchema: schema,
+        temperature: 0.9, // 1.0 → 0.9：降一點隨機性讓句構更穩（缺字/怪詞變少）
+      }, prompt, { stage: 'story' });
     } catch (e) {
       // 網路閃斷/逾時不中斷整輪：換下一次嘗試；其他錯誤（key/模型問題）直接丟出
       if (/網路錯誤|逾時/.test(e.message)) {
@@ -398,26 +430,23 @@ export async function detectPolys(text) {
     '故事：',
     text,
   ].join('\n');
-  const rawText = await callStreamText(settings.textModel, {
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: 'OBJECT',
-        properties: {
+  const rawText = await callStreamTextThink(settings.textModel, {
+    responseMimeType: 'application/json',
+    responseSchema: {
+      type: 'OBJECT',
+      properties: {
+        items: {
+          type: 'ARRAY',
           items: {
-            type: 'ARRAY',
-            items: {
-              type: 'OBJECT',
-              properties: { char: { type: 'STRING' }, word: { type: 'STRING' } },
-              required: ['char', 'word'],
-            },
+            type: 'OBJECT',
+            properties: { char: { type: 'STRING' }, word: { type: 'STRING' } },
+            required: ['char', 'word'],
           },
         },
-        required: ['items'],
       },
+      required: ['items'],
     },
-  }, { stage: 'poly' });
+  }, prompt, { stage: 'poly' });
   let data;
   try {
     data = JSON.parse(rawText);
@@ -519,20 +548,17 @@ export async function testModels(onUpdate) {
     contents: [{ role: 'user', parts: [{ text: '請回答：好' }] }],
   }, { timeoutMs: 30000, stage: 'test' }));
 
-  // 走與實際故事生成相同的串流路徑，避免診斷通過但實際失敗的落差
+  // 走與實際故事生成相同的串流路徑（含 thinkingConfig），避免診斷通過但實際失敗的落差
   await run('diag_json', async () => {
-    const raw = await callStreamText(settings.textModel, {
-      contents: [{ role: 'user', parts: [{ text: '輸出一個 JSON：title 填「好」、story 填「好」、image_prompt 填「ok」。' }] }],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: 'OBJECT',
-          properties: { title: { type: 'STRING' }, story: { type: 'STRING' }, image_prompt: { type: 'STRING' } },
-          required: ['title', 'story', 'image_prompt'],
-        },
-        temperature: 0.9,
+    const raw = await callStreamTextThink(settings.textModel, {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'OBJECT',
+        properties: { title: { type: 'STRING' }, story: { type: 'STRING' }, image_prompt: { type: 'STRING' } },
+        required: ['title', 'story', 'image_prompt'],
       },
-    }, { timeoutMs: 45000, stage: 'test' });
+      temperature: 0.9,
+    }, '輸出一個 JSON：title 填「好」、story 填「好」、image_prompt 填「ok」。', { timeoutMs: 45000, stage: 'test' });
     JSON.parse(raw); // 解析不了視同失敗
   });
 

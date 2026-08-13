@@ -200,12 +200,12 @@ export function render() {
         btn.classList.toggle('hl', on);
         if (on) {
           highlights.add(i);
-          sfx.pop();
+          sfx.tick(); // 極輕提示音：連續點讀時不蓋過唸讀聲
           if (bankCh) bumpRead(bankCh, 1);
           if (settings.storySpeak) speakAt(story, ch, i);
         } else {
           highlights.delete(i);
-          sfx.unpop();
+          sfx.tock();
           if (bankCh) bumpRead(bankCh, -1);
         }
         story.hlBy[currentAccountId] = [...highlights];
@@ -237,20 +237,30 @@ export function render() {
   function doneCount() {
     return mode === 'hl' ? highlights.size : marks.size;
   }
+  function bigCelebrate() {
+    figWrap.classList.remove('reveal-bounce');
+    void figWrap.offsetWidth;
+    figWrap.classList.add('reveal-bounce');
+    spawnMagicStars(figWrap);
+    sfx.fanfare();
+    confetti();
+  }
   function celebrate() {
     if (!fog) return;
     fog.revealAll({
       onStep: (i) => sfx.star(i),
-      onDone: () => {
-        figWrap.classList.remove('reveal-bounce');
-        void figWrap.offsetWidth;
-        figWrap.classList.add('reveal-bounce');
-        spawnMagicStars(figWrap);
-        sfx.fanfare();
-        confetti();
-      },
+      onDone: bigCelebrate,
     });
   }
+  // 迷霧解開後點圖可以再放一次特效（1.5 秒冷卻，連點不疊放）
+  let lastReplay = 0;
+  figWrap.addEventListener('click', () => {
+    if (!celebrated) return;
+    const now = Date.now();
+    if (now - lastReplay < 1500) return;
+    lastReplay = now;
+    bigCelebrate();
+  });
   function updateProgress() {
     const total = hanIndices.length || 1;
     const ratio = doneCount() / total;
@@ -433,7 +443,10 @@ function openShelfModal() {
 // 編輯框固定顯示/輸入繁體（資料核心是繁體，簡體介面顯示時自動轉換）。
 // 內文變動後，索引式的點讀/標註紀錄與多音字資料都會失效，一律重設。
 function openEditStoryModal(story, onSaved) {
-  const m = openModal(`✏️ ${t('story_edit')}`);
+  let imgUrl = null;
+  const m = openModal(`✏️ ${t('story_edit')}`, {
+    onClose: () => { if (imgUrl) URL.revokeObjectURL(imgUrl); },
+  });
   const titleInput = el('input', { class: 'text-input', value: s2t(story.title) });
   const textArea = el('textarea', { class: 'text-area', style: 'min-height:220px;margin-top:4px;' });
   textArea.value = s2t(story.text);
@@ -464,6 +477,15 @@ function openEditStoryModal(story, onSaved) {
     textArea,
     el('p', { class: 'settings-note', text: t('story_edit_note') }),
   );
+  // 這本的插圖放在最下面，改文字時捲下去就能對照
+  if (story.hasImage) {
+    const img = el('img', { class: 'edit-story-img', alt: '' });
+    m.body.append(img);
+    idbGet('images', story.id).then((blob) => {
+      if (blob) { imgUrl = URL.createObjectURL(blob); img.src = imgUrl; }
+      else img.remove();
+    }).catch(() => img.remove());
+  }
   m.foot.append(saveBtn);
 }
 
