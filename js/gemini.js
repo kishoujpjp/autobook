@@ -279,8 +279,9 @@ function mixSection(mix) {
 }
 
 /**
- * 生成故事。會驗證新字數量，超過 5 個自動重試（最多 3 次），
- * 全部失敗時回傳新字最少的一次。
+ * 生成故事。會驗證新字數量，超過 5 個自動重試（最多 3 次）；
+ * 三次都超標時採用「最後一次」嘗試——它經過回饋修正，通常最通順
+ * （表外字最少的那次往往是句子扭得最厲害的，故意不選）。
  * @param mix 故事元素比例 {warm, fun, conflict, sad, mistake}（0~10）
  * @param wantImage 要不要一併要求 image_prompt（關閉插圖時省掉）
  * @returns {title, text, imagePrompt, newChars}
@@ -299,14 +300,14 @@ export async function generateStory({ knownChars, mustInclude, extraPrompt, mix,
     required: wantImage ? ['title', 'story', 'image_prompt'] : ['title', 'story'],
   };
 
-  let best = null;
+  let last = null;  // 最後一次超標的嘗試（回饋與最終回退都用它）
   const notes = []; // 每次嘗試的失敗原因（除錯用）
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     if (onStatus) onStatus(attempt);
     emitLog(`✍️ 第 ${attempt}/3 次撰寫（${settings.textModel}）…`);
-    const feedback = best
-      ? `\n注意：上一次你用了太多表外字（${best.newChars.join('、')}），這次務必把表外字控制在 ${maxNew} 個以內，優先只用認字表中的字改寫。`
+    const feedback = last
+      ? `\n注意：上一次你用了太多表外字（${last.newChars.join('、')}），這次務必把表外字控制在 ${maxNew} 個以內，優先只用認字表中的字改寫，但句子仍然要通順。`
       : '';
     const prompt = [
       `你是幼兒繪本作家，為5歲小朋友寫一個小故事。使用繁體中文。`,
@@ -317,11 +318,12 @@ export async function generateStory({ knownChars, mustInclude, extraPrompt, mix,
       ``,
       `規則：`,
       `1. 故事正文只能使用認字表中的字。整篇最多允許出現 ${maxNew} 個「表外新字」（同一個新字重複出現只算 1 個）。認字表以外的字愈少愈好。`,
-      `2. 標點符號不受限制，請正常使用標點。不可使用阿拉伯數字與英文字母。`,
-      `3. 正文長度約 150～180 個字。`,
-      mustInclude.length ? `4. 這些字必須出現在正文中：${mustInclude.join('、')}` : `4. （無指定必用字）`,
-      `5. 標題要短（8 個字以內），盡量也用認字表中的字。`,
-      extraPrompt ? `6. 額外要求：${extraPrompt}` : ``,
+      `2. 最重要：每一句話都必須通順自然、符合中文語法。絕對不可以為了避開表外字而省略字、硬拆詞、或拼出不存在的詞。如果某句話一定要用表外字才通順，就直接用（計入上限）；如果表外字快用完了，就換一個用表內字能自然表達的情節或說法，而不是硬寫。`,
+      `3. 標點符號不受限制，請正常使用標點。不可使用阿拉伯數字與英文字母。`,
+      `4. 正文長度約 150～180 個字。`,
+      mustInclude.length ? `5. 這些字必須出現在正文中：${mustInclude.join('、')}` : `5. （無指定必用字）`,
+      `6. 標題要短（8 個字以內），盡量也用認字表中的字。`,
+      extraPrompt ? `7. 額外要求：${extraPrompt}` : ``,
       feedback,
       ``,
       wantImage ? `另外輸出 image_prompt：用英文描述一張配圖的場景（一個場景即可），只描述畫面內容與角色動作，不要指定畫風。` : ``,
@@ -334,7 +336,7 @@ export async function generateStory({ knownChars, mustInclude, extraPrompt, mix,
         generationConfig: {
           responseMimeType: 'application/json',
           responseSchema: schema,
-          temperature: 1.0,
+          temperature: 0.9, // 1.0 → 0.9：降一點隨機性讓句構更穩（缺字/怪詞變少）
         },
       }, { stage: 'story' });
     } catch (e) {
@@ -371,10 +373,10 @@ export async function generateStory({ knownChars, mustInclude, extraPrompt, mix,
     if (newChars.length <= maxNew) return result;
     notes.push(`第 ${attempt} 次：表外新字 ${newChars.length} 個（${newChars.slice(0, 10).join('、')}）`);
     emitLog(`🔁 第 ${attempt} 次：表外新字 ${newChars.length} 個（${newChars.slice(0, 10).join('、')}），重寫`);
-    if (!best || newChars.length < best.newChars.length) best = result;
+    last = result;
   }
 
-  if (best) { emitLog(`⚠️ 三次都超標，採用新字最少的一次（${best.newChars.length} 個）`); return best; }
+  if (last) { emitLog(`⚠️ 三次都超標，採用最後一次（表外新字 ${last.newChars.length} 個，經回饋修正通常最通順）`); return last; }
   const err = new Error('GEN_FAIL');
   err.detail = notes.join('\n');
   logErr('story', settings.textModel, `GEN_FAIL：${notes.join('；')}`);
@@ -528,7 +530,7 @@ export async function testModels(onUpdate) {
           properties: { title: { type: 'STRING' }, story: { type: 'STRING' }, image_prompt: { type: 'STRING' } },
           required: ['title', 'story', 'image_prompt'],
         },
-        temperature: 1.0,
+        temperature: 0.9,
       },
     }, { timeoutMs: 45000, stage: 'test' });
     JSON.parse(raw); // 解析不了視同失敗
