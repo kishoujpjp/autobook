@@ -120,6 +120,7 @@ function render() {
     el('div', { class: 'row' },
       el('button', { class: 'btn ghost small', onclick: async () => {
         sfx.tap();
+        if (!(await confirmDialog(t('set_clear_audio_confirm')))) return;
         await idbClear('audio').catch(() => {});
         toast(t('set_cleared'));
       } }, '🔇 ', t('set_clear_audio')),
@@ -131,8 +132,9 @@ function render() {
       } }, '🗣 ', t('native_test')),
       el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); downloadAllSyllables(); } },
         '⬇️ ', t('set_dl_syl')),
-      el('button', { class: 'btn ghost small', onclick: () => {
+      el('button', { class: 'btn ghost small', onclick: async () => {
         sfx.tap();
+        if (!(await confirmDialog(t('set_demo_confirm', { n: DEMO_WORDS.length })))) return;
         const { added } = addWords(DEMO_WORDS);
         toast(added ? t('set_demo_loaded') : t('words_dup', { n: 0 }));
       } }, '🌱 ', t('set_demo_words')),

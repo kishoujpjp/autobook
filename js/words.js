@@ -1,14 +1,13 @@
 // 字表頁：新增/多選刪除/入庫、統計、排序、熟悉度（紅綠）、一鍵補齊讀音
 // 顯示字形跟隨語系（資料仍存輸入時的原字形）；熟悉度依帳號×語系分開
 import { t, getLang } from './i18n.js';
-import { el, toast, confirmDialog, openModal, infoDialog } from './ui.js';
+import { el, toast, confirmDialog } from './ui.js';
 import { sfx } from './sfx.js';
 import {
   settings, saveSettings, words, addWords, removeWords, setArchived,
-  getCard, cycleMark, idbGet, idbSet,
+  getCard, cycleMark,
   accounts, currentAccount,
 } from './store.js';
-import { ttsChar, errHintKey } from './gemini.js';
 import { speakChar } from './voice.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
 import { avatarEl } from './avatars.js';
@@ -153,9 +152,6 @@ function render() {
     root.append(el('p', { class: 'settings-note', style: 'margin-bottom:12px;',
       text: `👉 ${t('words_kid_hint')}` }));
   } else {
-    const fillBtn = el('button', { class: 'btn sky small', onclick: () => { sfx.tap(); fillAudio(); } },
-      '🔊 ', t('words_fill_audio'));
-
     // 鎖定：點字只發音，不改紅綠（防小孩亂按）
     const lockBtn = el('button', {
       class: `btn small ${settings.wordsLocked ? 'berry' : 'ghost'}`,
@@ -205,7 +201,7 @@ function render() {
       seg,
       el('div', { class: 'row' },
         editMode ? archBtn : lockBtn,
-        editMode ? delBtn : fillBtn,
+        editMode ? delBtn : null,
         editBtn,
       ),
     ));
@@ -301,50 +297,6 @@ function render() {
   }
 
   root.append(grid);
-}
-
-// ---------- 一鍵補齊讀音 ----------
-async function fillAudio() {
-  if (!settings.apiKey && !settings.ttsApiKey) { toast(t('api_missing'), true); return; }
-  const missing = [];
-  for (const w of words) {
-    const hit = await idbGet('audio', w.ch).catch(() => null);
-    if (!hit) missing.push(w.ch);
-  }
-  if (!missing.length) { toast(t('words_fill_none')); return; }
-
-  const m = openModal('', { closable: false });
-  const msg = el('p', { text: `${t('game_prep')} 0/${missing.length}` });
-  const fill = el('div', { class: 'prep-fill' });
-  m.body.append(el('div', { class: 'loading-scene' },
-    el('span', { class: 'big-emoji', text: '🔊' }), msg,
-    el('div', { class: 'prep-bar' }, fill),
-  ));
-
-  let done = 0, fail = 0, lastErr = null;
-  const failed = [];
-  for (const ch of missing) {
-    try {
-      const blob = await ttsChar(ch);
-      await idbSet('audio', ch, blob);
-    } catch (e) { fail++; lastErr = e; failed.push(ch); console.warn('tts failed', ch, e); }
-    done++;
-    msg.textContent = `${t('game_prep')} ${done}/${missing.length}`;
-    fill.style.width = `${Math.round((done / missing.length) * 100)}%`;
-  }
-  m.close();
-  if (fail) {
-    const hint = lastErr && errHintKey(lastErr.message);
-    infoDialog(t('err_title'), [
-      t('tts_fail_detail', { n: fail, total: missing.length }),
-      failed.slice(0, 20).join('、') + (failed.length > 20 ? '…' : ''),
-      lastErr ? lastErr.message : '',
-      hint ? `👉 ${t(hint)}` : '',
-      t('tts_fallback_note'),
-    ].filter(Boolean).join('\n'), true);
-    return;
-  }
-  toast(t('prep_voice_done'));
 }
 
 function statChip(num, label) {
