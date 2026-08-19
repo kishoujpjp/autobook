@@ -101,7 +101,7 @@ for E in "${NEEDY[@]}"; do
   UDID=$(echo "$E" | cut -d'|' -f1); NAME=$(echo "$E" | cut -d'|' -f2); REASON=$(echo "$E" | cut -d'|' -f3)
   if xcrun devicectl device install app --device "$UDID" "$APP_OUT" >> "$LOG" 2>&1; then
     printf "%s\n%s\n" "$HEAD_HASH" "$(date +%s)" > "$STATE_DIR/state.$UDID"
-    log "✓ $NAME 部署完成 build#$BUILD_NO ${HEAD_HASH:0:7}（$REASON）"
+    log "✓ $NAME 部署完成 build#$BUILD_NO ${HEAD_HASH:0:7}（${REASON}）"
     notify "完成：$NAME" "build#$BUILD_NO ${HEAD_HASH:0:7} $HEAD_SUBJ"
   else
     log "✗ $NAME install 失敗（可能未解鎖）→ 下個週期重試"
