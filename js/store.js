@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.18.2';
+export const VERSION = '1.18.3';
 
 const LS = {
   settings: 'autobook.settings',

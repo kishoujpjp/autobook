@@ -377,6 +377,13 @@ function openReadSettings(story) {
     el('p', { class: 'settings-note', text: t('rs_speak_note') }),
   );
 
+  // 追加新字：把本篇還沒在字表裡的字（繁體）挑選後加入字表
+  m.body.append(
+    el('div', { class: 'field-label', text: t('rs_add_new_label') }),
+    el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); m.close(); openAddNewChars(story); } },
+      '➕ ', t('rs_add_new')),
+  );
+
   m.foot.append(
     el('button', { class: 'btn sky', onclick: () => {
       sfx.tap();
@@ -608,6 +615,70 @@ function mixRadar() {
   });
 
   return el('div', { class: 'mix-wrap' }, svg, randBtn);
+}
+
+// ---------- 追加新字到字表 ----------
+// 候選＝本篇內文的漢字轉繁體後、不在字表（以繁體比對）的字；加入一律用繁體（資料核心）。
+// 不沿用 story.newChars（字表變動後會過期），每次重新計算。
+function storyNewHant(story) {
+  const bankHant = new Set(words.map((w) => convertTo(w.ch, 'zh-Hant')));
+  return findNewChars(s2t(story.text || ''), bankHant);
+}
+function openAddNewChars(story) {
+  const cands = storyNewHant(story);
+  if (!cands.length) { toast(t('no_new_chars')); return; }
+  const m = openModal(`➕ ${t('add_new_title')}`);
+  const selected = new Set(cands); // 預設全選，點掉不要的
+  const grid = el('div', { class: 'pick-grid' });
+  const btns = new Map();
+  const okBtn = el('button', { class: 'btn mint' });
+  const refresh = () => {
+    okBtn.textContent = `✅ ${t('add_new_confirm', { n: selected.size })}`;
+    okBtn.disabled = selected.size === 0;
+  };
+  for (const ch of cands) {
+    const btn = el('button', { class: 'pick-zi on', text: convertTo(ch, getLang()) });
+    btn.addEventListener('click', () => {
+      sfx.tap();
+      if (selected.has(ch)) { selected.delete(ch); btn.classList.remove('on'); }
+      else { selected.add(ch); btn.classList.add('on'); }
+      refresh();
+    });
+    btns.set(ch, btn);
+    grid.append(btn);
+  }
+  const allBtn = el('button', { class: 'btn ghost small', onclick: () => {
+    sfx.tap();
+    const all = selected.size < cands.length;
+    for (const ch of cands) { if (all) selected.add(ch); else selected.delete(ch); btns.get(ch).classList.toggle('on', all); }
+    refresh();
+  } }, t('flash_pick_all'));
+  refresh();
+
+  m.body.append(
+    el('p', { class: 'settings-note', style: 'margin-top:0;', text: t('add_new_hint') }),
+    el('div', { class: 'row', style: 'margin-bottom:10px;' }, allBtn),
+    grid,
+  );
+  okBtn.addEventListener('click', () => {
+    sfx.tap();
+    // 依本篇出現順序加入；只加繁體（cands 本身已是繁體）
+    const picked = cands.filter((ch) => selected.has(ch));
+    const { added, dup, collide } = addWords(picked.join(''));
+    m.close();
+    let msg = t('words_added', { n: added });
+    if (dup) msg += t('words_dup', { n: dup });
+    toast(msg);
+    if (collide.length) infoDialog('💡', t('words_collide', { list: collide.join('、') }));
+    // 本篇新字清單重算（這些字現在在字表裡了）
+    story.newChars = storyNewHant(story);
+    saveStories();
+    render();
+  });
+  m.foot.append(
+    el('button', { class: 'btn ghost', text: t('cancel'), onclick: () => { sfx.tap(); m.close(); } }),
+    okBtn,
+  );
 }
 
 // ---------- 生成面板 ----------
