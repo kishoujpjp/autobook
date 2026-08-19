@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 實機自動部署（scripts/ios-device-install.sh 說明）
+	     安裝: cp scripts/com.kishou.autobook.deploy.plist ~/Library/LaunchAgents/
+	           launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kishou.autobook.deploy.plist
+	     解除: launchctl bootout gui/$(id -u)/com.kishou.autobook.deploy -->
+	<key>Label</key>
+	<string>com.kishou.autobook.deploy</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>/Users/kishoujpjp/Databases/Scripts/TempBuilding/Autobook/scripts/ios-device-install.sh</string>
+		<string>auto</string>
+	</array>
+	<!-- 雙觸發：commit 即時（WatchPaths）＋每 30 分鐘輪詢（偵測連線、5 天重簽兜底） -->
+	<key>WatchPaths</key>
+	<array>
+		<string>/Users/kishoujpjp/Databases/Scripts/TempBuilding/Autobook/.git/refs/heads/main</string>
+	</array>
+	<key>StartInterval</key>
+	<integer>1800</integer>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>StandardOutPath</key>
+	<string>/Users/kishoujpjp/.autobook-deploy/launchd.out.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/kishoujpjp/.autobook-deploy/launchd.err.log</string>
+</dict>
+</plist>

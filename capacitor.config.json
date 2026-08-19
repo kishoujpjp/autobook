@@ -1,0 +1,11 @@
+{
+  "appId": "com.kishou.autobook",
+  "appName": "自動繪本",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "never"
+  },
+  "server": {
+    "iosScheme": "https"
+  }
+}

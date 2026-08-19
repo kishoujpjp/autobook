@@ -127,6 +127,14 @@ export function playBlob(blob) {
  * - getVoices() 首次呼叫常是空陣列 → 監聽 voiceschanged；找不到聲音就靠 u.lang
  */
 let nativeU = null;
+// iOS 的 speechSynthesis 會把 app 的音訊 session 切成「壓低其他聲音」模式，
+// 且講完後常不復原 → WebAudio/<audio> 全部變很小聲，要等別的 app 搶走 session 才恢復。
+// 緩解：語音一結束就關掉舊的 AudioContext，下一個音效重開新的 context 重新取得正常音量。
+function unduck() {
+  if (!ctx) return;
+  const old = ctx; ctx = null;
+  try { old.close().catch(() => {}); } catch { /* ignore */ }
+}
 if (typeof speechSynthesis !== 'undefined') {
   try { speechSynthesis.addEventListener('voiceschanged', () => speechSynthesis.getVoices()); } catch { /* 舊瀏覽器 */ }
 }
@@ -137,7 +145,9 @@ function primeNative() {
   nativePrimed = true;
   try {
     // 空字串＋預設音量：部分 iOS 版本會忽略 volume=0 的解鎖，空字串本身就無聲
-    speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+    const u = new SpeechSynthesisUtterance('');
+    u.onend = u.onerror = unduck;
+    speechSynthesis.speak(u);
   } catch { /* ignore */ }
 }
 if (typeof document !== 'undefined') {
@@ -158,7 +168,7 @@ export function speakNative(text) {
     if (v) u.voice = v;
     if (currentAudio) { currentAudio.pause(); currentAudio = null; }
     nativeU = u; // 保留引用避免 GC
-    u.onend = () => { if (nativeU === u) nativeU = null; };
+    u.onend = () => { if (nativeU === u) nativeU = null; unduck(); };
     u.onerror = u.onend;
     if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
     speechSynthesis.speak(u);

@@ -1,9 +1,14 @@
 # 自動繪本 Autobook
 
-給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.17.1**。
+給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.18.0**。
 
 - 線上版（GitHub Pages，push `main` 自動部署）：https://kishoujpjp.github.io/autobook/
 - 純前端 ES modules、無 build step；AI 走使用者自備的 Gemini API Key（存本機）。
+- **iOS 原生殼（Capacitor，v1.18.0 起）**：`com.kishou.autobook`，免費開發者帳號簽名直接裝在 iPad 上。
+  - 為什麼：PWA 在 iPadOS 上用 `speechSynthesis` 後，系統音訊 session 常卡在「被壓低」狀態（聲音突然變很小，要開 YouTube 才恢復）。原生殼在 `ios/App/App/AppDelegate.swift` 把 `AVAudioSession` 固定為 `.playback` 並在回前景／中斷結束／路由改變時重設，根治此問題；`js/sfx.js` 另有 JS 端緩解（語音結束即重建 AudioContext），PWA 版也受益。
+  - 手動建置：`npm run ios:device`（= `scripts/ios-device-install.sh force`：`node --check` → `npm run build`（純複製到 `dist/`）→ `cap sync` → `xcodebuild` → `devicectl install`）。
+  - **自動部署**（抄自 mg-zukan2）：`scripts/com.kishou.autobook.deploy.plist` 裝進 `~/Library/LaunchAgents/`，commit 到 `main` 即觸發、每 30 分鐘輪詢、每 5 天自動重簽（免費簽名 7 天到期）。紀錄在 `~/.autobook-deploy/deploy.log`。安裝當下 iPad 要解鎖、USB 或同 Wi-Fi。
+  - 注意：app 的資料（API Key、字表、書架）與 Safari PWA 是**不同的 origin**，不共用；第一次用 app 請在 PWA「設定 → 備份」匯出再於 app 匯入。
 - **核心事實是繁體**：AI 一律生成繁體、資料存繁體、讀音以臺灣華語為準；簡體只是顯示時的換皮。
 
 ## 分頁總覽

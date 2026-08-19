@@ -1,0 +1,19 @@
+{
+  "name": "autobook",
+  "version": "1.18.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node tools/build-dist.mjs",
+    "ios:sync": "npm run build && npx cap sync ios",
+    "ios:open": "npx cap open ios",
+    "ios:device": "bash scripts/ios-device-install.sh force"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.4.2",
+    "@capacitor/ios": "^8.4.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.4.2"
+  }
+}
