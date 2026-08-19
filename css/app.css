@@ -234,10 +234,12 @@ button {
   overflow: hidden; /* 極小視窗時保底：寧可裁掉也不讓字溢出卡片邊緣 */
 }
 
-/* 頁高由 JS 鎖成整行倍數：不可手滑捲動、無捲軸，整行完整顯示不溢出 */
+/* 頁高由 JS 鎖成整行倍數：不可手滑捲動、無捲軸，整行完整顯示不溢出
+   clip-path 裁掉上緣 10px 內距：翻頁後上一行字塊的陰影不會透出來 */
 .story-scroll {
   overflow: hidden;
   padding: 10px;
+  clip-path: inset(10px 0 0 0);
 }
 
 .page-btn {

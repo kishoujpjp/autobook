@@ -18,6 +18,7 @@ let root = null;
 let currentId = null;
 let fog = null;
 let pageResize = null; // 目前這次 render 的 resize 監聽（重繪前要先移除，避免累積）
+let pageRO = null;     // 文字卡尺寸觀察器（插圖載入、安全區、鍵盤等任何版面變動都重算頁高）
 
 export function initStory(rootEl) {
   root = rootEl;
@@ -48,6 +49,7 @@ function buildBankMap() {
 export function render() {
   if (fog) { fog.destroy(); fog = null; }
   if (pageResize) { window.removeEventListener('resize', pageResize); pageResize = null; }
+  if (pageRO) { pageRO.disconnect(); pageRO = null; }
   root.innerHTML = '';
   const story = currentId ? getStory(currentId) : null;
   root.classList.toggle('story-fixed', !!story);
@@ -116,16 +118,21 @@ export function render() {
   const downBtn = el('button', { class: 'page-btn', text: '▼' });
   const pageInd = el('span', { class: 'page-ind', text: '1 / 1' });
 
-  // 行高 = 字鈕高 + 10px 間距；頁高鎖成整行的倍數，字不會被切到或溢出邊緣
-  function rowH() { return settings.storyFont === 'big' ? 118 : 82; }
-  let pageRows = 1;
+  // 頁高鎖成整行：先算放得下幾行（字塊高 + 10px 基本行距），
+  // 再把卡片剩餘高度平均攤進行距（上限 +24px），不留一整行空白；
+  // 原生 app 的視窗比 Safari PWA 高一截，取整後餘數曾接近一整行，看起來像多一行空白。
+  function tileH() { return settings.storyFont === 'big' ? 108 : 72; }
+  let pageRows = 1, rowGap = 10;
   function sizeText() {
-    const ROW = rowH();
-    const avail = textCard.clientHeight - 24; // text-card 內距 12×2
-    pageRows = Math.max(1, Math.floor((avail - 10) / ROW)); // story-scroll 內距 10×2，行間距抵掉一半
-    scroll.style.height = `${pageRows * ROW + 10}px`;
+    const TILE = tileH();
+    const inner = textCard.clientHeight - 24 - 20; // text-card 內距 12×2、story-scroll 內距 10×2
+    pageRows = Math.max(1, Math.floor((inner + 10) / (TILE + 10)));
+    const spare = inner - (pageRows * TILE + (pageRows - 1) * 10);
+    rowGap = pageRows > 1 ? 10 + Math.min(24, Math.max(0, Math.floor(spare / (pageRows - 1)))) : 10;
+    textWrap.style.rowGap = `${rowGap}px`;
+    scroll.style.height = `${pageRows * (TILE + rowGap) - rowGap + 20}px`;
   }
-  function pageStep() { return pageRows * rowH(); }
+  function pageStep() { return pageRows * (tileH() + rowGap); }
   function updatePager() {
     const step = pageStep();
     const maxScroll = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
@@ -145,6 +152,14 @@ export function render() {
   scroll.addEventListener('scroll', () => requestAnimationFrame(updatePager));
   pageResize = () => { sizeText(); updatePager(); };
   window.addEventListener('resize', pageResize);
+  if (typeof ResizeObserver !== 'undefined') {
+    let lastH = 0;
+    pageRO = new ResizeObserver(() => {
+      const h = textCard.clientHeight;
+      if (h && h !== lastH) { lastH = h; pageResize(); }
+    });
+    pageRO.observe(textCard);
+  }
 
   // 直向：圖上字下，最下排按鈕列；橫向：翻頁鈕移到圖片下方（下一頁在左、上一頁在右）
   root.append(el('div', { class: 'story-layout' },
