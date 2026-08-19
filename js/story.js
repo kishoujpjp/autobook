@@ -4,7 +4,7 @@ import { t, getLang } from './i18n.js';
 import { el, toast, openModal, confirmDialog, infoDialog, confetti } from './ui.js';
 import { sfx, playBlob, speakNative } from './sfx.js';
 import {
-  settings, saveSettings, words, isHan, addWords, bumpUsed, bumpRead, setMark,
+  settings, saveSettings, words, isHan, addWords, bumpUsed, bumpRead, setMark, getCard, currentAccount,
   stories, addStory, removeStory, getStory, saveStories, currentAccountId,
   idbGet, idbSet, hasAudioCached,
   DEMO_STORY_HANT, DEMO_STORY_HANS,
@@ -423,42 +423,132 @@ async function loadImage(story, img, figWrap) {
   figWrap.insertBefore(deco, figWrap.firstChild);
 }
 
-// ---------- 書架（modal） ----------
-function openShelfModal() {
-  const m = openModal(`📚 ${t('shelf_title')}`);
-  for (const s of stories) {
-    const openBtn = el('button', { class: `book-open${s.id === currentId ? ' current' : ''}` },
-      el('span', { text: `📕 ${displayText(s, s.title)}` }),
-      el('small', { text: new Date(s.createdAt).toLocaleDateString() }),
-    );
-    openBtn.addEventListener('click', () => {
-      sfx.tap();
-      currentId = s.id;
-      m.close();
-      render();
-    });
-    const editBtn = el('button', { class: 'book-del book-edit', text: '✏️' });
-    editBtn.addEventListener('click', () => {
-      sfx.tap();
-      openEditStoryModal(s, () => {
-        m.close();
-        if (currentId === s.id) render();
-        openShelfModal();
-      });
-    });
-    const delBtn = el('button', { class: 'book-del', text: '🗑' });
-    delBtn.addEventListener('click', async () => {
-      sfx.tap();
-      const yes = await confirmDialog(t('story_del_confirm'));
-      if (yes) {
-        await removeStory(s.id);
-        if (currentId === s.id) currentId = stories.length ? stories[0].id : null;
-        m.close();
-        render();
-      }
-    });
-    m.body.append(el('div', { class: 'book-row' }, openBtn, editBtn, delBtn));
+// ---------- 書架（modal：書本形卡片） ----------
+// 每本書：封面（讀完才顯示插圖，中央清晰四周模糊；未讀完＝書名首字＋柔色底）、進度條、
+// 書名／日期／pill（新字＝未入字表或入了但標紅的字數，>0 才顯示；讀完／讀到 N% 視情況）。
+// 排序：最新／有新字／還沒讀完（記在 settings.shelfSort）。小孩帳號不顯示 ✏️🗑，改「📖 打開」。
+const COVER_TINTS = [
+  ['#5AA9F9', '#4ECDC4'], ['#FF6B9D', '#FFB35C'], ['#FFD93D', '#FF8A3D'],
+  ['#7DC855', '#4ECDC4'], ['#B98CF2', '#5AA9F9'], ['#FF8A3D', '#FF6B9D'],
+];
+function coverTint(id) {
+  let h = 0;
+  for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return COVER_TINTS[h % COVER_TINTS.length];
+}
+/** 書架用的統計：總字數、已讀數（目前帳號×目前點讀模式）、新字數（未入字表或標紅） */
+function shelfStats(story) {
+  const hanChars = [...(story.text || '')].filter(isHan);
+  const total = hanChars.length || 1;
+  const mode = settings.storyMode === 'mark' ? 'mark' : 'hl';
+  const done = mode === 'hl'
+    ? ((story.hlBy || {})[currentAccountId] || []).length
+    : Object.keys((story.marksBy || {})[currentAccountId] || {}).length;
+  const ratio = Math.min(1, done / total);
+  const byHant = new Map(words.map((w) => [convertTo(w.ch, 'zh-Hant'), w]));
+  let fresh = 0;
+  for (const ch of new Set([...s2t(story.text || '')].filter(isHan))) {
+    const w = byHant.get(ch);
+    if (!w || getCard(w).mark === 'red') fresh++;
   }
+  return { ratio, done: ratio >= 0.999, fresh };
+}
+function openShelfModal() {
+  const urls = []; // 封面 blob URL，關閉時釋放
+  const m = openModal(`📚 ${t('shelf_title')}`, { onClose: () => urls.forEach((u) => URL.revokeObjectURL(u)) });
+  const kid = currentAccount().role === 'kid';
+  const sort = ['new', 'fresh', 'unread'].includes(settings.shelfSort) ? settings.shelfSort : 'new';
+  const items = stories.map((s) => ({ s, st: shelfStats(s) }));
+  const byTime = (a, b) => (b.s.createdAt || 0) - (a.s.createdAt || 0);
+  if (sort === 'fresh') items.sort((a, b) => (b.st.fresh - a.st.fresh) || byTime(a, b));
+  else if (sort === 'unread') items.sort((a, b) => (Number(a.st.done) - Number(b.st.done)) || byTime(a, b));
+  else items.sort(byTime);
+  const doneN = items.filter((x) => x.st.done).length;
+
+  // 排序列
+  const seg = el('div', { class: 'seg small' });
+  for (const [key, label] of [['new', t('shelf_sort_new')], ['fresh', t('shelf_sort_fresh')], ['unread', t('shelf_sort_unread')]]) {
+    const b = el('button', { class: sort === key ? 'on' : '', text: label });
+    b.addEventListener('click', () => {
+      sfx.tap();
+      if (settings.shelfSort !== key) { settings.shelfSort = key; saveSettings(); }
+      m.close(); openShelfModal();
+    });
+    seg.append(b);
+  }
+  m.body.append(el('div', { class: 'shelf-sub' },
+    el('span', { class: 'shelf-count', text: t('shelf_count', { n: stories.length, done: doneN }) }),
+    seg,
+  ));
+
+  const grid = el('div', { class: 'shelf-grid' });
+  for (const { s, st } of items) {
+    const art = el('div', { class: 'bk-art' });
+    if (st.done && s.hasImage) {
+      // 讀完：插圖（底層模糊＋上層遮罩只露中央）
+      const blur = el('div', { class: 'bk-blur' });
+      const sharp = el('div', { class: 'bk-sharp' });
+      art.append(blur, sharp);
+      idbGet('images', s.id).then((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob); urls.push(url);
+        blur.style.backgroundImage = sharp.style.backgroundImage = `url("${url}")`;
+      }).catch(() => {});
+    } else {
+      const [c1, c2] = coverTint(s.id);
+      art.classList.add('plain');
+      art.style.background = `linear-gradient(160deg, ${c1}, ${c2})`;
+      const first = [...displayText(s, s.title)].find(isHan) || '📖';
+      art.append(el('span', { text: first }));
+    }
+    const prog = el('div', { class: 'bk-prog' }, el('i', { style: `width:${Math.round(st.ratio * 100)}%` }));
+    const pills = el('div', { class: 'bk-pills' });
+    if (st.fresh) pills.append(el('span', { class: 'chip new', text: t('shelf_pill_fresh', { n: st.fresh }) }));
+    if (st.done) pills.append(el('span', { class: 'chip done', text: `✓ ${t('shelf_pill_done')}` }));
+    else if (st.ratio > 0) pills.append(el('span', { class: 'chip reading', text: t('shelf_pill_reading', { n: Math.round(st.ratio * 100) }) }));
+    const label = el('div', { class: 'bk-label' },
+      el('div', { class: 'bk-name', text: displayText(s, s.title) }),
+      el('div', { class: 'bk-meta' },
+        el('span', { class: 'bk-date', text: new Date(s.createdAt).toLocaleDateString() }),
+        pills,
+      ),
+    );
+    const cover = el('button', { class: 'bk-cover', 'aria-label': displayText(s, s.title) }, art, prog, label);
+    const open = () => { sfx.tap(); currentId = s.id; m.close(); render(); };
+    cover.addEventListener('click', open);
+
+    const acts = el('div', { class: 'bk-acts' });
+    if (kid) {
+      acts.append(el('button', { class: 'btn sky small', onclick: open }, '📖 ', t('shelf_open')));
+    } else {
+      const editBtn = el('button', { class: 'book-del book-edit', text: '✏️' });
+      editBtn.addEventListener('click', () => {
+        sfx.tap();
+        openEditStoryModal(s, () => { m.close(); if (currentId === s.id) render(); openShelfModal(); });
+      });
+      const delBtn = el('button', { class: 'book-del', text: '🗑' });
+      delBtn.addEventListener('click', async () => {
+        sfx.tap();
+        const yes = await confirmDialog(t('story_del_confirm'));
+        if (yes) {
+          await removeStory(s.id);
+          if (currentId === s.id) currentId = stories.length ? stories[0].id : null;
+          m.close();
+          render();
+        }
+      });
+      acts.append(editBtn, delBtn);
+    }
+    grid.append(el('div', { class: `bk${s.id === currentId ? ' current' : ''}` },
+      s.id === currentId ? el('span', { class: 'bk-ribbon' }) : null, cover, acts));
+  }
+  if (!kid) {
+    const addCover = el('button', { class: 'bk-cover add' },
+      el('span', { class: 'bk-plus' }, el('b', { text: '＋' }), t('make_story')));
+    addCover.addEventListener('click', () => { sfx.tap(); m.close(); openGenModal(); });
+    grid.append(el('div', { class: 'bk' }, addCover));
+  }
+  m.body.append(grid);
 }
 
 // ---------- 編輯故事（書架的 ✏️） ----------
