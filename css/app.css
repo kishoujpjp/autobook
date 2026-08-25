@@ -213,7 +213,7 @@ button {
 .story-layout .fig-card { grid-area: fig; align-self: start; }
 /* 插圖高度受視窗高度約束：扣掉頁首、標題、圖卡文案、翻頁鈕與分頁列後的剩餘高度，
    大螢幕（iPad 橫向）由欄寬決定 → 圖比最大化；小視窗自動縮圖，翻頁鈕不會被擠出畫面 */
-.story-layout .fig-wrap { width: min(100%, calc((100vh - 500px) * 4 / 3)); margin: 0 auto; }
+.story-layout .fig-wrap { width: min(100%, calc((100vh - 560px) * 4 / 3)); margin: 0 auto; }
 .story-layout .text-card { grid-area: text; }
 /* 翻頁鈕列：橫向時在圖片下方置中（DOM 順序＝下一頁在左、上一頁在右） */
 .story-pager {
@@ -279,7 +279,7 @@ button {
       'pager';
     gap: 12px;
   }
-  .story-layout .fig-wrap { width: min(100%, calc(30vh * 4 / 3)); margin: 0 auto; }
+  .story-layout .fig-wrap { width: min(100%, calc(24vh * 4 / 3)); margin: 0 auto; }
   .story-pager { flex-direction: row-reverse; }
   .fig-card { padding: 12px; }
   .story-title { font-size: 26px; }
@@ -298,16 +298,16 @@ button {
   background: #EAF2FA;
   aspect-ratio: 4 / 3;
 }
-.fig-wrap img, .fig-wrap canvas.fogc {
+.fig-wrap .media-view, .fig-wrap canvas.fogc {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
 }
-.fig-wrap img { object-fit: cover; display: block; }
+.fig-wrap canvas.fogc { z-index: 2; }
 
 /* 全讀完揭曉：迷霧散盡後圖片放大回彈＋魔法星星 */
-.fig-wrap.reveal-bounce img { animation: reveal-bounce 0.9s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.fig-wrap.reveal-bounce .media-el { animation: reveal-bounce 0.9s cubic-bezier(0.34, 1.56, 0.64, 1); }
 @keyframes reveal-bounce {
   0% { transform: scale(1); }
   40% { transform: scale(1.14); }
@@ -423,6 +423,238 @@ button {
   height: 108px;
   font-size: 56px;
 }
+
+/* ============ 圖片／影片（一本書可放多組，讀完一遍換下一組） ============ */
+[hidden] { display: none !important; }
+
+.media-view { position: relative; overflow: hidden; background: #EAF2FA; }
+.media-el {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: 0;
+}
+img.media-el { object-fit: cover; }
+/* 影片用 contain：直式影片不會被裁掉頭 */
+video.media-el { object-fit: contain; background: #1A1410; }
+.media-view.media-none {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(160deg, #BFE3FF 0%, #E8F6E4 55%, #FFF3C9 100%);
+}
+.media-none-emoji { font-size: clamp(56px, 12vh, 110px); }
+/* 影片先靜音自動播（iOS 不給沒手勢的有聲播放），按喇叭鈕才開聲音 */
+.media-sound {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 4;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 24px;
+  box-shadow: 0 4px 0 rgba(74, 59, 42, 0.2);
+}
+.media-sound:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(74, 59, 42, 0.2); }
+
+/* ---- 進度列下方的本篇新字（點一下會唸） ---- */
+.new-chars {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.nc-label { font-size: 17px; font-weight: 700; color: var(--ink-soft); }
+.nc-zi {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: #FFF1DC;
+  color: var(--primary-deep);
+  font-size: 28px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 0 #F0D5AE;
+}
+.nc-zi:active { transform: translateY(3px); box-shadow: 0 1px 0 #F0D5AE; }
+
+.meta-acts {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.meta-acts:not(:empty) { margin-top: 10px; }
+.chip.slot { background: #EFE7FB; color: #6B4FA8; font-size: 14px; padding: 5px 12px; }
+
+/* ============ 專注閱讀版面：整頁文字，讀完才打開圖片框 ============ */
+.story-layout.focus {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'title'
+    'text'
+    'meta'
+    'pager';
+  gap: 10px;
+}
+.story-layout.focus .story-title { justify-content: center; text-align: center; }
+.story-layout.focus .text-card { grid-area: text; }
+.story-layout.focus .story-pager {
+  grid-area: pager;
+  align-self: center;
+  flex-direction: row-reverse;
+}
+.story-meta { grid-area: meta; }
+.story-meta .meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.story-meta .fog-hint { margin-top: 0; }
+
+/* ---- 揭曉舞台：童話外框的大圖片框 ---- */
+.reveal-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: max(28px, env(safe-area-inset-top, 0px)) 34px calc(24px + var(--safe-b));
+  background: radial-gradient(120% 80% at 50% 42%, rgba(255, 247, 234, 0.7) 0%, rgba(74, 59, 42, 0.66) 100%);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: fadein 0.35s ease;
+}
+.story-frame {
+  position: relative;
+  width: min(1100px, 100%, calc((82vh - 130px) * 4 / 3));
+  padding: 18px;
+  border-radius: 40px;
+  /* 童話金框：漸層金屬底＋兩圈描邊＋暖光暈 */
+  background: linear-gradient(150deg, #FFEDB8 0%, #FFC969 20%, #FFF7DD 40%, #F0B03A 60%, #FFE9A8 82%, #DE9A24 100%);
+  box-shadow:
+    0 0 0 6px #FFFBEE,
+    0 0 0 11px #D9932A,
+    0 26px 60px rgba(0, 0, 0, 0.42),
+    0 0 90px rgba(255, 214, 120, 0.6);
+}
+/* 進場與重播各自一個 class：切換時不會互相把對方的動畫重跑一次 */
+.story-frame.in { animation: frame-in 0.95s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes frame-in {
+  0% { opacity: 0; transform: scale(0.5); }
+  60% { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 1; transform: none; }
+}
+/* 點圖片框重播特效：只放大回彈，不旋轉（與插圖的 reveal-bounce 一致） */
+.story-frame.pop { animation: reveal-bounce 0.9s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+.frame-mat {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 26px;
+  overflow: hidden;
+  background: #FFFDF6;
+  box-shadow: 0 0 0 4px #FFFBEE, inset 0 0 26px rgba(122, 69, 4, 0.25);
+}
+.frame-mat .media-view { position: absolute; inset: 0; }
+.story-frame .orn {
+  position: absolute;
+  font-size: 40px;
+  line-height: 1;
+  color: #FFF8E2;
+  text-shadow: 0 0 14px rgba(255, 206, 110, 0.95), 0 2px 0 #C98A22;
+  pointer-events: none;
+  animation: orn-tw 2.6s ease-in-out infinite;
+}
+.story-frame .orn.tl { top: -20px; left: -20px; }
+.story-frame .orn.tr { top: -20px; right: -20px; animation-delay: 0.65s; }
+.story-frame .orn.bl { bottom: -20px; left: -20px; animation-delay: 1.3s; }
+.story-frame .orn.br { bottom: -20px; right: -20px; animation-delay: 1.95s; }
+@keyframes orn-tw {
+  0%, 100% { opacity: 0.5; transform: scale(0.82) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.2) rotate(24deg); }
+}
+.stage-close {
+  min-height: 60px;
+  padding: 10px 28px;
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 21px;
+  font-weight: 800;
+  box-shadow: 0 6px 0 #EBD7B4, 0 10px 24px rgba(0, 0, 0, 0.25);
+}
+.stage-close:active { transform: translateY(4px); box-shadow: 0 2px 0 #EBD7B4; }
+
+/* ---- 圖片／影片管理面板 ---- */
+.media-list { display: flex; flex-direction: column; gap: 10px; }
+.media-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border-radius: 18px;
+  padding: 10px 12px;
+  box-shadow: var(--shadow);
+}
+.mi-thumb {
+  width: 88px;
+  height: 66px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  background: #EAF2FA center / cover no-repeat;
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+}
+.mi-thumb.vid { background: #2B2118; color: #FFD98A; }
+.mi-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mi-info b { font-size: 17px; font-weight: 800; }
+.mi-info span { font-size: 14px; font-weight: 700; color: var(--ink-soft); }
+.mi-info small {
+  font-size: 12px;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mi-acts { display: flex; gap: 6px; flex: 0 0 auto; }
+.mi-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: #F3E7CE;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 800;
+}
+.mi-btn.danger { background: #FFE4EC; color: var(--berry-deep); }
+.mi-btn:disabled { opacity: 0.35; pointer-events: none; }
+
+/* 並排版面的圖卡下面塞了進度、新字與動作鈕，全部縮一號才不會把文字框擠扁 */
+.fig-card .new-chars { margin-top: 8px; }
+.fig-card .nc-label { font-size: 15px; }
+.fig-card .nc-zi { width: 38px; height: 38px; font-size: 24px; border-radius: 12px; box-shadow: 0 3px 0 #F0D5AE; }
+.fig-card .nc-zi:active { transform: translateY(2px); box-shadow: 0 1px 0 #F0D5AE; }
+.fig-card .meta-acts:not(:empty) { margin-top: 8px; }
+.fig-card .btn.small { min-height: 44px; font-size: 16px; padding: 6px 14px; border-radius: 15px; }
+.fig-card .fog-hint { font-size: 16px; margin-top: 10px; }
 
 .story-empty {
   text-align: center;

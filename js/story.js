@@ -1,4 +1,8 @@
-// 故事頁：固定插圖＋可翻頁的點讀文字、迷霧、生成新故事、書架
+// 故事頁：圖片／影片＋可翻頁的點讀文字、迷霧、生成新故事、書架
+// 兩種版面（設定→閱讀版面）：
+//   side  圖文並排（舊版）：插圖蓋著迷霧放在旁邊，讀完迷霧散開
+//   focus 專注閱讀：讀的時候整頁都是字，讀完才用特效打開一個童話外框的大圖片框
+// 一本書可以放多組圖片／影片，讀完一遍換下一組（讀完最後一組之後固定用最後一組）
 // 顯示時故事文字依語系做繁簡轉換（儲存保持生成當下的字形）
 import { t, getLang } from './i18n.js';
 import { el, toast, openModal, confirmDialog, infoDialog, confetti } from './ui.js';
@@ -6,6 +10,7 @@ import { sfx, playBlob, speakNative } from './sfx.js';
 import {
   settings, saveSettings, words, isHan, addWords, bumpUsed, bumpRead, setMark, getCard, currentAccount,
   stories, addStory, removeStory, getStory, saveStories, currentAccountId,
+  storyMedia, setStoryMedia, newMediaId, deleteMediaBlob, storyReads, bumpStoryReads,
   idbGet, idbSet, hasAudioCached,
   DEMO_STORY_HANT, DEMO_STORY_HANS,
 } from './store.js';
@@ -19,6 +24,10 @@ let currentId = null;
 let fog = null;
 let pageResize = null; // 目前這次 render 的 resize 監聽（重繪前要先移除，避免累積）
 let pageRO = null;     // 文字卡尺寸觀察器（插圖載入、安全區、鍵盤等任何版面變動都重算頁高）
+let mediaView = null;  // 目前顯示的圖片／影片元件（重繪前要停播）
+let stageEl = null;    // 專注版面的揭曉舞台（童話外框）
+let objUrls = [];      // 這次 render 建立的 blob URL，重繪前釋放
+let celebrateSeq = 0;  // 揭曉動畫的世代編號：重繪後舊的計時器就作廢
 
 export function initStory(rootEl) {
   root = rootEl;
@@ -47,6 +56,11 @@ function buildBankMap() {
 }
 
 export function render() {
+  celebrateSeq++;
+  closeStage();
+  if (mediaView) { mediaView.destroy(); mediaView = null; }
+  for (const u of objUrls) URL.revokeObjectURL(u);
+  objUrls = [];
   if (fog) { fog.destroy(); fog = null; }
   if (pageResize) { window.removeEventListener('resize', pageResize); pageResize = null; }
   if (pageRO) { pageRO.disconnect(); pageRO = null; }
@@ -96,19 +110,61 @@ export function render() {
   const dispText = displayText(story, story.text);
   const dispNew = (story.newChars || []).map((ch) => displayText(story, ch));
 
-  // ---- 左欄：插圖（固定，不隨文字捲動） ----
-  const img = el('img', { alt: '' });
+  const chars = [...dispText];
+  const hanTotal = chars.filter(isHan).length || 1;
+  function doneCount() { return mode === 'hl' ? highlights.size : marks.size; }
+
+  // ---- 這一遍要打開的圖片／影片 ----
+  // 讀完 N 遍＝已打開前 N 組；還沒讀完＝正在解第 N+1 組。
+  // 讀完的當下不換（reads 加 1、completed 也變 true，index 不動），下次重開這本才換下一組。
+  const layout = settings.storyLayout === 'focus' ? 'focus' : 'side';
+  const media = storyMedia(story);
+  const completed = doneCount() >= hanTotal;
+  const slot = Math.max(0, (completed ? storyReads(story) - 1 : storyReads(story)));
+  const mediaIdx = media.length ? Math.min(media.length - 1, slot) : -1;
+  mediaView = createMediaView(mediaIdx >= 0 ? media[mediaIdx] : null);
+
   const fogCanvas = el('canvas', { class: 'fogc' });
-  const figWrap = el('div', { class: 'fig-wrap' }, img, fogCanvas);
-  const fogHint = el('div', { class: 'fog-hint', text: t('fog_hint_locked') });
+  const figWrap = el('div', { class: 'fig-wrap' }, mediaView.el, fogCanvas);
+
+  // 進度條、本篇新字、動作鈕：兩種版面共用（並排版放圖卡裡，專注版放文字框下面）
+  const fogHint = el('div', { class: 'fog-hint', text: t(layout === 'focus' ? 'focus_hint_locked' : 'fog_hint_locked') });
   const progressFill = el('div', { class: 'progress-fill' });
-  const figCard = el('div', { class: 'fig-card' },
-    figWrap, fogHint,
-    el('div', { class: 'progress-track' }, progressFill),
-    dispNew.length
-      ? el('div', { class: 'fog-hint', style: 'margin-top:8px;', text: `${t('new_chars')}：${dispNew.join('、')}` })
-      : null,
-  );
+  const progressTrack = el('div', { class: 'progress-track' }, progressFill);
+  const newRow = dispNew.length
+    ? el('div', { class: 'new-chars' },
+      el('span', { class: 'nc-label', text: `${t('new_chars')}：` }),
+      ...dispNew.map((ch) => {
+        const b = el('button', { class: 'nc-zi', text: ch });
+        b.addEventListener('click', () => { sfx.tap(); speakChar(story, ch); });
+        return b;
+      }))
+    : null;
+
+  const slotChip = el('span', { class: 'chip slot' });
+  const againBtn = el('button', { class: 'btn mint small' });
+  const replayBtn = el('button', { class: 'btn sky small' });
+  replayBtn.addEventListener('click', () => { sfx.tap(); openStage(mediaView); });
+  // 再讀一遍：清掉這本在目前模式的紀錄，重讀就能打開下一組圖片／影片
+  againBtn.addEventListener('click', () => {
+    sfx.tap();
+    if (mode === 'hl') { if (story.hlBy) delete story.hlBy[currentAccountId]; }
+    else if (story.marksBy) delete story.marksBy[currentAccountId];
+    saveStories();
+    render();
+  });
+  function refreshActs() {
+    const done = doneCount() >= hanTotal;
+    const reads = storyReads(story);
+    const left = Math.max(0, media.length - reads);
+    againBtn.hidden = !done;
+    againBtn.textContent = left > 0 ? `🔁 ${t('story_again_n', { n: left })}` : `🔁 ${t('story_again')}`;
+    replayBtn.hidden = !(done && layout === 'focus');
+    replayBtn.textContent = `🖼 ${t('media_replay')}`;
+    slotChip.hidden = media.length < 2;
+    slotChip.textContent = t('media_unlocked', { a: Math.min(reads, media.length), b: media.length });
+  }
+  const actsRow = el('div', { class: 'meta-acts' }, slotChip, replayBtn, againBtn);
 
   // ---- 文字區：固定頁高、只靠上一頁/下一頁翻頁（不可手滑、無捲軸、整行完整顯示） ----
   const textWrap = el('div', { class: `story-text${settings.storyFont === 'big' ? ' bigfont' : ''}` });
@@ -161,20 +217,27 @@ export function render() {
     pageRO.observe(textCard);
   }
 
-  // 直向：圖上字下，最下排按鈕列；橫向：翻頁鈕移到圖片下方（下一頁在左、上一頁在右）
-  root.append(el('div', { class: 'story-layout' },
-    el('div', { class: 'story-title', text: dispTitle }),
-    figCard,
-    textCard,
-    el('div', { class: 'story-pager' }, downBtn, pageInd, upBtn),
-  ));
-
-  // ---- 圖片載入 ----
-  loadImage(story, img, figWrap);
+  const pager = el('div', { class: 'story-pager' }, downBtn, pageInd, upBtn);
+  if (layout === 'focus') {
+    // 專注閱讀：整頁都是文字框，下面是進度條與本篇新字；圖片框讀完才用特效打開
+    root.append(el('div', { class: 'story-layout focus' },
+      el('div', { class: 'story-title', text: dispTitle }),
+      textCard,
+      el('div', { class: 'story-meta' }, progressTrack, el('div', { class: 'meta-row' }, fogHint, actsRow), newRow),
+      pager,
+    ));
+  } else {
+    // 直向：圖上字下，最下排按鈕列；橫向：翻頁鈕移到圖片下方（下一頁在左、上一頁在右）
+    root.append(el('div', { class: 'story-layout' },
+      el('div', { class: 'story-title', text: dispTitle }),
+      el('div', { class: 'fig-card' }, figWrap, fogHint, progressTrack, newRow, actsRow),
+      textCard,
+      pager,
+    ));
+  }
 
   // ---- 文字按鈕 ----
   const hanIndices = [];
-  const chars = [...dispText];
   const bankMap = buildBankMap();
 
   function markCls(mk) {
@@ -245,22 +308,37 @@ export function render() {
     textWrap.append(btn);
   });
 
-  // ---- 迷霧與進度（高亮模式數高亮；標註模式紅綠都算） ----
-  // 閱讀中只推進度條、迷霧不打開；全部讀完才一次揭曉：
-  // 迷霧分批散開（配階梯音）→ 圖片放大回彈＋魔法星星＋彩帶＋完成音
+  // ---- 進度與揭曉（高亮模式數高亮；標註模式紅綠都算） ----
+  // 閱讀中只推進度條，圖片不打開；全部讀完才一次揭曉：
+  //   並排版面：迷霧分批散開（配階梯音）→ 圖片放大回彈＋魔法星星＋彩帶＋完成音
+  //   專注版面：星星階梯音 → 童話外框的圖片框從中央彈出＋魔法星星＋彩帶＋完成音
   let celebrated = false; // 這次 render 是否已放過揭曉動畫（重開已完成的書不重播）
-  function doneCount() {
-    return mode === 'hl' ? highlights.size : marks.size;
-  }
+  const mySeq = celebrateSeq;
   function bigCelebrate() {
+    if (mySeq !== celebrateSeq) return;
+    replayBtn.hidden = layout !== 'focus';
+    if (layout === 'focus') { openStage(mediaView); return; }
     figWrap.classList.remove('reveal-bounce');
     void figWrap.offsetWidth;
     figWrap.classList.add('reveal-bounce');
     spawnMagicStars(figWrap);
     sfx.fanfare();
     confetti();
+    mediaView.start();
   }
   function celebrate() {
+    if (layout === 'focus') {
+      // 沒有迷霧可以散，改用星星階梯音帶出圖片框
+      let i = 0;
+      const tick = () => {
+        if (mySeq !== celebrateSeq) return;
+        sfx.star(i);
+        if (++i < 4) setTimeout(tick, 150);
+        else setTimeout(bigCelebrate, 260);
+      };
+      tick();
+      return;
+    }
     if (!fog) return;
     fog.revealAll({
       onStep: (i) => sfx.star(i),
@@ -269,41 +347,198 @@ export function render() {
   }
   // 迷霧解開後點圖可以再放一次特效（1.5 秒冷卻，連點不疊放）
   let lastReplay = 0;
-  figWrap.addEventListener('click', () => {
+  figWrap.addEventListener('click', (e) => {
     if (!celebrated) return;
+    if (mediaView.kind === 'video') return;       // 影片正在播，不要被特效打斷
+    if (e.target.closest('.media-sound')) return; // 影片的喇叭鈕不算
     const now = Date.now();
     if (now - lastReplay < 1500) return;
     lastReplay = now;
     bigCelebrate();
   });
+  const hintKey = layout === 'focus' ? 'focus_hint' : 'fog_hint';
   function updateProgress() {
-    const total = hanIndices.length || 1;
-    const ratio = doneCount() / total;
+    const ratio = doneCount() / hanTotal;
     progressFill.style.width = `${Math.round(ratio * 100)}%`;
     if (ratio >= 0.999) {
-      fogHint.textContent = t('fog_hint_done');
+      fogHint.textContent = t(`${hintKey}_done`);
       if (!celebrated) {
         celebrated = true;
+        bumpStoryReads(story); // 讀完一遍：下次重開這本就換下一組圖片／影片
         celebrate();
       }
     } else {
-      fogHint.textContent = `${t('fog_hint_locked')}（${t('read_progress')} ${doneCount()}/${total}）`;
+      fogHint.textContent = `${t(`${hintKey}_locked`)}（${t('read_progress')} ${doneCount()}/${hanTotal}）`;
     }
+    refreshActs();
   }
 
+  refreshActs(); // 先填好文字與顯示狀態，等 rAF 才填會閃一下空按鈕
+
   requestAnimationFrame(() => {
-    fog = new Fog(fogCanvas, story.id);
-    // 進場：已完成的書直接亮圖（不重播動畫）；未完成一律全罩迷霧
-    const total = hanIndices.length || 1;
-    const done = doneCount() >= total;
-    fog.revealed = done ? fog.total : 0;
-    fog.draw(1);
-    fog.canvas.style.opacity = done ? '0' : '1';
-    if (done) celebrated = true;
+    if (layout !== 'focus') {
+      fog = new Fog(fogCanvas, story.id);
+      // 進場：已完成的書直接亮圖（不重播動畫）；未完成一律全罩迷霧
+      fog.revealed = completed ? fog.total : 0;
+      fog.draw(1);
+      fog.canvas.style.opacity = completed ? '0' : '1';
+      if (completed) mediaView.start();
+    }
+    if (completed) celebrated = true;
     updateProgress();
     sizeText();
     updatePager();
   });
+}
+
+// ---------- 圖片／影片 ----------
+/** YouTube／Vimeo 連結 → 可自動靜音循環播放的嵌入網址；其他連結回傳 null（當成直接檔案播） */
+function embedUrl(url) {
+  if (!url) return null;
+  const yt = String(url).match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}?autoplay=1&mute=1&loop=1&playlist=${yt[1]}&playsinline=1&rel=0`;
+  const vm = String(url).match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  if (vm) return `https://player.vimeo.com/video/${vm[1]}?autoplay=1&muted=1&loop=1&playsinline=1`;
+  return null;
+}
+
+const IMG_EXT = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?|#|$)/i;
+const VID_EXT = /\.(mp4|webm|ogv|ogg|mov|m4v)(\?|#|$)/i;
+/** 從網址猜是圖片還是影片（猜不到當圖片，使用者可在面板上改） */
+function guessKind(url) {
+  if (VID_EXT.test(url) || embedUrl(url)) return 'video';
+  if (IMG_EXT.test(url)) return 'image';
+  return 'image';
+}
+
+/** 連結直接給 src；blob 從 IndexedDB 取（URL 記到 objUrls，重繪時釋放） */
+function setMediaSrc(node, box, m) {
+  if (m.url) { node.src = m.url; return; }
+  idbGet('images', m.id).then((blob) => {
+    if (!blob) { box.classList.add('media-none'); node.remove(); return; }
+    const url = URL.createObjectURL(blob);
+    objUrls.push(url);
+    node.src = url;
+  }).catch(() => {});
+}
+
+/**
+ * 建一組圖片／影片的顯示元件。
+ * 回傳 { el, start, stop, destroy }：start() 要等揭曉動畫之後才呼叫，影片這時才開始循環播放。
+ * 影片一律先靜音（iOS 不給沒手勢的有聲自動播放），旁邊有喇叭鈕可以開聲音。
+ */
+function createMediaView(m) {
+  const box = el('div', { class: 'media-view' });
+  const noop = () => {};
+  const kind = m ? m.kind : 'none';
+  if (!m) {
+    box.classList.add('media-none');
+    box.append(el('span', { class: 'media-none-emoji', text: '🌈' }));
+    return { el: box, kind, start: noop, stop: noop, destroy: noop };
+  }
+
+  if (m.kind === 'video') {
+    const embed = embedUrl(m.url);
+    if (embed) {
+      // iframe 一放進 DOM 就開始載入播放，所以等揭曉時才建立
+      let frame = null;
+      const ph = el('span', { class: 'media-none-emoji', text: '🎬' });
+      box.append(ph);
+      const stop = () => { if (frame) { frame.remove(); frame = null; box.append(ph); } };
+      return {
+        el: box,
+        kind,
+        start() {
+          if (frame) return;
+          ph.remove();
+          frame = el('iframe', {
+            class: 'media-el', src: embed, frameborder: '0',
+            allow: 'autoplay; encrypted-media; picture-in-picture', allowfullscreen: '',
+          });
+          box.append(frame);
+        },
+        stop,
+        destroy: stop,
+      };
+    }
+    const v = el('video', { class: 'media-el' });
+    v.loop = true;
+    v.muted = true;
+    v.playsInline = true;
+    v.preload = 'auto';
+    v.setAttribute('playsinline', '');
+    v.setAttribute('muted', '');
+    const sound = el('button', { class: 'media-sound', text: '🔇' });
+    sound.hidden = true; // 迷霧還沒散開前不露出喇叭鈕
+    sound.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sfx.tap();
+      v.muted = !v.muted;
+      sound.textContent = v.muted ? '🔇' : '🔊';
+      v.play().catch(() => {});
+    });
+    box.append(v, sound);
+    setMediaSrc(v, box, m);
+    return {
+      el: box,
+      kind,
+      start() { sound.hidden = false; v.play().catch(() => {}); },
+      stop() { sound.hidden = true; try { v.pause(); } catch { /* 還沒載好 */ } },
+      destroy() { try { v.pause(); } catch { /* 還沒載好 */ } v.removeAttribute('src'); },
+    };
+  }
+
+  const img = el('img', { class: 'media-el', alt: '' });
+  box.append(img);
+  setMediaSrc(img, box, m);
+  return { el: box, kind, start: noop, stop: noop, destroy: noop };
+}
+
+// ---------- 揭曉舞台（專注版面的童話外框圖片框） ----------
+function closeStage() {
+  if (stageEl) { stageEl.remove(); stageEl = null; }
+}
+
+/** 把媒體放進童話外框、蓋在整頁上彈出來；點外面或「收起來」關掉（文字還在下面隨時可以再讀） */
+function openStage(view) {
+  closeStage();
+  const frame = el('div', { class: 'story-frame in' },
+    ...['tl', 'tr', 'bl', 'br'].map((k) => el('span', { class: `orn ${k}`, text: '✦' })),
+    el('div', { class: 'frame-mat' }, view.el),
+  );
+  const shut = () => { sfx.tap(); view.stop(); closeStage(); };
+  // 點框可以再放一次特效（1.5 秒冷卻，連點不疊放）；影片正在播就不打斷
+  let lastReplay = Date.now();
+  frame.addEventListener('click', () => {
+    if (view.kind === 'video') return;
+    const now = Date.now();
+    if (now - lastReplay < 1500) return;
+    lastReplay = now;
+    frame.classList.remove('in', 'pop');
+    void frame.offsetWidth; // 重新觸發動畫
+    frame.classList.add('pop');
+    spawnMagicStars(frame);
+    sfx.fanfare();
+    confetti();
+  });
+  const stage = el('div', { class: 'reveal-stage' },
+    frame,
+    el('button', { class: 'stage-close', onclick: (e) => { e.stopPropagation(); shut(); } }, '✕ ', t('reveal_close')),
+  );
+  stage.addEventListener('click', (e) => { if (e.target === stage) shut(); });
+  // 掛在故事頁裡：切到別的分頁時整頁 display:none，舞台跟著收起來
+  root.append(stage);
+  stageEl = stage;
+  spawnMagicStars(frame);
+  sfx.fanfare();
+  confetti();
+  view.start();
+}
+
+/** 點「本篇新字」的字：找它在內文第一次出現的位置來發音（找不到就唸單字） */
+function speakChar(story, dispCh) {
+  const i = [...displayText(story, story.text)].indexOf(dispCh);
+  speakAt(story, dispCh, i);
 }
 
 /** 揭曉時灑在插圖上的魔法星星 */
@@ -359,6 +594,24 @@ function openReadSettings(story) {
   };
   fontSeg.append(mkFont('small', `🔡 ${t('font_small')}`), mkFont('big', `🔠 ${t('font_big')}`));
 
+  // 閱讀版面：並排（舊版）／專注閱讀（讀完才用特效打開大圖片框）
+  const layoutSeg = el('div', { class: 'seg' });
+  const curLayout = settings.storyLayout === 'focus' ? 'focus' : 'side';
+  const mkLayout = (val, label) => {
+    const b = el('button', { class: curLayout === val ? 'on' : '', text: label });
+    b.addEventListener('click', () => {
+      sfx.tap();
+      if (settings.storyLayout !== val) {
+        settings.storyLayout = val;
+        saveSettings();
+      }
+      m.close();
+      render();
+    });
+    return b;
+  };
+  layoutSeg.append(mkLayout('side', `🖼 ${t('layout_side')}`), mkLayout('focus', `🔍 ${t('layout_focus')}`));
+
   // 點字發音開關（標註模式下：標綠不發音、標紅發音一次）
   const speakSw = el('button', { class: `switch${settings.storySpeak ? ' on' : ''}` });
   speakSw.addEventListener('click', () => {
@@ -371,10 +624,23 @@ function openReadSettings(story) {
   m.body.append(
     el('div', { class: 'field-label', text: t('rs_mode') }), modeSeg,
     el('div', { class: 'field-label', text: t('rs_font') }), fontSeg,
+    el('div', { class: 'field-label', text: t('rs_layout') }), layoutSeg,
+    el('p', { class: 'settings-note', text: t('rs_layout_note') }),
     el('div', { class: 'settings-line', style: 'margin-top:14px;' },
       el('span', { text: `🗣️ ${t('rs_speak')}` }), speakSw,
     ),
     el('p', { class: 'settings-note', text: t('rs_speak_note') }),
+  );
+
+  // 這本書的圖片／影片（可放多組，讀完一遍換下一組）與內文編輯
+  m.body.append(
+    el('div', { class: 'field-label', text: `🖼 ${t('rs_media')}` }),
+    el('div', { class: 'row' },
+      el('button', { class: 'btn sky small', onclick: () => { sfx.tap(); m.close(); openMediaModal(story, render); } },
+        '🖼 ', t('rs_media_btn')),
+      el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); m.close(); openEditStoryModal(story, render); } },
+        '✏️ ', t('story_edit')),
+    ),
   );
 
   // 追加新字：把本篇還沒在字表裡的字（繁體）挑選後加入字表
@@ -402,25 +668,6 @@ function openReadSettings(story) {
       render();
     } }, '🧽 ', t('story_clear')),
   );
-}
-
-// ---------- 圖片 ----------
-async function loadImage(story, img, figWrap) {
-  if (story.hasImage) {
-    const blob = await idbGet('images', story.id).catch(() => null);
-    if (blob) {
-      img.src = URL.createObjectURL(blob);
-      return;
-    }
-  }
-  // 沒有圖：畫一張本地漸層插畫底
-  img.remove();
-  figWrap.style.background = 'linear-gradient(160deg,#BFE3FF 0%,#E8F6E4 55%,#FFF3C9 100%)';
-  const deco = el('div', {
-    style: 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:110px;',
-    text: '🌈',
-  });
-  figWrap.insertBefore(deco, figWrap.firstChild);
 }
 
 // ---------- 書架（modal：書本形卡片） ----------
@@ -484,16 +731,21 @@ function openShelfModal() {
   const grid = el('div', { class: 'shelf-grid' });
   for (const { s, st } of items) {
     const art = el('div', { class: 'bk-art' });
-    if (st.done && s.hasImage) {
+    const cover = storyMedia(s).find((mi) => mi.kind === 'image'); // 影片沒有縮圖，用色底封面
+    if (st.done && cover) {
       // 讀完：插圖（底層模糊＋上層遮罩只露中央）
       const blur = el('div', { class: 'bk-blur' });
       const sharp = el('div', { class: 'bk-sharp' });
       art.append(blur, sharp);
-      idbGet('images', s.id).then((blob) => {
-        if (!blob) return;
-        const url = URL.createObjectURL(blob); urls.push(url);
-        blur.style.backgroundImage = sharp.style.backgroundImage = `url("${url}")`;
-      }).catch(() => {});
+      if (cover.url) {
+        blur.style.backgroundImage = sharp.style.backgroundImage = `url("${cover.url}")`;
+      } else {
+        idbGet('images', cover.id).then((blob) => {
+          if (!blob) return;
+          const url = URL.createObjectURL(blob); urls.push(url);
+          blur.style.backgroundImage = sharp.style.backgroundImage = `url("${url}")`;
+        }).catch(() => {});
+      }
     } else {
       const [c1, c2] = coverTint(s.id);
       art.classList.add('plain');
@@ -513,9 +765,9 @@ function openShelfModal() {
         pills,
       ),
     );
-    const cover = el('button', { class: 'bk-cover', 'aria-label': displayText(s, s.title) }, art, prog, label);
+    const coverBtn = el('button', { class: 'bk-cover', 'aria-label': displayText(s, s.title) }, art, prog, label);
     const open = () => { sfx.tap(); currentId = s.id; m.close(); render(); };
-    cover.addEventListener('click', open);
+    coverBtn.addEventListener('click', open);
 
     const acts = el('div', { class: 'bk-acts' });
     if (kid) {
@@ -540,7 +792,7 @@ function openShelfModal() {
       acts.append(editBtn, delBtn);
     }
     grid.append(el('div', { class: `bk${s.id === currentId ? ' current' : ''}` },
-      s.id === currentId ? el('span', { class: 'bk-ribbon' }) : null, cover, acts));
+      s.id === currentId ? el('span', { class: 'bk-ribbon' }) : null, coverBtn, acts));
   }
   if (!kid) {
     const addCover = el('button', { class: 'bk-cover add' },
@@ -588,17 +840,223 @@ function openEditStoryModal(story, onSaved) {
     el('div', { class: 'field-label', text: t('story_edit_text') }),
     textArea,
     el('p', { class: 'settings-note', text: t('story_edit_note') }),
+    el('div', { class: 'field-label', text: `🖼 ${t('rs_media')}` }),
+    el('button', { class: 'btn sky small', onclick: () => {
+      sfx.tap();
+      m.close();
+      openMediaModal(story, onSaved);
+    } }, '🖼 ', t('rs_media_btn')),
   );
   // 這本的插圖放在最下面，改文字時捲下去就能對照
-  if (story.hasImage) {
+  const cover = storyMedia(story).find((mi) => mi.kind === 'image');
+  if (cover) {
     const img = el('img', { class: 'edit-story-img', alt: '' });
     m.body.append(img);
-    idbGet('images', story.id).then((blob) => {
-      if (blob) { imgUrl = URL.createObjectURL(blob); img.src = imgUrl; }
-      else img.remove();
-    }).catch(() => img.remove());
+    if (cover.url) img.src = cover.url;
+    else {
+      idbGet('images', cover.id).then((blob) => {
+        if (blob) { imgUrl = URL.createObjectURL(blob); img.src = imgUrl; }
+        else img.remove();
+      }).catch(() => img.remove());
+    }
   }
   m.foot.append(saveBtn);
+}
+
+// ---------- 圖片／影片管理（閱讀設定與書架的編輯都可進來） ----------
+// 清單順序＝解鎖順序：讀完第 1 遍看第 1 個、第 2 遍看第 2 個…
+// 每次增刪、上下移都直接存檔（不用再按儲存），關掉面板時重繪故事頁。
+function openMediaModal(story, onChanged) {
+  const urls = [];
+  let changed = false;
+  const m = openModal(`🖼 ${t('media_title')}`, {
+    onClose: () => {
+      urls.forEach((u) => URL.revokeObjectURL(u));
+      if (changed && onChanged) onChanged();
+    },
+  });
+
+  const list = el('div', { class: 'media-list' });
+  function commit(next) {
+    setStoryMedia(story, next);
+    changed = true;
+    draw();
+  }
+  function draw() {
+    const media = storyMedia(story);
+    list.innerHTML = '';
+    if (!media.length) {
+      list.append(el('p', { class: 'settings-note', style: 'margin-top:0;', text: t('media_empty') }));
+      return;
+    }
+    media.forEach((mi, i) => {
+      const thumb = el('div', { class: `mi-thumb${mi.kind === 'video' ? ' vid' : ''}` });
+      if (mi.kind === 'video') {
+        thumb.append(el('span', { text: '🎬' }));
+      } else if (mi.url) {
+        thumb.style.backgroundImage = `url("${mi.url}")`;
+      } else {
+        idbGet('images', mi.id).then((blob) => {
+          if (!blob) { thumb.append(el('span', { text: '❔' })); return; }
+          const u = URL.createObjectURL(blob);
+          urls.push(u);
+          thumb.style.backgroundImage = `url("${u}")`;
+        }).catch(() => {});
+      }
+      const kindLabel = mi.kind === 'video' ? t('media_kind_video') : t('media_kind_image');
+      const srcLabel = mi.url ? t('media_src_link') : t('media_src_file');
+      const info = el('div', { class: 'mi-info' },
+        el('b', { text: t('media_slot', { n: i + 1 }) }),
+        el('span', { text: `${kindLabel}・${srcLabel}` }),
+        mi.url ? el('small', { text: mi.url }) : null,
+      );
+      const up = el('button', { class: 'mi-btn', text: '⬆' });
+      up.disabled = i === 0;
+      up.addEventListener('click', () => {
+        sfx.tap();
+        const n = [...media];
+        [n[i - 1], n[i]] = [n[i], n[i - 1]];
+        commit(n);
+      });
+      const down = el('button', { class: 'mi-btn', text: '⬇' });
+      down.disabled = i === media.length - 1;
+      down.addEventListener('click', () => {
+        sfx.tap();
+        const n = [...media];
+        [n[i + 1], n[i]] = [n[i], n[i + 1]];
+        commit(n);
+      });
+      const del = el('button', { class: 'mi-btn danger', text: '🗑' });
+      del.addEventListener('click', async () => {
+        sfx.tap();
+        const yes = await confirmDialog(t('media_del_confirm'));
+        if (!yes) return;
+        const gone = storyMedia(story)[i];
+        const next = storyMedia(story).filter((_, k) => k !== i);
+        commit(next);
+        await deleteMediaBlob(gone);
+      });
+      list.append(el('div', { class: 'media-item' }, thumb, info, el('div', { class: 'mi-acts' }, up, down, del)));
+    });
+  }
+
+  // ---- 上傳（圖片可一次多張；影片存原檔，太大會提醒備份會變肥） ----
+  const imgFile = el('input', { type: 'file', accept: 'image/*', multiple: '', style: 'display:none;' });
+  imgFile.addEventListener('change', async () => {
+    const files = [...(imgFile.files || [])];
+    imgFile.value = '';
+    if (!files.length) return;
+    const next = [...storyMedia(story)];
+    let ok = 0;
+    for (const f of files) {
+      try {
+        const blob = await downscaleImage(f, 1280);
+        const id = newMediaId(story);
+        await idbSet('images', id, blob);
+        next.push({ id, kind: 'image' });
+        ok++;
+      } catch (e) {
+        console.warn('add image failed', e);
+      }
+    }
+    if (!ok) { toast(t('acc_img_fail'), true); return; }
+    commit(next);
+    toast(t('media_added'));
+  });
+
+  const vidFile = el('input', { type: 'file', accept: 'video/*', multiple: '', style: 'display:none;' });
+  vidFile.addEventListener('change', async () => {
+    const files = [...(vidFile.files || [])];
+    vidFile.value = '';
+    if (!files.length) return;
+    const next = [...storyMedia(story)];
+    let ok = 0;
+    for (const f of files) {
+      const mb = Math.round(f.size / 1e6);
+      if (mb >= 30) toast(t('media_video_big', { n: mb }));
+      const id = newMediaId(story);
+      try {
+        await idbSet('images', id, f); // 影片原檔直接存（'images' 就是個 blob KV）
+        next.push({ id, kind: 'video' });
+        ok++;
+      } catch (e) {
+        console.warn('add video failed', e);
+      }
+    }
+    if (!ok) { toast(t('acc_img_fail'), true); return; }
+    commit(next);
+    toast(t('media_added'));
+  });
+
+  // ---- 連結（直接檔案網址，或 YouTube／Vimeo）----
+  const kindSeg = el('div', { class: 'seg small' });
+  const kindBtns = {};
+  let linkKind = 'image';
+  const setKind = (k) => {
+    linkKind = k;
+    for (const [kk, bb] of Object.entries(kindBtns)) bb.classList.toggle('on', kk === k);
+  };
+  for (const [k, label] of [['image', `🖼 ${t('media_kind_image')}`], ['video', `🎬 ${t('media_kind_video')}`]]) {
+    const b = el('button', { class: k === linkKind ? 'on' : '', text: label });
+    b.addEventListener('click', () => { sfx.tap(); setKind(k); });
+    kindBtns[k] = b;
+    kindSeg.append(b);
+  }
+  const linkInput = el('input', {
+    class: 'text-input', placeholder: t('media_link_ph'),
+    autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
+  });
+  // 貼上網址時自動猜類型（猜錯可以馬上按上面的按鈕改）
+  linkInput.addEventListener('input', () => setKind(guessKind(linkInput.value.trim())));
+  const addLink = el('button', { class: 'btn ghost small' }, '🔗 ', t('media_add_link'));
+  addLink.addEventListener('click', () => {
+    const url = linkInput.value.trim();
+    if (!/^https?:\/\//i.test(url)) { toast(t('media_link_bad'), true); return; }
+    sfx.tap();
+    commit([...storyMedia(story), { id: newMediaId(story), kind: linkKind, url }]);
+    linkInput.value = '';
+    toast(t('media_added'));
+  });
+
+  // ---- AI 再畫一張（用這本存下來的畫圖提示，沒有就拿內文開頭當場景）----
+  const aiBtn = el('button', { class: 'btn berry small' }, '✨ ', t('media_ai'));
+  aiBtn.addEventListener('click', async () => {
+    sfx.tap();
+    const label = aiBtn.textContent;
+    aiBtn.disabled = true;
+    aiBtn.textContent = `⏳ ${t('media_ai_doing')}`;
+    try {
+      const scene = story.imagePrompt || s2t(story.text).slice(0, 200);
+      const blob = await generateImage(scene, pickImageStyle());
+      const id = newMediaId(story);
+      await idbSet('images', id, blob);
+      commit([...storyMedia(story), { id, kind: 'image' }]);
+      toast(t('media_added'));
+    } catch (e) {
+      console.warn('ai image failed', e);
+      toast(`${t('media_ai_fail')}：${e.message}`, true);
+    }
+    aiBtn.disabled = false;
+    aiBtn.textContent = label;
+  });
+
+  m.body.append(
+    el('p', { class: 'settings-note', style: 'margin-top:0;', text: t('media_hint') }),
+    list,
+    el('div', { class: 'field-label', text: `➕ ${t('media_add_link')}` }),
+    kindSeg,
+    el('div', { class: 'row', style: 'flex-wrap:nowrap;margin-top:8px;' }, linkInput, addLink),
+    el('div', { class: 'field-label', text: `➕ ${t('media_add_image')}／${t('media_add_video')}` }),
+    el('div', { class: 'row' },
+      el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); imgFile.click(); } }, '🖼 ', t('media_add_image')),
+      el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); vidFile.click(); } }, '🎬 ', t('media_add_video')),
+      settings.apiKey ? aiBtn : null,
+    ),
+    el('p', { class: 'settings-note', text: t('media_video_note') }),
+    imgFile, vidFile,
+  );
+  m.foot.append(el('button', { class: 'btn', text: t('ok'), onclick: () => { sfx.tap(); m.close(); } }));
+  draw();
 }
 
 // ---------- 故事元素比例雷達圖（生成面板用） ----------
@@ -904,6 +1362,7 @@ function openManualModal() {
     if (imgBlob) {
       await idbSet('images', id, imgBlob).catch(() => {});
       story.hasImage = true;
+      story.media = [{ id, kind: 'image' }];
     }
     // 與 AI 生成一致：記錄字表用字次數
     const storySet = new Set([...text]);
@@ -1021,6 +1480,8 @@ async function runGeneration(mustInclude, extraPrompt) {
       newChars,
       highlights: [],
       hasImage: false,
+      media: [],
+      imagePrompt: imagePrompt || '', // 留著給「AI 再畫一張」當場景
       demo: !settings.apiKey,
     };
 
@@ -1034,6 +1495,7 @@ async function runGeneration(mustInclude, extraPrompt) {
         const blob = await generateImage(imagePrompt, style);
         await idbSet('images', id, blob);
         story.hasImage = true;
+        story.media = [{ id, kind: 'image' }];
         addLog(`✅ ${t('gen_log_img_ok')}`);
       } catch (e) {
         console.warn('image failed', e);

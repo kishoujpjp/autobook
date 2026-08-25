@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.19.0';
+export const VERSION = '1.20.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS = {
   weakMode: false,        // 不熟模式：遊戲只出紅字與白字
   wordLen: 'all',         // 認詞彙長度：'2' | '3' | 'all'
   genImage: true,         // 做新繪本時生成插圖
+  storyLayout: 'side',    // 閱讀版面：'side' 圖文並排（舊版）｜'focus' 專注閱讀（讀完才用特效打開圖片框）
   // 故事元素比例（0~10，生成面板雷達圖）：溫馨/有趣/衝突/悲傷/犯錯
   storyMix: { warm: 8, fun: 8, conflict: 2, sad: 0, mistake: 2 },
   repStrict: 'std',       // 跟讀評分嚴格度：'easy' | 'std' | 'hard'
@@ -243,6 +244,8 @@ export function bumpGame(ch, correct) {
 // story: { id, title, text, lang, createdAt, newChars:[], hasImage, demo,
 //          hlBy:   { 帳號id: [索引] },                 高亮模式的紀錄（依帳號分開）
 //          marksBy:{ 帳號id: { 索引: 'green'|'red' } }, 標註模式的紀錄（依帳號分開）
+//          readsBy:{ 帳號id: 次數 },                   讀完整本的次數（高亮／標註都算）
+//          media:  [{ id, kind, url }],                圖片／影片清單（見下方 storyMedia）
 //          polys:  [{ char, word }] }                  多音字與所屬詞（每本偵測一次）
 // 舊版全域 highlights 於故事頁首次開啟時遷移給當時的帳號
 export let stories = load(LS.stories, []);
@@ -254,18 +257,66 @@ export async function addStory(story) {
   stories.unshift(story);
   while (stories.length > MAX_STORIES) {
     const old = stories.pop();
-    await idbDel('images', old.id).catch(() => {});
+    await dropStoryBlobs(old);
   }
   saveStories();
 }
 
 export async function removeStory(id) {
+  const gone = stories.find((s) => s.id === id);
   stories = stories.filter((s) => s.id !== id);
   saveStories();
-  await idbDel('images', id).catch(() => {});
+  if (gone) await dropStoryBlobs(gone);
 }
 
 export function getStory(id) { return stories.find((s) => s.id === id); }
+
+/** 刪掉一本書所有存在 IndexedDB 的媒體 blob（外部連結沒有 blob） */
+async function dropStoryBlobs(story) {
+  for (const m of storyMedia(story)) await deleteMediaBlob(m);
+  await idbDel('images', story.id).catch(() => {}); // 舊資料的第一張插圖 key＝故事 id
+}
+
+// ---------- 故事的圖片／影片 ----------
+// media: [{ id, kind: 'image' | 'video', url? }]
+//   url 有值＝外部連結（直接檔案網址，或 YouTube／Vimeo）；沒有＝blob 存在 IndexedDB
+//   的 'images' store，key＝m.id。舊資料沒有 media 欄位：hasImage 就是唯一一張，key＝故事 id。
+// 清單順序＝解鎖順序：讀完第 1 遍看 media[0]，第 2 遍看 media[1]…讀完最後一個之後固定用最後一個。
+
+/** 這本書的媒體清單（含舊資料的相容轉換），永遠回傳陣列 */
+export function storyMedia(story) {
+  if (Array.isArray(story.media)) return story.media;
+  return story.hasImage ? [{ id: story.id, kind: 'image' }] : [];
+}
+
+/** 產生新媒體的 IndexedDB key（帶故事 id 前綴，好認；序號確保同一毫秒連加多張也不會撞） */
+let mediaSeq = 0;
+export function newMediaId(story) {
+  return `${story.id}|m${Date.now().toString(36)}${(mediaSeq++).toString(36)}${(Math.random() * 1e4 | 0).toString(36)}`;
+}
+
+/** 寫回媒體清單；hasImage 同步維護（書架封面與舊程式碼還在看它） */
+export function setStoryMedia(story, list) {
+  story.media = list;
+  story.hasImage = list.some((m) => m.kind === 'image');
+  saveStories();
+}
+
+export async function deleteMediaBlob(m) {
+  if (!m.url) await idbDel('images', m.id).catch(() => {});
+}
+
+/** 讀完整本的次數（依帳號分開）：高亮讀完或標註讀完都算一次 */
+export function storyReads(story, accId) {
+  return (story.readsBy && story.readsBy[accId || currentAccountId]) || 0;
+}
+
+export function bumpStoryReads(story) {
+  if (!story.readsBy) story.readsBy = {};
+  story.readsBy[currentAccountId] = storyReads(story) + 1;
+  saveStories();
+  return story.readsBy[currentAccountId];
+}
 
 // ---------- 跟讀題庫 ----------
 // phrase: { id, text, addedAt, hasImage, tags:[], stats: { [accId]: {last, best, tries} } }
