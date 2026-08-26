@@ -29,6 +29,7 @@ let stageEl = null;    // 專注版面的揭曉舞台（童話外框）
 let objUrls = [];      // 這次 render 建立的 blob URL，重繪前釋放
 let celebrateSeq = 0;  // 揭曉動畫的世代編號：重繪後舊的計時器就作廢
 let autoTimer = 0;     // 自動翻頁的倒數（重繪或再點字都要取消）
+let completeNow = null;// 目前這次 render 的「直接完成」動作（閱讀設定的按鈕用）
 
 export function initStory(rootEl) {
   root = rootEl;
@@ -58,6 +59,7 @@ function buildBankMap() {
 
 export function render() {
   celebrateSeq++;
+  completeNow = null;
   clearTimeout(autoTimer);
   closeStage();
   if (mediaView) { mediaView.destroy(); mediaView = null; }
@@ -467,6 +469,20 @@ export function render() {
     refreshActs();
   }
 
+  // 閱讀設定的「直接完成」：把這一輪還沒標的字一次補滿，之後走跟真的讀完一模一樣的路徑
+  // （進度滿 → 計一次讀完 → 揭曉特效 → 已打開 +1）。
+  // 刻意不寫字表的紅綠紀錄與點讀次數——這是大人用的捷徑，不是小孩真的認得這些字。
+  completeNow = () => {
+    for (const { btn, i } of ziBtns) {
+      if (mode === 'hl') { highlights.add(i); btn.classList.add('hl'); }
+      else if (!marks.has(i)) { marks.set(i, 'green'); btn.classList.add('mk-g'); }
+    }
+    if (mode === 'hl') story.hlBy[currentAccountId] = [...highlights];
+    else story.marksBy[currentAccountId] = Object.fromEntries(marks);
+    saveStories();
+    updateProgress();
+  };
+
   refreshActs(); // 先填好文字與顯示狀態，等 rAF 才填會閃一下空按鈕
 
   requestAnimationFrame(() => {
@@ -757,6 +773,34 @@ function openReadSettings(story) {
       '➕ ', t('rs_add_new')),
   );
 
+  // 閱讀進度：直接完成（跳過點讀，照樣播特效與計次）／狀態重置（回到還沒讀過）
+  const progRow = el('div', { class: 'row' });
+  if (readProgress(story).ratio < 0.999) {
+    progRow.append(el('button', { class: 'btn sky small', onclick: () => {
+      sfx.tap();
+      m.close(); // 先關掉面板，特效才看得到
+      if (completeNow) completeNow();
+    } }, '✅ ', t('rs_finish')));
+  }
+  progRow.append(el('button', { class: 'btn ghost small', onclick: async () => {
+    sfx.tap();
+    const yes = await confirmDialog(t('rs_reset_confirm'));
+    if (!yes) return;
+    // 只回退這本、這個帳號的閱讀狀態：兩種模式的標記與「已打開」次數；字表紅綠不動
+    if (story.hlBy) delete story.hlBy[currentAccountId];
+    if (story.marksBy) delete story.marksBy[currentAccountId];
+    if (story.readsBy) delete story.readsBy[currentAccountId];
+    saveStories();
+    m.close();
+    toast(t('rs_reset_done'));
+    render();
+  } }, '♻️ ', t('rs_reset')));
+  m.body.append(
+    el('div', { class: 'field-label', text: t('rs_progress_label') }),
+    progRow,
+    el('p', { class: 'settings-note', text: t('rs_progress_note') }),
+  );
+
   m.foot.append(
     el('button', { class: 'btn sky', onclick: () => {
       sfx.tap();
@@ -790,16 +834,19 @@ function coverTint(id) {
   for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return COVER_TINTS[h % COVER_TINTS.length];
 }
-/** 書架用的統計：總字數、已讀數（目前帳號×目前點讀模式）、新字數（未入字表或標紅） */
-function shelfStats(story) {
-  const hanChars = [...(story.text || '')].filter(isHan);
-  const total = hanChars.length || 1;
+/** 這本在目前帳號×目前點讀模式的閱讀進度（負索引＝書名的字，不計） */
+function readProgress(story) {
+  const total = [...(story.text || '')].filter(isHan).length || 1;
   const mode = settings.storyMode === 'mark' ? 'mark' : 'hl';
-  // 負索引是書名的字（可點讀但不計進度），要濾掉
   const done = mode === 'hl'
     ? ((story.hlBy || {})[currentAccountId] || []).filter((i) => i >= 0).length
     : Object.keys((story.marksBy || {})[currentAccountId] || {}).filter((k) => +k >= 0).length;
-  const ratio = Math.min(1, done / total);
+  return { done, total, ratio: Math.min(1, done / total) };
+}
+
+/** 書架用的統計：已讀比例（目前帳號×目前點讀模式）、新字數（未入字表或標紅） */
+function shelfStats(story) {
+  const { ratio } = readProgress(story);
   const byHant = new Map(words.map((w) => [convertTo(w.ch, 'zh-Hant'), w]));
   let fresh = 0;
   for (const ch of new Set([...s2t(story.text || '')].filter(isHan))) {
