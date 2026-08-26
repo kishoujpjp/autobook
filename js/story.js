@@ -114,7 +114,14 @@ export function render() {
 
   const chars = [...dispText];
   const hanTotal = chars.filter(isHan).length || 1;
-  function doneCount() { return mode === 'hl' ? highlights.size : marks.size; }
+  // 書名的字也可以點讀，索引用負的（-1, -2…）跟內文分開；
+  // 進度與「讀完整本」只算內文，點不點書名都不影響（舊書的進度紀錄也不會被改變意義）
+  function doneCount() {
+    let n = 0;
+    if (mode === 'hl') { for (const i of highlights) if (i >= 0) n++; }
+    else { for (const i of marks.keys()) if (i >= 0) n++; }
+    return n;
+  }
 
   // ---- 這一遍要打開的圖片／影片 ----
   // 讀完 N 遍＝已打開前 N 組；還沒讀完＝正在解第 N+1 組。
@@ -172,10 +179,10 @@ export function render() {
   // ---- 文字區：固定頁高、只靠上一頁/下一頁翻頁（不可手滑、無捲軸、整行完整顯示） ----
   const textWrap = el('div', { class: `story-text${settings.storyFont === 'big' ? ' bigfont' : ''}` });
   // 專注版面：書名當文字框的第一行（不另外佔一列），內文從第二行開始。
-  // 高度鎖成一個字塊高，翻頁的整行對齊才不會跑掉。
-  const titleLine = layout === 'focus'
-    ? el('div', { class: 'story-title-line', text: dispTitle })
-    : null;
+  // 書名的字跟內文一樣是可點的字塊（點了會唸），只是不計進度。
+  // 整行高度鎖成一個字塊高，翻頁的整行對齊才不會跑掉；虛線分隔畫在行距裡（::after）。
+  const titleLine = layout === 'focus' ? el('div', { class: 'story-title-line' }) : null;
+  const titleTiles = []; // 書名的字塊與標點，寬度依可用寬度自動縮
   if (titleLine) textWrap.append(titleLine);
   const scroll = el('div', { class: 'story-scroll' }, textWrap);
   const textCard = el('div', { class: 'card text-card' }, scroll);
@@ -196,7 +203,24 @@ export function render() {
     rowGap = pageRows > 1 ? 10 + Math.min(24, Math.max(0, Math.floor(spare / (pageRows - 1)))) : 10;
     textWrap.style.rowGap = `${rowGap}px`;
     scroll.style.height = `${pageRows * (TILE + rowGap) - rowGap + 20}px`;
-    if (titleLine) titleLine.style.height = `${TILE}px`;
+    if (titleLine) {
+      titleLine.style.height = `${TILE}px`;
+      sizeTitle(TILE);
+    }
+  }
+  /** 書名字塊：最大跟內文一樣大，太長就等比縮到排得下（不換行、不裁字） */
+  function sizeTitle(TILE) {
+    if (!titleTiles.length) return;
+    const avail = (scroll.clientWidth || textCard.clientWidth) - 20 - 16 - 4; // scroll 內距、title 內距
+    const gaps = (titleTiles.length - 1) * 8;
+    const size = Math.max(24, Math.min(TILE, Math.floor((avail - gaps) / titleTiles.length)));
+    for (const n of titleTiles) {
+      const wide = n.classList.contains('punct');
+      n.style.width = `${Math.round(size * (wide ? 0.55 : 1))}px`;
+      n.style.height = `${size}px`;
+      n.style.fontSize = `${Math.round(size * (wide ? 0.55 : 0.6))}px`;
+      if (!wide) n.style.borderRadius = `${Math.round(size * 0.26)}px`;
+    }
   }
   function pageStep() { return pageRows * (tileH() + rowGap); }
   function updatePager() {
@@ -285,23 +309,22 @@ export function render() {
     return mk === 'green' ? ' mk-g' : mk === 'red' ? ' mk-r' : '';
   }
 
-  chars.forEach((ch, i) => {
-    if (ch === '\n') { textWrap.append(el('div', { class: 'linebreak' })); return; }
-    if (!isHan(ch)) {
-      textWrap.append(el('span', { class: 'punct', text: ch }));
-      return;
-    }
-    hanIndices.push(i);
+  /**
+   * 一個可點的字塊。書名與內文共用同一套高亮／標註規則，只差在索引空間：
+   * 內文用 0..n（就是字在內文的位置），書名用 -1, -2…（不計進度）。
+   * speak 是這個字要怎麼唸（內文會查多音字，書名唸單字）。
+   */
+  function makeZi(ch, idx, speak) {
     const btn = el('button', {
-      class: `zi${mode === 'hl' && highlights.has(i) ? ' hl' : ''}${mode === 'mark' ? markCls(marks.get(i)) : ''}`,
+      class: `zi${mode === 'hl' && highlights.has(idx) ? ' hl' : ''}${mode === 'mark' ? markCls(marks.get(idx)) : ''}`,
       text: ch,
     });
 
-    // 長按：只發音，不改標記（多音字播所屬詞的音）
+    // 長按：只發音，不改標記
     let lpTimer = 0, lpFired = false;
     btn.addEventListener('pointerdown', () => {
       lpFired = false;
-      lpTimer = setTimeout(() => { lpFired = true; speakAt(story, ch, i); }, 500);
+      lpTimer = setTimeout(() => { lpFired = true; speak(); }, 500);
     });
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) {
       btn.addEventListener(ev, () => clearTimeout(lpTimer));
@@ -318,21 +341,21 @@ export function render() {
         const on = !btn.classList.contains('hl');
         btn.classList.toggle('hl', on);
         if (on) {
-          highlights.add(i);
+          highlights.add(idx);
           sfx.tick(); // 極輕提示音：連續點讀時不蓋過唸讀聲
           if (bankCh) bumpRead(bankCh, 1);
-          if (settings.storySpeak) speakAt(story, ch, i);
+          if (settings.storySpeak) speak();
         } else {
-          highlights.delete(i);
+          highlights.delete(idx);
           sfx.tock();
           if (bankCh) bumpRead(bankCh, -1);
         }
         story.hlBy[currentAccountId] = [...highlights];
       } else {
         // 標註模式：白→綠→紅→白，紅綠都算「讀過」，同步進認字卡（最後標註為準）
-        const cur = marks.get(i) || null;
+        const cur = marks.get(idx) || null;
         const next = cur === null ? 'green' : cur === 'green' ? 'red' : null;
-        if (next) marks.set(i, next); else marks.delete(i);
+        if (next) marks.set(idx, next); else marks.delete(idx);
         btn.classList.remove('mk-g', 'mk-r');
         if (next) btn.classList.add(next === 'green' ? 'mk-g' : 'mk-r');
         if (next === 'green') sfx.correct();
@@ -340,13 +363,41 @@ export function render() {
         else sfx.tap();
         if (bankCh) setMark(bankCh, next);
         // 發音規則：標綠（已學會）不發音；標紅發音一次幫忙複習；清除不發音
-        if (settings.storySpeak && next === 'red') speakAt(story, ch, i);
+        if (settings.storySpeak && next === 'red') speak();
         story.marksBy[currentAccountId] = Object.fromEntries(marks);
       }
       saveStories();
       updateProgress();
       scheduleAutoPage();
     });
+    return btn;
+  }
+
+  // 書名：一排跟內文同款的字塊（點了會唸），不進 ziBtns 所以不影響「這一頁讀完了沒」
+  if (titleLine) {
+    const storedTitle = [...(story.title || '')];
+    [...dispTitle].forEach((ch, k) => {
+      if (!isHan(ch)) {
+        const sp = el('span', { class: 'punct', text: ch });
+        titleLine.append(sp);
+        titleTiles.push(sp);
+        return;
+      }
+      const stored = storedTitle[k] || ch;
+      const btn = makeZi(ch, -(k + 1), () => speakOne(stored, ch));
+      titleLine.append(btn);
+      titleTiles.push(btn);
+    });
+  }
+
+  chars.forEach((ch, i) => {
+    if (ch === '\n') { textWrap.append(el('div', { class: 'linebreak' })); return; }
+    if (!isHan(ch)) {
+      textWrap.append(el('span', { class: 'punct', text: ch }));
+      return;
+    }
+    hanIndices.push(i);
+    const btn = makeZi(ch, i, () => speakAt(story, ch, i));
     textWrap.append(btn);
     ziBtns.push({ btn, i });
   });
@@ -744,9 +795,10 @@ function shelfStats(story) {
   const hanChars = [...(story.text || '')].filter(isHan);
   const total = hanChars.length || 1;
   const mode = settings.storyMode === 'mark' ? 'mark' : 'hl';
+  // 負索引是書名的字（可點讀但不計進度），要濾掉
   const done = mode === 'hl'
-    ? ((story.hlBy || {})[currentAccountId] || []).length
-    : Object.keys((story.marksBy || {})[currentAccountId] || {}).length;
+    ? ((story.hlBy || {})[currentAccountId] || []).filter((i) => i >= 0).length
+    : Object.keys((story.marksBy || {})[currentAccountId] || {}).filter((k) => +k >= 0).length;
   const ratio = Math.min(1, done / total);
   const byHant = new Map(words.map((w) => [convertTo(w.ch, 'zh-Hant'), w]));
   let fresh = 0;
@@ -1632,6 +1684,11 @@ async function speakAt(story, dispCh, i) {
   }
 
   // 單字：AI 快取（原字形 → 顯示字形 → 繁簡另一邊）→ 音節庫 → 內建語音
+  await speakOne(stored, dispCh);
+}
+
+/** 唸一個字：AI 快取（原字形 → 顯示字形 → 繁簡另一邊）→ 音節庫 → 內建語音 */
+async function speakOne(stored, dispCh) {
   const key = [stored, dispCh, s2t(stored), t2s(stored)].find(hasAudioCached);
   if (key) {
     const blob = await idbGet('audio', key).catch(() => null);
@@ -1662,7 +1719,7 @@ async function prepStoryVoice(story) {
   } catch (e) { console.warn('poly detect failed', e); }
 
   // 以「儲存原字形」生成與快取（不用顯示字形：簡體同形字會撞 key、送簡體字也會讓 TTS 讀音不準）
-  const uniq = [...new Set([...story.text].filter(isHan))];
+  const uniq = [...new Set([...story.text, ...(story.title || '')].filter(isHan))];
   const jobs = []; // { key, text }：單字 or 多音字所屬詞
   for (const ch of uniq) {
     const hit = await idbGet('audio', ch).catch(() => null);

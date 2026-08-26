@@ -545,22 +545,18 @@ video.media-el { object-fit: contain; background: #1A1410; }
   align-self: center;
   flex-direction: row-reverse;
 }
-/* 書名當文字框的第一行：高度由 JS 鎖成一個字塊高，整行對齊才不會跑掉 */
+/* 書名當文字框的第一行：整行高度由 JS 鎖成一個字塊高（整行對齊才不會跑掉），
+   裡面是一排跟內文同款、可點會唸的字塊，大小由 JS 依可用寬度縮到排得下。
+   置中排列就看得出這行是書名（內文是靠左排的），不另外加線或底色。 */
 .story-title-line {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 8px 6px;
-  font-size: 30px;
-  font-weight: 800;
-  color: var(--ink);
-  border-bottom: 3px dashed #EFDFBE;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 8px;
 }
-.story-text.bigfont .story-title-line { font-size: 40px; }
+.story-title-line .zi, .story-title-line .punct { flex: 0 0 auto; }
 
 /* ---- 揭曉舞台：童話外框的大圖片框 ---- */
 .reveal-stage {
