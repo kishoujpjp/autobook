@@ -326,19 +326,15 @@ button {
   25% { opacity: 1; transform: scale(1.3) translateY(-6px); }
   100% { opacity: 0; transform: scale(0.6) translateY(-44px); }
 }
-.fog-hint {
-  margin-top: 12px;
-  text-align: center;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--ink-soft);
-}
+/* 進度條：提示文字直接印在條上（省一整行），整條不可點——
+   兩種版面都讓它當「翻頁鈕的鄰居」，小孩戳翻頁不會誤觸功能鈕 */
 .progress-track {
-  margin-top: 10px;
-  height: 22px;
+  position: relative;
+  height: 30px;
   border-radius: 999px;
   background: #F3E7CE;
   overflow: hidden;
+  pointer-events: none;
 }
 .progress-fill {
   height: 100%;
@@ -346,6 +342,19 @@ button {
   border-radius: 999px;
   background: linear-gradient(90deg, var(--sun), var(--primary));
   transition: width 0.4s ease;
+}
+.progress-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 800;
+  color: #6B4E22;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .story-title {
@@ -492,37 +501,66 @@ video.media-el { object-fit: contain; background: #1A1410; }
   gap: 10px;
   flex-wrap: wrap;
 }
-.meta-acts:not(:empty) { margin-top: 10px; }
 .chip.slot { background: #EFE7FB; color: #6B4FA8; font-size: 14px; padding: 5px 12px; }
 
 /* ============ 專注閱讀版面：整頁文字，讀完才打開圖片框 ============ */
 .story-layout.focus {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
-    'title'
     'text'
-    'meta'
-    'pager';
+    'foot';
+  gap: 12px;
+}
+.story-layout.focus .text-card { grid-area: text; }
+/* 頁尾：上排是不可點的進度條，下排左邊功能、右邊翻頁鈕，左右拉開避免誤觸 */
+.story-foot {
+  grid-area: foot;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 }
-.story-layout.focus .story-title { justify-content: center; text-align: center; }
-.story-layout.focus .text-card { grid-area: text; }
+.foot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.foot-left {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.foot-left .new-chars, .foot-left .meta-acts { margin-top: 0; }
+.foot-left .new-chars { justify-content: flex-start; }
+/* 頁尾的鈕與新字方塊都縮一號：直向時左邊那群才排得下一行，不會擠到翻頁鈕 */
+.foot-left .btn.small { min-height: 46px; font-size: 17px; padding: 6px 16px; border-radius: 16px; }
+.foot-left .nc-label { font-size: 16px; }
+.foot-left .nc-zi { width: 40px; height: 40px; font-size: 26px; border-radius: 13px; }
 .story-layout.focus .story-pager {
-  grid-area: pager;
+  flex: 0 0 auto;
   align-self: center;
   flex-direction: row-reverse;
 }
-.story-meta { grid-area: meta; }
-.story-meta .meta-row {
+/* 書名當文字框的第一行：高度由 JS 鎖成一個字塊高，整行對齊才不會跑掉 */
+.story-title-line {
+  width: 100%;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin-top: 8px;
+  gap: 10px;
+  padding: 0 8px 6px;
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--ink);
+  border-bottom: 3px dashed #EFDFBE;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.story-meta .fog-hint { margin-top: 0; }
+.story-text.bigfont .story-title-line { font-size: 40px; }
 
 /* ---- 揭曉舞台：童話外框的大圖片框 ---- */
 .reveal-stage {
@@ -652,9 +690,9 @@ video.media-el { object-fit: contain; background: #1A1410; }
 .fig-card .nc-label { font-size: 15px; }
 .fig-card .nc-zi { width: 38px; height: 38px; font-size: 24px; border-radius: 12px; box-shadow: 0 3px 0 #F0D5AE; }
 .fig-card .nc-zi:active { transform: translateY(2px); box-shadow: 0 1px 0 #F0D5AE; }
-.fig-card .meta-acts:not(:empty) { margin-top: 8px; }
+.fig-card .meta-acts { margin-top: 10px; }
 .fig-card .btn.small { min-height: 44px; font-size: 16px; padding: 6px 14px; border-radius: 15px; }
-.fig-card .fog-hint { font-size: 16px; margin-top: 10px; }
+.fig-card .progress-track { margin-top: 10px; }
 
 .story-empty {
   text-align: center;

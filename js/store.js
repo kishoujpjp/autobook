@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.20.0';
+export const VERSION = '1.21.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -27,6 +27,7 @@ const DEFAULT_SETTINGS = {
   wordLen: 'all',         // 認詞彙長度：'2' | '3' | 'all'
   genImage: true,         // 做新繪本時生成插圖
   storyLayout: 'side',    // 閱讀版面：'side' 圖文並排（舊版）｜'focus' 專注閱讀（讀完才用特效打開圖片框）
+  autoPage: false,        // 自動翻頁：這一頁的字都點過了，2 秒後自動翻下一頁
   // 故事元素比例（0~10，生成面板雷達圖）：溫馨/有趣/衝突/悲傷/犯錯
   storyMix: { warm: 8, fun: 8, conflict: 2, sad: 0, mistake: 2 },
   repStrict: 'std',       // 跟讀評分嚴格度：'easy' | 'std' | 'hard'

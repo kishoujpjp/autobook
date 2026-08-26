@@ -161,6 +161,8 @@ const DICT = {
     story_edit_note: '編輯框固定用繁體（簡體介面會自動轉換顯示）。儲存後這本的點讀進度與紅綠標記會重新開始。',
     story_edit_done: '改好了！',
     // 圖片／影片（可多組，讀完一遍換下一組）
+    rs_autopage: '自動翻頁',
+    rs_autopage_note: '這一頁的字都點過了，等 2 秒自動翻到下一頁（最後一頁不翻）。',
     rs_layout: '閱讀版面',
     layout_side: '圖文並排',
     layout_focus: '專注閱讀',
@@ -191,7 +193,6 @@ const DICT = {
     media_replay: '再看一次',
     reveal_close: '收起來',
     story_again: '再讀一遍',
-    story_again_n: '再讀一遍（還有 {n} 個沒打開）',
     // 遊戲頁
     game_title: '認字遊戲',
     game_intro: '聽聲音，找出正確的字！',
@@ -529,6 +530,8 @@ const DICT = {
     story_edit_note: '编辑框固定用繁体（简体界面会自动转换显示）。保存后这本的点读进度与红绿标记会重新开始。',
     story_edit_done: '改好了！',
     // 图片／影片（可多组，读完一遍换下一组）
+    rs_autopage: '自动翻页',
+    rs_autopage_note: '这一页的字都点过了，等 2 秒自动翻到下一页（最后一页不翻）。',
     rs_layout: '阅读版面',
     layout_side: '图文并排',
     layout_focus: '专注阅读',
@@ -559,7 +562,6 @@ const DICT = {
     media_replay: '再看一次',
     reveal_close: '收起来',
     story_again: '再读一遍',
-    story_again_n: '再读一遍（还有 {n} 个没打开）',
     game_title: '认字游戏',
     game_intro: '听声音，找出正确的字！',
     game_menu_listen: '听音认字',

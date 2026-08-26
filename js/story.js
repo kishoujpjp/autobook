@@ -28,6 +28,7 @@ let mediaView = null;  // 目前顯示的圖片／影片元件（重繪前要停
 let stageEl = null;    // 專注版面的揭曉舞台（童話外框）
 let objUrls = [];      // 這次 render 建立的 blob URL，重繪前釋放
 let celebrateSeq = 0;  // 揭曉動畫的世代編號：重繪後舊的計時器就作廢
+let autoTimer = 0;     // 自動翻頁的倒數（重繪或再點字都要取消）
 
 export function initStory(rootEl) {
   root = rootEl;
@@ -57,6 +58,7 @@ function buildBankMap() {
 
 export function render() {
   celebrateSeq++;
+  clearTimeout(autoTimer);
   closeStage();
   if (mediaView) { mediaView.destroy(); mediaView = null; }
   for (const u of objUrls) URL.revokeObjectURL(u);
@@ -127,10 +129,12 @@ export function render() {
   const fogCanvas = el('canvas', { class: 'fogc' });
   const figWrap = el('div', { class: 'fig-wrap' }, mediaView.el, fogCanvas);
 
-  // 進度條、本篇新字、動作鈕：兩種版面共用（並排版放圖卡裡，專注版放文字框下面）
-  const fogHint = el('div', { class: 'fog-hint', text: t(layout === 'focus' ? 'focus_hint_locked' : 'fog_hint_locked') });
+  // 進度條、本篇新字、動作鈕：兩種版面共用。
+  // 提示文字直接印在進度條上（省一整行），而且進度條不能點——
+  // 讓「緊鄰翻頁鈕的東西永遠是不可點的進度條」，小孩戳翻頁鈕不會誤觸功能鈕。
+  const progressText = el('span', { class: 'progress-text' });
   const progressFill = el('div', { class: 'progress-fill' });
-  const progressTrack = el('div', { class: 'progress-track' }, progressFill);
+  const progressTrack = el('div', { class: 'progress-track' }, progressFill, progressText);
   const newRow = dispNew.length
     ? el('div', { class: 'new-chars' },
       el('span', { class: 'nc-label', text: `${t('new_chars')}：` }),
@@ -156,9 +160,8 @@ export function render() {
   function refreshActs() {
     const done = doneCount() >= hanTotal;
     const reads = storyReads(story);
-    const left = Math.max(0, media.length - reads);
     againBtn.hidden = !done;
-    againBtn.textContent = left > 0 ? `🔁 ${t('story_again_n', { n: left })}` : `🔁 ${t('story_again')}`;
+    againBtn.textContent = `🔁 ${t('story_again')}`; // 還剩幾個沒打開看旁邊的 chip，按鈕留短的才排得下
     replayBtn.hidden = !(done && layout === 'focus');
     replayBtn.textContent = `🖼 ${t('media_replay')}`;
     slotChip.hidden = media.length < 2;
@@ -168,6 +171,12 @@ export function render() {
 
   // ---- 文字區：固定頁高、只靠上一頁/下一頁翻頁（不可手滑、無捲軸、整行完整顯示） ----
   const textWrap = el('div', { class: `story-text${settings.storyFont === 'big' ? ' bigfont' : ''}` });
+  // 專注版面：書名當文字框的第一行（不另外佔一列），內文從第二行開始。
+  // 高度鎖成一個字塊高，翻頁的整行對齊才不會跑掉。
+  const titleLine = layout === 'focus'
+    ? el('div', { class: 'story-title-line', text: dispTitle })
+    : null;
+  if (titleLine) textWrap.append(titleLine);
   const scroll = el('div', { class: 'story-scroll' }, textWrap);
   const textCard = el('div', { class: 'card text-card' }, scroll);
   const upBtn = el('button', { class: 'page-btn', text: '▲' });
@@ -187,6 +196,7 @@ export function render() {
     rowGap = pageRows > 1 ? 10 + Math.min(24, Math.max(0, Math.floor(spare / (pageRows - 1)))) : 10;
     textWrap.style.rowGap = `${rowGap}px`;
     scroll.style.height = `${pageRows * (TILE + rowGap) - rowGap + 20}px`;
+    if (titleLine) titleLine.style.height = `${TILE}px`;
   }
   function pageStep() { return pageRows * (tileH() + rowGap); }
   function updatePager() {
@@ -199,12 +209,36 @@ export function render() {
     downBtn.disabled = scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 4;
   }
   function flip(dir) {
+    clearTimeout(autoTimer);
     const step = pageStep();
     const target = Math.max(0, (Math.round(scroll.scrollTop / step) + dir) * step);
     scroll.scrollTo({ top: target, behavior: 'smooth' });
   }
   upBtn.addEventListener('click', () => { sfx.tap(); flip(-1); });
   downBtn.addEventListener('click', () => { sfx.tap(); flip(1); });
+
+  // 自動翻頁（閱讀設定裡的開關）：目前這一頁的字全部點過就等 2 秒翻下一頁。
+  // 每點一次字都重新評估：取消掉之前排的，條件還成立才重排（取消標記也會跟著取消倒數）。
+  const ziBtns = []; // { btn, i }：算「這一頁的字讀完了沒」要用
+  function isDone(i) { return mode === 'hl' ? highlights.has(i) : marks.has(i); }
+  function pageDone() {
+    const top = scroll.getBoundingClientRect().top;
+    const h = scroll.clientHeight;
+    let any = false;
+    for (const { btn, i } of ziBtns) {
+      const y = btn.getBoundingClientRect().top - top;
+      if (y < -2 || y >= h - 2) continue; // 不在目前這一頁
+      any = true;
+      if (!isDone(i)) return false;
+    }
+    return any;
+  }
+  function scheduleAutoPage() {
+    clearTimeout(autoTimer);
+    if (!settings.autoPage || downBtn.disabled) return;
+    if (!pageDone()) return;
+    autoTimer = setTimeout(() => { sfx.tap(); flip(1); }, 2000);
+  }
   scroll.addEventListener('scroll', () => requestAnimationFrame(updatePager));
   pageResize = () => { sizeText(); updatePager(); };
   window.addEventListener('resize', pageResize);
@@ -219,18 +253,25 @@ export function render() {
 
   const pager = el('div', { class: 'story-pager' }, downBtn, pageInd, upBtn);
   if (layout === 'focus') {
-    // 專注閱讀：整頁都是文字框，下面是進度條與本篇新字；圖片框讀完才用特效打開
+    // 專注閱讀：整頁都是文字框（書名就是第一行），下面一條頁尾——
+    // 上排是不可點的進度條，下排左邊擺功能（新字、動作鈕）、右邊擺翻頁鈕，
+    // 兩群左右拉開，小孩戳翻頁不會掃到功能鈕。
     root.append(el('div', { class: 'story-layout focus' },
-      el('div', { class: 'story-title', text: dispTitle }),
       textCard,
-      el('div', { class: 'story-meta' }, progressTrack, el('div', { class: 'meta-row' }, fogHint, actsRow), newRow),
-      pager,
+      el('div', { class: 'story-foot' },
+        progressTrack,
+        el('div', { class: 'foot-row' },
+          el('div', { class: 'foot-left' }, actsRow, newRow),
+          pager,
+        ),
+      ),
     ));
   } else {
     // 直向：圖上字下，最下排按鈕列；橫向：翻頁鈕移到圖片下方（下一頁在左、上一頁在右）
+    // 圖卡裡把進度條放到最後：緊鄰翻頁鈕的是不可點的進度條，功能鈕都在它上面。
     root.append(el('div', { class: 'story-layout' },
       el('div', { class: 'story-title', text: dispTitle }),
-      el('div', { class: 'fig-card' }, figWrap, fogHint, progressTrack, newRow, actsRow),
+      el('div', { class: 'fig-card' }, figWrap, actsRow, newRow, progressTrack),
       textCard,
       pager,
     ));
@@ -304,8 +345,10 @@ export function render() {
       }
       saveStories();
       updateProgress();
+      scheduleAutoPage();
     });
     textWrap.append(btn);
+    ziBtns.push({ btn, i });
   });
 
   // ---- 進度與揭曉（高亮模式數高亮；標註模式紅綠都算） ----
@@ -361,14 +404,14 @@ export function render() {
     const ratio = doneCount() / hanTotal;
     progressFill.style.width = `${Math.round(ratio * 100)}%`;
     if (ratio >= 0.999) {
-      fogHint.textContent = t(`${hintKey}_done`);
+      progressText.textContent = t(`${hintKey}_done`);
       if (!celebrated) {
         celebrated = true;
         bumpStoryReads(story); // 讀完一遍：下次重開這本就換下一組圖片／影片
         celebrate();
       }
     } else {
-      fogHint.textContent = `${t(`${hintKey}_locked`)}（${t('read_progress')} ${doneCount()}/${hanTotal}）`;
+      progressText.textContent = `${t(`${hintKey}_locked`)} ${doneCount()}/${hanTotal}`;
     }
     refreshActs();
   }
@@ -621,6 +664,15 @@ function openReadSettings(story) {
     speakSw.classList.toggle('on', settings.storySpeak);
   });
 
+  // 自動翻頁：這一頁的字都點過了，2 秒後自動翻下一頁
+  const autoSw = el('button', { class: `switch${settings.autoPage ? ' on' : ''}` });
+  autoSw.addEventListener('click', () => {
+    sfx.tap();
+    settings.autoPage = !settings.autoPage;
+    saveSettings();
+    autoSw.classList.toggle('on', settings.autoPage);
+  });
+
   m.body.append(
     el('div', { class: 'field-label', text: t('rs_mode') }), modeSeg,
     el('div', { class: 'field-label', text: t('rs_font') }), fontSeg,
@@ -630,6 +682,10 @@ function openReadSettings(story) {
       el('span', { text: `🗣️ ${t('rs_speak')}` }), speakSw,
     ),
     el('p', { class: 'settings-note', text: t('rs_speak_note') }),
+    el('div', { class: 'settings-line', style: 'margin-top:14px;' },
+      el('span', { text: `📄 ${t('rs_autopage')}` }), autoSw,
+    ),
+    el('p', { class: 'settings-note', text: t('rs_autopage_note') }),
   );
 
   // 這本書的圖片／影片（可放多組，讀完一遍換下一組）與內文編輯
