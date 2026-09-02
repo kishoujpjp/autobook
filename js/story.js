@@ -1414,7 +1414,8 @@ async function ensureShelfRoom() {
 
 // ---------- 生成面板 ----------
 function openGenModal() {
-  const m = openModal(`✨ ${t('gen_title')}`);
+  let mic = null; // 語音輸入：面板關掉（含按下生成）時一定要停，不然麥克風會一直收音
+  const m = openModal(`✨ ${t('gen_title')}`, { onClose: () => { if (mic) mic.stop(); } });
   const selected = new Set();
 
   // 必用字選擇（最近新加的優先）
@@ -1440,7 +1441,7 @@ function openGenModal() {
 
   const promptInput = el('textarea', { class: 'text-area', placeholder: t('gen_extra_ph') });
   const micBtn = el('button', { class: 'mic-btn', text: '🎤' });
-  setupMic(micBtn, promptInput);
+  mic = setupMic(micBtn, promptInput);
 
   // 生成插圖 toggle（記住上次設定）
   const imgSw = el('button', { class: `switch${settings.genImage ? ' on' : ''}` });
@@ -1513,6 +1514,7 @@ function openManualModal() {
     if (!file) return;
     try {
       imgBlob = await downscaleImage(file, 1280);
+      if (preview.src) URL.revokeObjectURL(preview.src);
       preview.src = URL.createObjectURL(imgBlob);
       preview.style.display = 'block';
     } catch (e) {
@@ -1580,16 +1582,23 @@ function downscaleImage(file, max) {
 }
 
 // ---------- 語音輸入 ----------
+/** 回傳 { stop }：面板關閉時呼叫，確保麥克風不會在背景繼續收音（最長也只收 30 秒） */
 function setupMic(btn, input) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
     btn.addEventListener('click', () => toast(t('voice_unsupported'), true));
-    return;
+    return { stop() {} };
   }
   let rec = null;
+  let guard = 0;
+  const stop = () => {
+    clearTimeout(guard);
+    if (rec) { try { rec.abort(); } catch { /* 已停止 */ } rec = null; }
+    btn.classList.remove('rec');
+  };
   btn.addEventListener('click', () => {
     sfx.tap();
-    if (rec) { rec.stop(); return; }
+    if (rec) { stop(); return; }
     rec = new SR();
     rec.lang = getLang() === 'zh-Hans' ? 'zh-CN' : 'zh-TW';
     rec.continuous = true;
@@ -1601,17 +1610,22 @@ function setupMic(btn, input) {
         if (e.results[i].isFinal) input.value += e.results[i][0].transcript;
       }
     };
-    rec.onend = () => { btn.classList.remove('rec'); rec = null; };
-    rec.onerror = () => { btn.classList.remove('rec'); rec = null; };
+    rec.onend = () => { btn.classList.remove('rec'); rec = null; clearTimeout(guard); };
+    rec.onerror = () => { btn.classList.remove('rec'); rec = null; clearTimeout(guard); };
     rec.start();
+    guard = setTimeout(stop, 30000);
   });
+  return { stop };
 }
 
 // ---------- 生成流程 ----------
 async function runGeneration(mustInclude, extraPrompt) {
+  const ac = new AbortController(); // 「停止」鈕：中止 API 呼叫（含重試），什麼都不存
   const m = openModal('', { closable: false });
   const emoji = el('span', { class: 'big-emoji', text: '🧚' });
   const msg = el('p', { text: t('gen_writing') });
+  const stopBtn = el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); stopBtn.disabled = true; ac.abort(); } }, '⏹ ', t('gen_stop'));
+  m.foot.append(stopBtn);
   // 進度 log：顯示目前生成到哪個階段；出錯時原因直接留在視窗裡好除錯
   const logBox = el('div', { class: 'gen-log' });
   const addLog = (line) => {
@@ -1650,6 +1664,7 @@ async function runGeneration(mustInclude, extraPrompt) {
         mix: settings.storyMix,
         wantImage: settings.genImage,
         onStatus: () => { msg.textContent = t('gen_writing'); },
+        signal: ac.signal,
       });
       ({ title, text, newChars } = result);
       imagePrompt = result.imagePrompt;
@@ -1677,12 +1692,13 @@ async function runGeneration(mustInclude, extraPrompt) {
       const style = pickImageStyle(); // 風格池隨機選一種，畫風多樣化
       addLog(`🎨 ${t('gen_log_img')}（${settings.imageModel}｜${style.name}）…`);
       try {
-        const blob = await generateImage(imagePrompt, style);
+        const blob = await generateImage(imagePrompt, style, ac.signal);
         await idbSet('images', id, blob);
         story.hasImage = true;
         story.media = [{ id, kind: 'image' }];
         addLog(`✅ ${t('gen_log_img_ok')}`);
       } catch (e) {
+        if (e.message === 'CANCELLED') throw e; // 使用者按了停止：整本不存
         console.warn('image failed', e);
         addLog(`⚠️ ${t('gen_log_img_fail')}：${e.message}`);
       }
@@ -1711,7 +1727,9 @@ async function runGeneration(mustInclude, extraPrompt) {
     console.error(e);
     setLogListener(null);
     if (e.message === 'NO_KEY') { m.close(); toast(t('api_missing'), true); return; }
+    if (e.message === 'CANCELLED') { m.close(); toast(t('gen_cancelled')); return; }
     // 失敗時視窗留著，log 保留完整過程好除錯；按「好」才關
+    stopBtn.remove();
     emoji.textContent = '😢';
     if (e.message === 'GEN_FAIL') {
       msg.textContent = t('gen_fail');
@@ -1782,6 +1800,7 @@ async function speakOne(stored, dispCh) {
 async function prepStoryVoice(story) {
   if (!settings.apiKey) { toast(t('game_need_key'), true); return; }
 
+  const ac = new AbortController(); // 「停止」鈕：一篇 100 多個字、TTS 成功率又不高時，不能讓人乾等 10 分鐘
   const m = openModal('', { closable: false });
   const msg = el('p', { text: t('game_prep') });
   const fill = el('div', { class: 'prep-fill' });
@@ -1789,15 +1808,22 @@ async function prepStoryVoice(story) {
     el('span', { class: 'big-emoji', text: '🔊' }), msg,
     el('div', { class: 'prep-bar' }, fill),
   ));
+  const stopBtn = el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); stopBtn.disabled = true; ac.abort(); } }, '⏹ ', t('gen_stop'));
+  m.foot.append(stopBtn);
+  const cancelled = () => { m.close(); toast(t('gen_cancelled')); };
 
   // 多音字偵測（每本只做一次，存在 story.polys）＋所屬詞整詞發音
   try {
     if (!story.polys) {
       msg.textContent = t('prep_poly');
-      story.polys = await detectPolys(story.text);
-      saveStories();
+      const polys = await detectPolys(story.text, ac.signal);
+      // 偵測失敗（回空陣列）不永久存，下次還會再試；有結果才存
+      if (polys.length) { story.polys = polys; saveStories(); }
     }
-  } catch (e) { console.warn('poly detect failed', e); }
+  } catch (e) {
+    if (e.message === 'CANCELLED') { cancelled(); return; }
+    console.warn('poly detect failed', e);
+  }
 
   // 以「儲存原字形」生成與快取（不用顯示字形：簡體同形字會撞 key、送簡體字也會讓 TTS 讀音不準）
   const uniq = [...new Set([...story.text, ...(story.title || '')].filter(isHan))];
@@ -1816,14 +1842,19 @@ async function prepStoryVoice(story) {
   let done = 0, fail = 0, lastErr = null;
   const failed = [];
   for (const j of jobs) {
+    if (ac.signal.aborted) break;
     try {
-      const blob = await ttsChar(j.text);
+      const blob = await ttsChar(j.text, ac.signal);
       await idbSet('audio', j.key, blob);
-    } catch (e) { fail++; lastErr = e; failed.push(j.text); console.warn('tts failed', j.key, e); }
+    } catch (e) {
+      if (e.message === 'CANCELLED') break;
+      fail++; lastErr = e; failed.push(j.text); console.warn('tts failed', j.key, e);
+    }
     done++;
     msg.textContent = `${t('game_prep')} ${done}/${jobs.length}`;
     fill.style.width = `${Math.round((done / jobs.length) * 100)}%`;
   }
+  if (ac.signal.aborted) { cancelled(); return; }
   m.close();
   if (fail) {
     // 部分或全部失敗：顯示失敗數量、失敗的字與具體錯誤＋對策

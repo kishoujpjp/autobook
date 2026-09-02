@@ -1,7 +1,7 @@
 // 跟讀：英語單字/短句跟讀練習（以「練習組」為單位）
 // 發音判定走裝置內建語音辨識（Web Speech API）＋逐詞模糊比對，寬鬆計分。
 // 允許重複錄音刷分；左右邊緣箭頭或滑動換題（本輪沒分數不可往前）。
-import { t, getLang } from './i18n.js';
+import { t } from './i18n.js';
 import { el, toast, openModal, confirmDialog, infoDialog, confetti } from './ui.js';
 import { sfx, playBlob, speakNative } from './sfx.js';
 import {
@@ -77,20 +77,29 @@ function scoreCls(s) {
 }
 
 // ---------- AI 阻斷式生成動畫 ----------
-function aiOverlay(text) {
+function aiOverlay(text, onStop = null) {
   const m = openModal('', { closable: false });
   const anim = el('div', { class: 'ai-anim' });
   anim.innerHTML = SVG_AI_ANIM;
   const msg = el('p', { text });
   m.body.append(el('div', { class: 'loading-scene' }, anim, msg));
+  if (onStop) {
+    const stopBtn = el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); stopBtn.disabled = true; onStop(); } }, '⏹ ', t('gen_stop'));
+    m.foot.append(stopBtn);
+  }
   return {
     close: m.close,
     setText: (s) => { msg.textContent = s; },
   };
 }
 
+// 畫面世代：離開練習／重繪首頁就 +1，背景還在跑的出圖、發音回來時發現世代不同就放棄，
+// 不會在別的分頁突然出聲或把畫面蓋掉
+let viewSeq = 0;
+
 // ============ 首頁（練習組） ============
 function renderHome() {
+  viewSeq++;
   root.classList.remove('story-fixed');
   root.innerHTML = '';
   // 小孩帳號：AI 補足（花額度）、題庫（可刪題）、評分嚴格度都是家長的事，不顯示
@@ -175,27 +184,31 @@ async function fillContent() {
   const total = needAudio.length + needImage.length;
   if (!total) { toast(t('rep_fill_done')); return; }
 
-  const ov = aiOverlay(`${t('rep_generating')} 0/${total}`);
+  const ac = new AbortController();
+  const ov = aiOverlay(`${t('rep_generating')} 0/${total}`, () => ac.abort());
   let done = 0, fail = 0;
   for (const p of needAudio) {
+    if (ac.signal.aborted) break;
     try {
-      const blob = await ttsText(p.text);
+      const blob = await ttsText(p.text, ac.signal);
       await idbSet('audio', `en|${p.text.toLowerCase()}`, blob);
-    } catch (e) { fail++; console.warn('tts failed', p.text, e); }
+    } catch (e) { if (e.message === 'CANCELLED') break; fail++; console.warn('tts failed', p.text, e); }
     done++;
     ov.setText(`${t('rep_generating')} ${done}/${total}`);
   }
   for (const p of needImage) {
+    if (ac.signal.aborted) break;
     try {
-      const blob = await generatePhraseImage(p.text);
+      const blob = await generatePhraseImage(p.text, ac.signal);
       await idbSet('images', `ph|${p.id}`, blob);
       p.hasImage = true;
       savePhrases();
-    } catch (e) { fail++; console.warn('image failed', p.text, e); }
+    } catch (e) { if (e.message === 'CANCELLED') break; fail++; console.warn('image failed', p.text, e); }
     done++;
     ov.setText(`${t('rep_generating')} ${done}/${total}`);
   }
   ov.close();
+  if (ac.signal.aborted) { toast(t('gen_cancelled')); return; }
   sfx.sparkle();
   toast(fail ? t('game_prep_fail') : t('rep_fill_done'), !!fail);
 }
@@ -770,10 +783,11 @@ function startPractice(items) {
     }, { passive: true });
 
     // ---- 圖片（懶生成＋快取） ----
+    const mySeq = viewSeq; // 離開練習後回來的結果一律丟掉
     (async () => {
       const imgKey = `ph|${p.id}`;
       let blob = p.hasImage ? await idbGet('images', imgKey).catch(() => null) : null;
-      if (!blob && settings.apiKey) {
+      if (!blob && settings.apiKey && mySeq === viewSeq) {
         figWrap.classList.add('loading');
         try {
           blob = await generatePhraseImage(p.text);
@@ -783,8 +797,11 @@ function startPractice(items) {
         } catch (e) { console.warn('image failed', e); }
         figWrap.classList.remove('loading');
       }
-      if (blob) img.src = URL.createObjectURL(blob);
-      else {
+      if (mySeq !== viewSeq) return;
+      if (blob) {
+        img.onload = () => URL.revokeObjectURL(img.src); // 解碼完就釋放，練 100 題不會抱著 100 個 blob
+        img.src = URL.createObjectURL(blob);
+      } else {
         img.remove();
         figWrap.style.background = 'linear-gradient(160deg,#BFE3FF 0%,#E8F6E4 55%,#FFF3C9 100%)';
         figWrap.append(el('div', { class: 'rep-fig-emoji', text: '🌈' }));
@@ -794,8 +811,10 @@ function startPractice(items) {
     // ---- 示範發音（喇叭鍵／點圖／點字都會唸） ----
     let audioBlob = null;
     async function speak() {
+      if (mySeq !== viewSeq) return;
       speakBtn.classList.add('playing');
       if (!audioBlob) audioBlob = await getPhraseAudio(p.text);
+      if (mySeq !== viewSeq) { speakBtn.classList.remove('playing'); return; } // 已離開練習：不出聲
       if (audioBlob) await playBlob(audioBlob);
       else speakNative(p.text); // 缺檔用內建語音頂上
       speakBtn.classList.remove('playing');

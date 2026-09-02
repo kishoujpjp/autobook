@@ -33,6 +33,7 @@ function emitLog(msg) {
 /** 依錯誤訊息回傳「常見原因提示」的 i18n key；對不上回 null */
 export function errHintKey(msg) {
   const s = String(msg);
+  if (/^BLOCKED/.test(s)) return 'hint_blocked';
   if (/NO_AUDIO|NO_IMAGE/.test(s)) return 'hint_nodata';
   if (/逾時|TIMEOUT/i.test(s)) return 'hint_timeout';
   if (/網路錯誤|Failed to fetch|NetworkError|Load failed/i.test(s)) return 'hint_network';
@@ -48,11 +49,21 @@ export function errHintKey(msg) {
   return null;
 }
 
+/** 使用者按「停止」→ 呼叫端傳進來的 signal 已中止；統一丟 CANCELLED（不重試、不記錯誤紀錄） */
+const CANCELLED = 'CANCELLED';
+function linkSignal(ac, signal) {
+  if (!signal) return;
+  if (signal.aborted) ac.abort();
+  else signal.addEventListener('abort', () => ac.abort(), { once: true });
+}
+
 async function call(model, body, opts = {}) {
-  const { timeoutMs = 90000, apiKey = null, stage = 'api', _retries = 2 } = opts;
+  const { timeoutMs = 90000, apiKey = null, stage = 'api', _retries = 2, signal = null } = opts;
   const key = apiKey || settings.apiKey;
   if (!key) throw new Error('NO_KEY');
+  if (signal && signal.aborted) throw new Error(CANCELLED);
   const ac = new AbortController();
+  linkSignal(ac, signal);
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
     let res;
@@ -67,7 +78,9 @@ async function call(model, body, opts = {}) {
         signal: ac.signal,
       });
     } catch (e) {
-      if (e && e.name === 'AbortError') throw new Error(`逾時：${Math.round(timeoutMs / 1000)} 秒沒有回應`);
+      if (e && e.name === 'AbortError') {
+        throw new Error(signal && signal.aborted ? CANCELLED : `逾時：${Math.round(timeoutMs / 1000)} 秒沒有回應`);
+      }
       // 行動網路偶發斷線（Safari「Load failed」）：自動重試 2 次（1 秒、3 秒退避）
       if (_retries > 0) {
         clearTimeout(timer);
@@ -88,7 +101,7 @@ async function call(model, body, opts = {}) {
     }
     return await res.json();
   } catch (e) {
-    if (!e.logged) { logErr(stage, model, e.message); e.logged = true; }
+    if (!e.logged && e.message !== CANCELLED) { logErr(stage, model, e.message); e.logged = true; }
     throw e;
   } finally {
     clearTimeout(timer);
@@ -107,14 +120,16 @@ async function callStreamText(model, body, opts = {}) {
 
 /** 串流共用底層：回傳 { text, inlineMime, inlineData }（inlineData 為 base64，分段自動串接） */
 async function callStream(model, body, opts = {}) {
-  const { timeoutMs = 150000, stage = 'api', _retries = 2 } = opts;
+  const { timeoutMs = 150000, stage = 'api', _retries = 2, signal = null } = opts;
   const key = settings.apiKey;
   if (!key) throw new Error('NO_KEY');
+  if (signal && signal.aborted) throw new Error(CANCELLED);
   const ac = new AbortController();
+  linkSignal(ac, signal);
   const timer = setTimeout(() => ac.abort(), timeoutMs);
-  // 連線失敗與讀流中斷都包成「網路錯誤」；逾時（自己 abort）另外標
+  // 連線失敗與讀流中斷都包成「網路錯誤」；逾時（自己 abort）另外標；使用者停止＝CANCELLED
   const netErr = (e) => new Error(e && e.name === 'AbortError'
-    ? `逾時：${Math.round(timeoutMs / 1000)} 秒沒有回應`
+    ? (signal && signal.aborted ? CANCELLED : `逾時：${Math.round(timeoutMs / 1000)} 秒沒有回應`)
     : `網路錯誤：${(e && e.message) || e}`);
   try {
     let res;
@@ -144,6 +159,8 @@ async function callStream(model, body, opts = {}) {
     let text = '';
     let inlineMime = null;
     const inlineParts = [];
+    let finishReason = null; // SAFETY／RECITATION／MAX_TOKENS 等；被擋時才不會只看到「不是有效的 JSON」
+    let blockReason = null;
     let buf = '';
     const takeLines = () => {
       let i;
@@ -155,6 +172,8 @@ async function callStream(model, body, opts = {}) {
         if (!payload || payload === '[DONE]') continue;
         try {
           const chunk = JSON.parse(payload);
+          if (chunk?.promptFeedback?.blockReason) blockReason = chunk.promptFeedback.blockReason;
+          if (chunk?.candidates?.[0]?.finishReason) finishReason = chunk.candidates[0].finishReason;
           const parts = chunk?.candidates?.[0]?.content?.parts || [];
           for (const p of parts) {
             if (p.text) text += p.text;
@@ -187,7 +206,11 @@ async function callStream(model, body, opts = {}) {
       // 讀到一半斷線（行動 Safari 常見 Load failed）也算網路錯誤
       throw netErr(e);
     }
-    return { text, inlineMime, inlineParts };
+    // 什麼都沒回：被安全過濾擋下、或引用限制，把真因講出來（以前只會變成「不是有效的 JSON」重試三次）
+    if (!text && !inlineParts.length && (blockReason || (finishReason && finishReason !== 'STOP'))) {
+      throw new Error(`BLOCKED：${blockReason || finishReason}`);
+    }
+    return { text, inlineMime, inlineParts, finishReason };
   } catch (e) {
     // 行動網路偶發斷線：自動重試 2 次（1 秒、3 秒退避；與 call() 相同策略；逾時不重試）
     if (_retries > 0 && e.message.startsWith('網路錯誤')) {
@@ -197,7 +220,7 @@ async function callStream(model, body, opts = {}) {
       await new Promise((r) => setTimeout(r, delay));
       return await callStream(model, body, { ...opts, _retries: _retries - 1 });
     }
-    if (!e.logged) { logErr(stage, model, e.message); e.logged = true; }
+    if (!e.logged && e.message !== CANCELLED) { logErr(stage, model, e.message); e.logged = true; }
     throw e;
   } finally {
     clearTimeout(timer);
@@ -321,7 +344,7 @@ function mixSection(mix) {
  * @param wantImage 要不要一併要求 image_prompt（關閉插圖時省掉）
  * @returns {title, text, imagePrompt, newChars}
  */
-export async function generateStory({ knownChars, mustInclude, extraPrompt, mix, wantImage = true, onStatus }) {
+export async function generateStory({ knownChars, mustInclude, extraPrompt, mix, wantImage = true, onStatus, signal = null }) {
   const knownSet = new Set(knownChars);
   const maxNew = 5;
 
@@ -370,7 +393,7 @@ export async function generateStory({ knownChars, mustInclude, extraPrompt, mix,
         responseMimeType: 'application/json',
         responseSchema: schema,
         temperature: 0.9, // 1.0 → 0.9：降一點隨機性讓句構更穩（缺字/怪詞變少）
-      }, prompt, { stage: 'story' });
+      }, prompt, { stage: 'story', signal });
     } catch (e) {
       // 網路閃斷/逾時不中斷整輪：換下一次嘗試；其他錯誤（key/模型問題）直接丟出
       if (/網路錯誤|逾時/.test(e.message)) {
@@ -420,7 +443,7 @@ export async function generateStory({ knownChars, mustInclude, extraPrompt, mix,
  * word 是該字在文中所屬的詞（故事裡實際連續出現的字串）；
  * 之後 TTS 以「整個詞」為單位快取，點讀多音字時播詞的音，避免單字唸錯讀音。
  */
-export async function detectPolys(text) {
+export async function detectPolys(text, signal = null) {
   const prompt = [
     '以下是一篇給幼兒的中文故事。請找出正文中的「多音字（破音字）」：',
     '指在這篇故事中的讀音，和這個字「單獨唸一個字」時最常見讀音不同的字。',
@@ -446,7 +469,7 @@ export async function detectPolys(text) {
       },
       required: ['items'],
     },
-  }, prompt, { stage: 'poly' });
+  }, prompt, { stage: 'poly', signal });
   let data;
   try {
     data = JSON.parse(rawText);
@@ -464,7 +487,7 @@ export async function detectPolys(text) {
  * 「同一段 base64 的切片」，先各自解碼（切片若剛好 4 的倍數亦等價），
  * 解不開才退回字串串接後解碼。
  */
-function joinB64(parts) {
+export function joinB64(parts) {
   if (parts.length === 1) return b64ToBytes(parts[0]);
   try {
     const arrs = parts.map(b64ToBytes);
@@ -482,7 +505,7 @@ function joinB64(parts) {
  * 與故事同理：出圖要等模型畫完才回傳，行動 Safari 容易砍線（Load failed），
  * 所以走 streamGenerateContent，圖片資料分段接收後再合併。
  */
-async function streamImage(prompt) {
+async function streamImage(prompt, signal = null) {
   const body = {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: {
@@ -492,12 +515,13 @@ async function streamImage(prompt) {
   };
   let out;
   try {
-    out = await callStream(settings.imageModel, body, { timeoutMs: 150000, stage: 'image' });
+    out = await callStream(settings.imageModel, body, { timeoutMs: 150000, stage: 'image', signal });
   } catch (e) {
-    // 網路/逾時再試也是一樣的結果，直接丟出；其餘（多為模型不吃 imageConfig）退一步重試
-    if (/網路錯誤|逾時/.test(e.message)) throw e;
+    // 網路/逾時/停止/金鑰額度（401/403/429）/被擋 再試也是一樣的結果，直接丟出；
+    // 其餘（多為模型不吃 imageConfig 的 400）退一步重試一次
+    if (/網路錯誤|逾時|CANCELLED|BLOCKED|HTTP (401|403|429)/.test(e.message)) throw e;
     delete body.generationConfig.imageConfig;
-    out = await callStream(settings.imageModel, body, { timeoutMs: 150000, stage: 'image' });
+    out = await callStream(settings.imageModel, body, { timeoutMs: 150000, stage: 'image', signal });
   }
   if (!out.inlineParts.length) throw new Error('NO_IMAGE');
   return new Blob([joinB64(out.inlineParts)], { type: out.inlineMime || 'image/png' });
@@ -516,9 +540,9 @@ export function pickImageStyle() {
   return IMAGE_STYLES[(Math.random() * IMAGE_STYLES.length) | 0];
 }
 
-export async function generateImage(imagePrompt, style) {
+export async function generateImage(imagePrompt, style, signal = null) {
   const s = style || pickImageStyle();
-  return streamImage(`Children's picture book illustration in ${s.en} style. Cute, warm and friendly, suitable for a 5-year-old. No text, letters or words in the image. Scene: ${imagePrompt}`);
+  return streamImage(`Children's picture book illustration in ${s.en} style. Cute, warm and friendly, suitable for a 5-year-old. No text, letters or words in the image. Scene: ${imagePrompt}`, signal);
 }
 
 /** 測試連線：打一次文字模型，成功回傳模型回覆，失敗丟出含完整訊息的錯誤 */
@@ -597,13 +621,13 @@ export async function generatePhrases({ topic, count = 10, mode = 'word' }) {
 }
 
 /** 跟讀配圖：回傳 Blob */
-export async function generatePhraseImage(text) {
-  return streamImage(`A single cute, friendly illustration for a children's English flashcard showing: "${text}". Soft watercolor style, bright warm colors, simple composition on clean light background, no text, no letters, no words in the image.`);
+export async function generatePhraseImage(text, signal = null) {
+  return streamImage(`A single cute, friendly illustration for a children's English flashcard showing: "${text}". Soft watercolor style, bright warm colors, simple composition on clean light background, no text, no letters, no words in the image.`, signal);
 }
 
 /** 任意文字 TTS（英文句子也可），回傳 WAV Blob */
-export async function ttsText(text) {
-  return ttsChar(text);
+export async function ttsText(text, signal = null) {
+  return ttsChar(text, signal);
 }
 
 /**
@@ -613,7 +637,7 @@ export async function ttsText(text) {
  * 2) 單一漢字會讓它猜錯語言（玉→tama、田→tan 是日語訓讀）→ 中文一律指定臺灣華語正式讀音
  * 失敗會換一種提示重試，全失敗才丟 NO_AUDIO（附模型實際回應，見錯誤紀錄）。
  */
-export async function ttsChar(text) {
+export async function ttsChar(text, signal = null) {
   // 指示本身用短英文（實測長中文指示會讓 preview TTS 大量回 finishReason=OTHER），
   // 但語言用指示講死成臺灣華語；OTHER 多為暫時性失敗，同提示重試常會過
   const isZh = /\p{Script=Han}/u.test(text);
@@ -639,7 +663,7 @@ export async function ttsChar(text) {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: settings.voice || 'Leda' } },
           },
         },
-      }, { timeoutMs: 45000, apiKey: settings.ttsApiKey || null, stage: 'tts' });
+      }, { timeoutMs: 45000, apiKey: settings.ttsApiKey || null, stage: 'tts', signal });
     } catch (e) {
       // 模型想回文字被 API 擋（400）：換下一種提示再試；其他錯誤直接丟出
       if (i < prompts.length - 1 && /generate text/i.test(e.message)) {

@@ -6,9 +6,9 @@ import { el, toast, openModal, confirmDialog } from './ui.js';
 import { sfx } from './sfx.js';
 import {
   accounts, saveAccounts, currentAccount, setCurrentAccount,
-  removeAccount, parentCount, idbSet, idbDel, settings,
+  removeAccount, parentCount, idbSet, idbDel, settings, saveSettings,
 } from './store.js';
-import { PRESETS, presetSvg, avatarEl } from './avatars.js';
+import { PRESETS, avatarEl } from './avatars.js';
 
 let avatarBtn = null;
 let onAccountChange = null; // main.js 提供：套用權限＋刷新頁面
@@ -73,11 +73,120 @@ function openSwitchModal() {
   m.body.append(grid);
 }
 
-// ---------- 家長確認（算術門） ----------
+// ---------- 家長確認（PIN 或算術門） ----------
+// settings.parentGateOn 關掉＝不確認直接切。開著時：有設 PIN 用 PIN，沒有就用個位數算術題。
+// 通過後 5 分鐘內不再問（家長來回切換不用一直輸入）。
+// PIN 錯 3 次鎖 30 秒，之後每多錯一次鎖的時間加倍（鎖定狀態寫在 localStorage，重開 App 也還在）。
+const GATE_OK_MS = 5 * 60 * 1000;
+const LOCK_KEY = 'autobook.gateLock';
+let gateOkUntil = 0;
+
+function lockState() {
+  try { return JSON.parse(localStorage.getItem(LOCK_KEY) || 'null') || { fails: 0, until: 0 }; }
+  catch { return { fails: 0, until: 0 }; }
+}
+function saveLock(s) { try { localStorage.setItem(LOCK_KEY, JSON.stringify(s)); } catch { /* ignore */ } }
+
 export function parentGate() {
   if (!settings.parentGateOn) return Promise.resolve(true);
+  if (Date.now() < gateOkUntil) return Promise.resolve(true);
+  const p = settings.parentPin ? pinGate() : mathGate();
+  return p.then((ok) => { if (ok) gateOkUntil = Date.now() + GATE_OK_MS; return ok; });
+}
+
+/**
+ * 4 位數字鍵盤面板。resolve 輸入完成的字串；關掉面板 resolve null。
+ * check(code) 可選：回 false 表示錯誤（面板留著、清空重來），回 true 才 resolve。
+ */
+function pinPad(title, check = null, onWrong = null) {
   return new Promise((resolve) => {
-    // 個位數加減
+    let code = '';
+    let settled = false;
+    const done = (v) => { if (!settled) { settled = true; resolve(v); } };
+    const m = openModal(`🔒 ${title}`, { onClose: () => done(null) });
+    const dots = el('div', { class: 'pin-dots' }, ...[0, 1, 2, 3].map(() => el('span', { class: 'pin-dot' })));
+    const pad = el('div', { class: 'pin-pad' });
+    const refresh = () => {
+      [...dots.children].forEach((d, i) => d.classList.toggle('on', i < code.length));
+    };
+    const push = (d) => {
+      if (code.length >= 4) return;
+      sfx.tap();
+      code += d;
+      refresh();
+      if (code.length === 4) {
+        if (!check || check(code)) { done(code); m.close(); return; }
+        sfx.wrong();
+        dots.classList.remove('shake');
+        void dots.offsetWidth;
+        dots.classList.add('shake');
+        code = '';
+        setTimeout(refresh, 350);
+        if (onWrong && onWrong() === false) { done(null); m.close(); }
+      }
+    };
+    for (const d of ['1', '2', '3', '4', '5', '6', '7', '8', '9']) {
+      pad.append(el('button', { class: 'pin-key', text: d, onclick: () => push(d) }));
+    }
+    pad.append(
+      el('span'),
+      el('button', { class: 'pin-key', text: '0', onclick: () => push('0') }),
+      el('button', { class: 'pin-key soft', text: '⌫', onclick: () => { sfx.tap(); code = code.slice(0, -1); refresh(); } }),
+    );
+    m.body.append(dots, pad);
+  });
+}
+
+function pinGate() {
+  const lk = lockState();
+  if (lk.until > Date.now()) {
+    toast(t('pin_locked', { s: Math.ceil((lk.until - Date.now()) / 1000) }), true);
+    return Promise.resolve(false);
+  }
+  let fails = lk.fails || 0;
+  return pinPad(t('pin_title'), (code) => code === settings.parentPin, () => {
+    fails++;
+    if (fails >= 3) {
+      const secs = 30 * Math.pow(2, fails - 3);
+      saveLock({ fails, until: Date.now() + secs * 1000 });
+      toast(t('pin_locked', { s: secs }), true);
+      return false; // 關掉面板
+    }
+    saveLock({ fails, until: 0 });
+    toast(t('pin_wrong'), true);
+    return true;
+  }).then((code) => {
+    const ok = code !== null;
+    if (ok) saveLock({ fails: 0, until: 0 });
+    return ok;
+  });
+}
+
+/** 設定頁：設定／更改 PIN（輸入兩次要一樣） */
+export async function openPinSetup() {
+  const first = await pinPad(t('pin_new'));
+  if (!first) return false;
+  const again = await pinPad(t('pin_again'));
+  if (!again) return false;
+  if (first !== again) { toast(t('pin_mismatch'), true); return false; }
+  settings.parentPin = first;
+  saveSettings();
+  saveLock({ fails: 0, until: 0 });
+  sfx.sparkle();
+  toast(t('pin_saved'));
+  return true;
+}
+
+export function clearPin() {
+  settings.parentPin = '';
+  saveSettings();
+  saveLock({ fails: 0, until: 0 });
+  toast(t('pin_cleared'));
+}
+
+function mathGate() {
+  return new Promise((resolve) => {
+    // 個位數加減，4 個選項（3 個時幼兒亂按兩次就有近九成機會過）
     let a = 2 + ((Math.random() * 8) | 0);
     let b = 1 + ((Math.random() * 9) | 0);
     const minus = Math.random() < 0.5;
@@ -85,7 +194,7 @@ export function parentGate() {
     const answer = minus ? a - b : a + b;
     const q = `${a} ${minus ? '−' : '+'} ${b}`;
     const opts = new Set([answer]);
-    while (opts.size < 3) {
+    while (opts.size < 4) {
       const n = answer + ((Math.random() * 9) | 0) - 4;
       if (n >= 0 && n !== answer) opts.add(n);
     }
@@ -181,8 +290,11 @@ export function openAccountEditor(existing, onDone) {
     try {
       uploadBlob = await downscale(file, 256);
       avatar = { kind: 'image', fallback: 'bear' };
-      const url = URL.createObjectURL(uploadBlob);
-      uploadPick.innerHTML = `<span class="avatar"><img src="${url}" alt=""></span>`;
+      const img = el('img', { alt: '' });
+      img.onload = () => URL.revokeObjectURL(img.src);
+      img.src = URL.createObjectURL(uploadBlob);
+      uploadPick.innerHTML = '';
+      uploadPick.append(el('span', { class: 'avatar' }, img));
       refreshGrid();
     } catch (e) {
       console.warn(e);

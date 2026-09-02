@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.23.0';
+export const VERSION = '1.24.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -22,7 +22,9 @@ const DEFAULT_SETTINGS = {
   storyMode: 'hl',        // 故事點讀：'hl' 高亮模式（小孩自讀）| 'mark' 標註模式（親子共讀，紅綠輪換）
   storySpeak: true,       // 故事點字發音（標註模式下：標綠不發音、標紅發音一次）
   wordsLocked: false,     // 字表鎖定：點字只發音，不改紅綠
-  parentGateOn: true,     // 切回家長帳號要通過算術確認（關閉＝直接切換）
+  parentGateOn: true,     // 切回家長帳號要通過確認（關閉＝直接切換）
+  parentPin: '',          // 4 位數家長 PIN；空＝用個位數算術題
+  privacyAck: false,      // 已看過「隱私說明」（第一次填 API Key 時要求確認）
   weakMode: false,        // 不熟模式：遊戲只出紅字與白字
   wordLen: 'all',         // 認詞彙長度：'2' | '3' | 'all'
   genImage: true,         // 做新繪本時生成插圖
@@ -555,6 +557,23 @@ export async function removeAccount(id) {
   saveAccounts();
   await idbDel('avatars', id).catch(() => {});
   if (currentAccountId === id) setCurrentAccount(accounts[0].id);
+  // 這個帳號散在各處的紀錄一起清掉（刪掉小孩帳號＝刪掉小孩的資料，不留孤兒紀錄）
+  let dirtyW = false, dirtyS = false, dirtyP = false;
+  for (const w of words) {
+    if (!w.cards) continue;
+    for (const k of Object.keys(w.cards)) if (k.startsWith(`${id}|`)) { delete w.cards[k]; dirtyW = true; }
+  }
+  for (const s of stories) {
+    for (const f of ['hlBy', 'marksBy', 'readsBy']) {
+      if (s[f] && Object.prototype.hasOwnProperty.call(s[f], id)) { delete s[f][id]; dirtyS = true; }
+    }
+  }
+  for (const p of phrases) {
+    if (p.stats && Object.prototype.hasOwnProperty.call(p.stats, id)) { delete p.stats[id]; dirtyP = true; }
+  }
+  if (dirtyW) saveWords();
+  if (dirtyS) saveStories();
+  if (dirtyP) savePhrases();
 }
 
 // ---------- 舊字表資料遷移（v1.4 → v1.5：全域熟悉度 → 帳號×語系） ----------
@@ -628,11 +647,9 @@ refreshAudioKeys();
 
 export async function clearAll() {
   cancelPendingSaves(); // 不讓延遲寫入把清掉的資料寫回去
-  localStorage.removeItem(LS.settings);
-  localStorage.removeItem(LS.words);
-  localStorage.removeItem(LS.stories);
-  localStorage.removeItem(LS.accounts);
-  localStorage.removeItem(LS.currentAccount);
+  // 全部資料鍵（含題庫、練習組、錯誤紀錄、壞資料副本、家長門鎖定）——以前漏了題庫與成績
+  const keys = [...BACKUP_KEYS, ...BACKUP_KEYS.map((k) => `${k}.bad`), 'autobook.errlog', 'autobook.gateLock'];
+  for (const k of keys) { try { localStorage.removeItem(k); } catch { /* ignore */ } }
   await idbClear('images').catch(() => {});
   await idbClear('audio').catch(() => {});
   await idbClear('avatars').catch(() => {});

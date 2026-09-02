@@ -26,6 +26,10 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>幫繪本或頭像拍一張照片。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>從相簿挑選繪本插圖或頭像照片。</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>跟讀練習需要麥克風來辨識你唸的英文。</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

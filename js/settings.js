@@ -10,11 +10,13 @@ import {
   BACKUP_KEYS, idbKeys, idbGet, idbSet,
   flushSaves, cancelPendingSaves,
 } from './store.js';
-import { openAccountEditor } from './account.js';
+import { openAccountEditor, openPinSetup, clearPin } from './account.js';
 import { avatarEl } from './avatars.js';
 import { allSyllables } from './readings.js';
 
 const SYL_CACHE = 'autobook-syl-1'; // 與 sw.js 一致：音節音檔的持久快取
+/** Capacitor 原生殼：沒有 Service Worker，音節庫直接讀 app 內的檔案，「下載全部發音」沒有意義 */
+const isNativeApp = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
 let root = null;
 let onLangChange = null;
@@ -56,6 +58,8 @@ function render() {
         '➕ ', t('acc_add')),
     ),
     parentGateLine(),
+    pinLine(),
+    el('p', { class: 'settings-note', text: t('pin_note') }),
     el('p', { class: 'settings-note', text: t('acc_note') }),
   ));
 
@@ -77,16 +81,24 @@ function render() {
     placeholder: t('set_api_ph'), value: settings.apiKey,
     autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
   });
-  keyInput.addEventListener('change', () => {
-    settings.apiKey = keyInput.value.trim();
+  // 第一次填 Key：先看過隱私說明（字表、故事、語音會送到 Google）才存
+  async function commitKey() {
+    const v = keyInput.value.trim();
+    if (v && !settings.privacyAck) {
+      const ok = await privacyConsent();
+      if (!ok) { keyInput.value = settings.apiKey || ''; return false; }
+    }
+    settings.apiKey = v;
     saveSettings();
-    toast('OK!');
+    return true;
+  }
+  keyInput.addEventListener('change', async () => {
+    if (await commitKey()) toast(t('saved'));
   });
   const testBtn = el('button', { class: 'btn sky small' }, '📡 ', t('set_test'));
-  testBtn.addEventListener('click', () => {
+  testBtn.addEventListener('click', async () => {
     sfx.tap();
-    settings.apiKey = keyInput.value.trim();
-    saveSettings();
+    if (!(await commitKey())) return;
     if (!settings.apiKey) { toast(t('api_missing'), true); return; }
     runDiagnostics();
   });
@@ -102,7 +114,7 @@ function render() {
   ttsKeyInput.addEventListener('change', () => {
     settings.ttsApiKey = ttsKeyInput.value.trim();
     saveSettings();
-    toast('OK!');
+    toast(t('saved'));
   });
 
   root.append(el('div', { class: 'card' },
@@ -130,7 +142,7 @@ function render() {
         const n = ('speechSynthesis' in window) ? speechSynthesis.getVoices().length : -1;
         toast(ok ? t('native_test_sent', { n }) : t('native_test_unavail'), !ok);
       } }, '🗣 ', t('native_test')),
-      el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); downloadAllSyllables(); } },
+      isNativeApp() ? null : el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); downloadAllSyllables(); } },
         '⬇️ ', t('set_dl_syl')),
       el('button', { class: 'btn ghost small', onclick: async () => {
         sfx.tap();
@@ -166,6 +178,12 @@ function render() {
     ),
     el('p', { class: 'settings-note', text: t('backup_note') }),
     fileInput,
+  ));
+
+  // ---- 隱私說明 ----
+  root.append(el('div', { class: 'card' },
+    el('div', { class: 'field-label', style: 'margin-top:0;', text: `🔏 ${t('privacy_title')}` }),
+    ...privacyParagraphs(),
   ));
 
   // ---- 版本 ----
@@ -230,7 +248,7 @@ function openErrLog() {
       sfx.tap();
       const text = log.map((e) => `${new Date(e.t).toISOString()} [${e.stage}] ${e.model}: ${e.msg}`).join('\n');
       try { await navigator.clipboard.writeText(text); toast(t('errlog_copied')); }
-      catch { toast('✗', true); }
+      catch { toast(t('copy_fail'), true); }
     } }, '📋 ', t('errlog_copy')),
     el('button', { class: 'btn berry small', onclick: () => { sfx.tap(); clearErrLog(); m.close(); toast(t('set_cleared')); } },
       '🗑 ', t('errlog_clear')),
@@ -247,16 +265,19 @@ async function downloadAllSyllables() {
   const missing = syls.filter((s) => !existing.has(`${s}.mp3`));
   if (!missing.length) { toast(t('syl_dl_done')); return; }
 
-  const pm = progressModal('⬇️', t('syl_dl_ing'));
+  let stopped = false;
+  const pm = progressModal('⬇️', t('syl_dl_ing'), () => { stopped = true; });
   let done = 0, fail = 0;
   const BATCH = 10;
   for (let i = 0; i < missing.length; i += BATCH) {
+    if (stopped) break; // 已抓的留在快取，下次按繼續抓
     await Promise.all(missing.slice(i, i + BATCH).map((s) =>
       cache.add(`syl/${s}.mp3`).catch(() => { fail++; })));
     done = Math.min(missing.length, i + BATCH);
     pm.step(done, missing.length);
   }
   pm.close();
+  if (stopped) { toast(t('gen_cancelled')); return; }
   toast(fail ? t('syl_dl_partial', { n: fail }) : t('syl_dl_done'), !!fail);
 }
 
@@ -276,7 +297,7 @@ function blobToB64(blob) {
   });
 }
 
-function progressModal(emoji, label) {
+function progressModal(emoji, label, onStop = null) {
   const m = openModal('', { closable: false });
   const msg = el('p', { text: label });
   const fill = el('div', { class: 'prep-fill' });
@@ -284,6 +305,10 @@ function progressModal(emoji, label) {
     el('span', { class: 'big-emoji', text: emoji }), msg,
     el('div', { class: 'prep-bar' }, fill),
   ));
+  if (onStop) {
+    const stopBtn = el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); stopBtn.disabled = true; onStop(); } }, '⏹ ', t('gen_stop'));
+    m.foot.append(stopBtn);
+  }
   return {
     close: m.close,
     step: (done, total) => {
@@ -337,10 +362,13 @@ async function exportBackup() {
 
     // 分享/下載必須在點按手勢中呼叫（iOS 限制），所以先出「準備好了」視窗
     const m = openModal(`🗂 ${t('set_backup')}`);
-    m.body.append(el('p', {
-      style: 'font-size:22px;font-weight:700;padding:6px 2px;',
-      text: t('backup_ready', { size: fmtSize(blob.size) }),
-    }));
+    m.body.append(
+      el('p', {
+        style: 'font-size:22px;font-weight:700;padding:6px 2px;',
+        text: t('backup_ready', { size: fmtSize(blob.size) }),
+      }),
+      el('p', { class: 'settings-note', text: t('backup_ready_note') }), // 內含小孩照片與紀錄，提醒自己保管
+    );
     m.foot.append(el('button', { class: 'btn mint', onclick: async () => {
       sfx.tap();
       const file = new File([blob], filename, { type: 'application/json' });
@@ -361,50 +389,146 @@ async function exportBackup() {
   }
 }
 
+const BACKUP_MAX_MB = 400;      // 整個備份檔（要整包讀進記憶體＋解碼，再大 iPad 會被系統殺掉）
+const BLOB_MAX_MB = 80;         // 單一圖片／影片
+const isObj = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/**
+ * 匯入備份。原則：先把整包「解析＋驗證＋解碼」完成、確認沒問題，才動到裝置上的資料；
+ * 寫入階段若失敗，localStorage 回復到匯入前（IndexedDB 盡力回復）。
+ * 以前是邊驗證邊覆蓋，壞檔會留下「localStorage 換了、IndexedDB 清一半、記憶體還是舊的」三方不一致。
+ */
 async function importBackupFile(file) {
+  if (file.size > BACKUP_MAX_MB * 1048576) { toast(t('backup_too_big', { n: BACKUP_MAX_MB }), true); return; }
   let data;
   try {
     data = JSON.parse(await file.text());
-    if (!data || data.app !== 'autobook' || !data.local) throw new Error('bad');
+    if (!isObj(data) || data.app !== 'autobook' || !isObj(data.local)) throw new Error('bad');
   } catch {
     toast(t('backup_bad'), true);
     return;
   }
+
+  // ---- 1. localStorage：只收白名單鍵，逐鍵驗證 JSON 與型別 ----
+  const local = {};
+  const keyOk = {
+    'autobook.settings': isObj, 'autobook.accounts': Array.isArray, 'autobook.words': Array.isArray,
+    'autobook.stories': Array.isArray, 'autobook.phrases': Array.isArray, 'autobook.repGroups': Array.isArray,
+    'autobook.currentAccount': (v) => typeof v === 'string',
+  };
+  for (const key of BACKUP_KEYS) {
+    const raw = data.local[key];
+    if (raw == null) continue;
+    if (typeof raw !== 'string') { toast(t('backup_bad'), true); return; }
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch { toast(t('backup_bad'), true); return; }
+    const ok = keyOk[key] || (() => true);
+    if (!ok(parsed)) { toast(t('backup_bad'), true); return; }
+    if (key === 'autobook.settings') {
+      // 保留這台裝置已填的金鑰（備份檔本來就不含）
+      parsed.apiKey = settings.apiKey || '';
+      parsed.ttsApiKey = settings.ttsApiKey || '';
+      local[key] = JSON.stringify(parsed);
+    } else {
+      local[key] = raw;
+    }
+  }
+  if (!local['autobook.words'] && !local['autobook.stories'] && !local['autobook.accounts']) {
+    toast(t('backup_bad'), true);
+    return;
+  }
+
+  // ---- 2. IndexedDB：全部先解碼成 Blob（壞 base64、超大檔在這裡就擋下，還沒動到資料）----
+  const blobs = []; // { store, key, blob }
+  const idb = isObj(data.idb) ? data.idb : {};
+  for (const st of IDB_STORES) {
+    if (!isObj(idb[st])) continue;
+    for (const [k, v] of Object.entries(idb[st])) {
+      if (!isObj(v) || typeof v.b64 !== 'string') continue;
+      let bytes;
+      try { bytes = b64ToBytes(v.b64); } catch { toast(t('backup_bad'), true); return; }
+      if (bytes.length > BLOB_MAX_MB * 1048576) { toast(t('backup_blob_big', { n: BLOB_MAX_MB, k }), true); return; }
+      blobs.push({ store: st, key: k, blob: new Blob([bytes], { type: typeof v.mime === 'string' ? v.mime : '' }) });
+    }
+  }
+
   const yes = await confirmDialog(t('backup_import_confirm'));
   if (!yes) return;
 
+  // ---- 3. 寫入：先記下舊值以便回復 ----
   const pm = progressModal('📥', t('backup_importing'));
+  const prev = {};
+  for (const key of BACKUP_KEYS) prev[key] = localStorage.getItem(key);
+  const rollback = () => {
+    for (const [key, raw] of Object.entries(prev)) {
+      try { if (raw == null) localStorage.removeItem(key); else localStorage.setItem(key, raw); } catch { /* ignore */ }
+    }
+  };
   try {
     cancelPendingSaves(); // 不讓延遲寫入在 reload 前把舊資料蓋回匯入的內容
-    // localStorage（保留這台裝置已填的金鑰）
-    for (const [key, raw] of Object.entries(data.local)) {
-      if (key === 'autobook.settings') {
-        const incoming = JSON.parse(raw);
-        incoming.apiKey = settings.apiKey || '';
-        incoming.ttsApiKey = settings.ttsApiKey || '';
-        localStorage.setItem(key, JSON.stringify(incoming));
-      } else {
-        localStorage.setItem(key, raw);
-      }
+    for (const key of BACKUP_KEYS) {
+      if (local[key] != null) localStorage.setItem(key, local[key]);
+      else localStorage.removeItem(key);
+      localStorage.removeItem(`${key}.bad`);
     }
-    // IndexedDB blob（整庫覆蓋）
-    let total = 0, done = 0;
-    for (const st of IDB_STORES) total += Object.keys((data.idb || {})[st] || {}).length;
-    for (const st of IDB_STORES) {
-      await idbClear(st).catch(() => {});
-      for (const [k, v] of Object.entries((data.idb || {})[st] || {})) {
-        const bytes = b64ToBytes(v.b64 || '');
-        await idbSet(st, k, new Blob([bytes], { type: v.mime || '' }));
-        done++;
-        pm.step(done, total);
-      }
+    for (const st of IDB_STORES) await idbClear(st).catch(() => {});
+    let done = 0;
+    for (const b of blobs) {
+      await idbSet(b.store, b.key, b.blob);
+      done++;
+      pm.step(done, blobs.length);
     }
+    await new Promise((r) => setTimeout(r, 150)); // 讓最後一筆 IndexedDB 交易確實 commit 再 reload
     location.reload();
   } catch (e) {
+    rollback();
     pm.close();
     console.error(e);
-    infoDialog(t('err_title'), String((e && e.message) || e), true);
+    infoDialog(t('err_title'), t('backup_import_fail', { msg: String((e && e.message) || e) }), true);
   }
+}
+
+// ============ 家長 PIN／隱私說明 ============
+function pinLine() {
+  const has = !!settings.parentPin;
+  return el('div', { class: 'settings-line', style: 'margin-top:12px;' },
+    el('span', { text: `🔢 ${t(has ? 'pin_status_on' : 'pin_status_off')}` }),
+    el('div', { class: 'row' },
+      el('button', { class: 'btn sky small', onclick: async () => { sfx.tap(); if (await openPinSetup()) render(); } },
+        '🔢 ', t(has ? 'pin_change' : 'pin_set')),
+      has ? el('button', { class: 'btn ghost small', onclick: async () => {
+        sfx.tap();
+        if (!(await confirmDialog(t('pin_clear_confirm')))) return;
+        clearPin();
+        render();
+      } }, '🧹 ', t('pin_clear')) : null,
+    ),
+  );
+}
+
+function privacyParagraphs() {
+  return ['privacy_p1', 'privacy_p2', 'privacy_p3', 'privacy_p4'].map((k) =>
+    el('p', { class: 'settings-note', style: 'font-size:17px;line-height:1.6;margin-top:8px;', text: t(k) }));
+}
+
+/** 第一次填 API Key 前的隱私確認；按「我知道了」才存 Key */
+function privacyConsent() {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (v) => { if (!settled) { settled = true; resolve(v); } };
+    const m = openModal(`🔏 ${t('privacy_consent_title')}`, { onClose: () => done(false) });
+    m.body.append(...privacyParagraphs());
+    m.foot.append(
+      el('button', { class: 'btn ghost', text: t('cancel'), onclick: () => { sfx.tap(); done(false); m.close(); } }),
+      el('button', { class: 'btn mint', text: t('privacy_ack'), onclick: () => {
+        sfx.tap();
+        settings.privacyAck = true;
+        saveSettings();
+        done(true);
+        m.close();
+      } }),
+    );
+  });
 }
 
 function langBtn(lang, label) {

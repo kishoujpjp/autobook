@@ -23,8 +23,12 @@ export function refreshGamePage() {
   renderIntro();
 }
 
+// 畫面世代：重繪首頁就 +1。準備語音的迴圈跑完回來若世代不同（使用者已切走），就不再 beginGame 把畫面蓋掉
+let viewSeq = 0;
+
 // ---------- 首頁（三個遊戲入口） ----------
 function renderIntro() {
+  viewSeq++;
   root.innerHTML = '';
 
   function entry(emoji, label, desc, cls, onclick) {
@@ -277,7 +281,7 @@ function pickQuestions() {
  * 從 all 挑一個不等於 ch 的字當干擾項；只剩 ch 一個字就回 null。
  * 以前是 while (wrong === ch) 隨機重抽——未入庫的字只剩 1 個時會在主執行緒無限迴圈，整台 iPad 凍住。
  */
-function pickWrong(ch, all) {
+export function pickWrong(ch, all) {
   const others = all.filter((x) => x !== ch);
   return others.length ? others[(Math.random() * others.length) | 0] : null;
 }
@@ -293,6 +297,8 @@ async function startPrep() {
 
   const questions = pickQuestions();
   if (!questions.length) { toast(t('game_need_words'), true); return; }
+  const mySeq = viewSeq;
+  const gone = () => mySeq !== viewSeq;
   const uniq = [...new Set(questions.flatMap((q) => [q.ch, q.wrong]))];
 
   // 找出還沒緩存的
@@ -318,10 +324,12 @@ async function startPrep() {
       if (wrong) qs.push({ ch, wrong });
     }
     if (!qs.length) { toast(t('game_need_words'), true); return; }
+    if (gone()) return;
     beginGame(qs);
     return;
   }
 
+  if (gone()) return;
   if (!missing.length) { beginGame(questions); return; }
 
   // 顯示準備畫面並下載
@@ -338,6 +346,7 @@ async function startPrep() {
 
   let done = 0, fail = [], lastErr = null;
   for (const ch of missing) {
+    if (gone()) return; // 使用者切走了：不再下載、更不能回來蓋畫面
     try {
       const blob = await ttsChar(ch);
       await idbSet('audio', ch, blob);
@@ -346,6 +355,7 @@ async function startPrep() {
     msg.textContent = `${t('game_prep')} ${done}/${missing.length}`;
     fill.style.width = `${Math.round((done / missing.length) * 100)}%`;
   }
+  if (gone()) return;
 
   let qs = questions;
   if (fail.length) {

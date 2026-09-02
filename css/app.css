@@ -2059,3 +2059,30 @@ details.adv[open] summary::before { content: "▾ "; }
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+/* ============ 家長 PIN 鍵盤（v1.24.0） ============ */
+.pin-dots { display: flex; justify-content: center; gap: 18px; padding: 10px 0 22px; }
+.pin-dot {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 3px solid var(--ink-soft); background: transparent;
+  transition: background 0.12s, transform 0.12s;
+}
+.pin-dot.on { background: var(--ink); border-color: var(--ink); transform: scale(1.1); }
+.pin-dots.shake { animation: pin-shake 0.35s; }
+@keyframes pin-shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-10px); }
+  40%, 80% { transform: translateX(10px); }
+}
+.pin-pad {
+  display: grid; grid-template-columns: repeat(3, 84px); gap: 12px;
+  justify-content: center; padding-bottom: 6px;
+}
+.pin-key {
+  height: 72px; border-radius: 22px; border: 0;
+  background: var(--card); color: var(--ink);
+  font: 800 30px/1 inherit; font-family: inherit;
+  box-shadow: var(--shadow); cursor: pointer;
+}
+.pin-key.soft { background: var(--bg2); font-size: 26px; }
+.pin-key:active { transform: translateY(4px); box-shadow: var(--shadow-press); }

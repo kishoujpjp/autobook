@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<!-- CSP：只允許自家腳本；連線只到 Gemini；圖片／影片可用使用者貼的 https 連結與本機 blob；內嵌播放器只准 YouTube nocookie 與 Vimeo -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https:; media-src 'self' blob: data: https:; connect-src 'self' https://generativelanguage.googleapis.com; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; font-src 'self' data:; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">

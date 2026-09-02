@@ -96,7 +96,8 @@ export function avatarEl(account, cls = 'avatar') {
     idbGet('avatars', account.id).then((blob) => {
       if (!blob) return;
       const img = new Image();
-      img.onload = () => { node.innerHTML = ''; node.append(img); };
+      // 解碼完立刻釋放 blob URL（每次 render 都會建一個，不釋放會越用越肥）
+      img.onload = () => { node.innerHTML = ''; node.append(img); URL.revokeObjectURL(img.src); };
       img.src = URL.createObjectURL(blob);
     }).catch(() => {});
   } else {

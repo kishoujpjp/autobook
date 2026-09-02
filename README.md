@@ -1,6 +1,6 @@
 # 自動繪本 Autobook
 
-給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.23.0**。
+給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.24.0**。
 
 - 線上版（GitHub Pages，push `main` 自動部署）：https://kishoujpjp.github.io/autobook/
 - 純前端 ES modules、無 build step；AI 走使用者自備的 Gemini API Key（存本機）。
@@ -103,6 +103,15 @@
 - **資料層防護（v1.23.0）**：`store.load()` 對壞 JSON、`"null"`、型別不對的資料一律回預設值，原始內容先留在 `<key>.bad`（救援層匯出會帶上）；陣列型資料逐筆驗證必要欄位。`save()` 包 try/catch，寫入失敗（配額滿、私密模式）不炸呼叫端，改發 `autobook:savefail` 事件由 UI toast 提醒備份；`flushSaves` 逐 key 隔離，失敗的留在佇列。
 - **書架上限（`MAX_STORIES` 24 本）不再靜默淘汰**：做新書（AI 或手動）前先用 `shelfVictim()` 檢查，滿了跳確認框說明會丟掉哪一本，不同意就不做、也不花 API。
 - **內嵌影片加固**：YouTube 走 `youtube-nocookie.com` 並關掉控制列／鍵盤／全螢幕／註解，Vimeo 關掉標題／作者／頭像並 `dnt=1`；iframe 加 `sandbox="allow-scripts allow-same-origin allow-presentation"`（不給跳頁與彈窗），上面再蓋一層透明 `.media-shield` 吃掉點擊，小孩點影片不會跳出 App。
+- **家長 PIN（v1.24.0）**：設定頁帳號區可設 4 位數 PIN（`settings.parentPin`）。「切回家長要確認」開關開著時：有 PIN 用 PIN 鍵盤，沒有就用個位數算術題（改 4 選 1）；通過後 5 分鐘內不再問；PIN 錯 3 次鎖 30 秒、之後每多錯一次加倍（鎖定寫在 `autobook.gateLock`，重開也還在）。關掉開關＝直接切換。
+- **隱私說明（v1.24.0）**：設定頁最下方有「隱私說明」卡（哪些內容送 Google／Apple、免費層可能被用來改善產品、資料只在本機、備份含照片）；**第一次填 API Key 會先跳同一份說明要求「我知道了」**（`settings.privacyAck`）才存 Key。備份匯出的「準備好了」視窗也提醒檔案含小孩照片。iOS 殼補 `NSCameraUsageDescription`／`NSPhotoLibraryUsageDescription`（`<input type=file>` 在 WKWebView 會出現拍照選項）與 `PrivacyInfo.xcprivacy`（不追蹤、不收集；宣告 UserDefaults／FileTimestamp）。
+- **備份匯入原子化（v1.24.0）**：先把整包「解析＋白名單過濾＋逐鍵型別驗證＋全部 base64 解碼」做完（檔案 ≤400 MB、單一 blob ≤80 MB），確認沒問題才開始寫；寫入前記下 localStorage 舊值，中途失敗就回復並提示。以前是邊驗證邊覆蓋，壞檔會留下三方不一致。
+- **清除乾淨（v1.24.0）**：`clearAll()` 改為清所有 `BACKUP_KEYS`（含題庫、練習組）＋錯誤紀錄＋`.bad` 副本＋家長門鎖定；`removeAccount()` 連帶刪掉該帳號在字表 `cards`、故事 `hlBy/marksBy/readsBy`、題目 `stats` 裡的紀錄。
+- **長流程可停止（v1.24.0）**：生成故事、準備發音、AI 補足、下載音節的視窗都有「⏹ 停止」；`gemini.js` 的 `call()`／`callStream()` 接受 `opts.signal`，停止時丟 `CANCELLED`（不重試、不進錯誤紀錄）。串流路徑本身沒動（行動 Safari 的 Load failed 對策照舊）。
+- **串流回應被擋時講真因（v1.24.0）**：`callStream()` 記下 `promptFeedback.blockReason` 與 `finishReason`，什麼都沒回且原因不是 STOP 就丟 `BLOCKED：<原因>`（對策 `hint_blocked`），不再變成「不是有效的 JSON」重試三次。插圖對 401/403/429/BLOCKED 不再退一步重打。多音字偵測失敗（空陣列）不再永久存成 `polys: []`。
+- **背景競態（v1.24.0）**：遊戲與跟讀各有 `viewSeq` 畫面世代；準備語音、懶生成配圖、延遲示範發音回來時若世代已變（使用者切走）一律放棄，不會在別的分頁出聲或蓋畫面。生成面板的語音輸入在面板關閉時 `abort()`，最長只收 30 秒。跟讀配圖、頭像、上傳預覽的 blob URL 在圖片解碼後即釋放。
+- **CSP（v1.24.0）**：`index.html` 加 `Content-Security-Policy` meta（script 只准自家；connect 只到 Gemini；img／media 允許 https 連結與 blob；frame 只准 youtube-nocookie 與 Vimeo）與 `referrer=no-referrer`。**動到外部資源時記得同步改 CSP**。Capacitor 殼內若發現資源被擋，先查 Safari Web Inspector 的 CSP 訊息。
+- **品質閘門（v1.24.0）**：`npm run lint`（ESLint flat config，`eslint.config.js`；資料表不檢查）與 `npm test`（`node:test`，`tests/`：壞資料回退、addWords 去重、shelfVictim、findNewChars、joinB64、errHintKey、pickWrong、scoreAttempt）。GitHub Actions 改為 **check（lint → test → build）→ deploy**，只發佈 `dist/`（不再把 `scripts/`、`ios/`、`tools/` 放上 Pages）。Capacitor 殼內隱藏「下載全部發音」（沒有 SW，抓了也讀不到）。
 - **聽音認字的干擾項改 `pickWrong()`**：從「其他未入庫字」過濾後隨機取，只剩一個字時回 null 並略過該題（舊寫法 `while (wrong === ch)` 在只剩一個未入庫字時會無限迴圈凍住 iPad）；開始前檢查的是「未入庫字數 ≥ 4」而非字表總數。
 
 ## 發音架構（重要）
@@ -171,8 +180,9 @@ push `main` → GitHub Actions 自動部署 Pages（`.github/workflows/pages.yml
 
 ## 改版流程
 
-1. 改 `js/store.js` 的 `VERSION` ＋ `sw.js` 的 `CACHE`（兩者必須同步，否則客戶端不換快取）。
+1. 改 `js/store.js` 的 `VERSION` ＋ `sw.js` 的 `CACHE`（兩者必須同步，否則客戶端不換快取）＋ `package.json` 的 `version` ＋ `ios/App/App.xcodeproj/project.pbxproj` 的 `MARKETING_VERSION`（兩處）。
 2. 新增 JS 檔要加進 `sw.js` 的 `SHELL` 清單。
+3. push 前先跑 `npm run lint && npm test`（CI 沒過就不會部署）。
 3. commit → push `main` → 等 Actions 綠燈 → iPad 重開 PWA（SW network-first，線上自動拿新版）。
 4. 動到音節庫檔案內容才需要改 `SYL_CACHE` 版本（會讓使用者重抓 25MB，非必要別動）。
 
