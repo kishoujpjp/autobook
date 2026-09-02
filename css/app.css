@@ -448,6 +448,8 @@ button {
 img.media-el { object-fit: cover; }
 /* 影片用 contain：直式影片不會被裁掉頭 */
 video.media-el { object-fit: contain; background: #1A1410; }
+/* 內嵌播放器（YouTube／Vimeo）上蓋一層透明遮罩：小孩點影片不會點進播放器的連結跳出 App */
+.media-shield { position: absolute; inset: 0; z-index: 1; background: transparent; }
 .media-view.media-none {
   display: grid;
   place-items: center;

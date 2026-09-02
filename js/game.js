@@ -3,7 +3,7 @@ import { t, getLang } from './i18n.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
 import { el, toast, confetti, infoDialog, openModal } from './ui.js';
 import { sfx, playBlob, speakNative } from './sfx.js';
-import { settings, saveSettings, words, bumpGame, getCard, idbGet, idbSet, hasAudioCached } from './store.js';
+import { settings, saveSettings, words, bumpGame, getCard, idbGet, idbSet, hasAudioCached, isKid } from './store.js';
 import { ttsChar } from './gemini.js';
 import { playSyllable } from './voice.js';
 import { startFlash } from './flash.js';
@@ -65,7 +65,8 @@ function renderIntro() {
         startFlash(root, 'word', renderIntro);
       }),
     ),
-    el('div', { class: 'card', style: 'max-width:1100px;margin:20px auto 0;' },
+    // 不熟模式是家長調的出題範圍，小孩帳號不顯示
+    isKid() ? null : el('div', { class: 'card', style: 'max-width:1100px;margin:20px auto 0;' },
       el('div', { class: 'settings-line' },
         el('span', { text: `🔥 ${t('weak_mode')}` }), weakSwitch,
       ),
@@ -267,21 +268,31 @@ function pickQuestions() {
     }
     picked.push(pool.splice(idx, 1)[0].ch);
   }
-  // 干擾項：從其他未入庫的字裡隨機挑
+  // 干擾項：從其他未入庫的字裡隨機挑（挑不到干擾項的題目直接不出）
   const all = words.filter((w) => !w.archived).map((w) => w.ch);
-  return picked.map((ch) => {
-    let wrong = ch;
-    while (wrong === ch) wrong = all[(Math.random() * all.length) | 0];
-    return { ch, wrong };
-  });
+  return picked.map((ch) => ({ ch, wrong: pickWrong(ch, all) })).filter((q) => q.wrong);
 }
+
+/**
+ * 從 all 挑一個不等於 ch 的字當干擾項；只剩 ch 一個字就回 null。
+ * 以前是 while (wrong === ch) 隨機重抽——未入庫的字只剩 1 個時會在主執行緒無限迴圈，整台 iPad 凍住。
+ */
+function pickWrong(ch, all) {
+  const others = all.filter((x) => x !== ch);
+  return others.length ? others[(Math.random() * others.length) | 0] : null;
+}
+
+/** 未入庫（能進遊戲）的字數 */
+function playableCount() { return words.filter((w) => !w.archived).length; }
 
 // ---------- 語音準備 ----------
 async function startPrep() {
   sfx.tap();
-  if (words.length < 4) { toast(t('game_need_words'), true); return; }
+  // 看「能進遊戲的字」而不是字表總數：入庫的字不出題也不當干擾項
+  if (playableCount() < 4) { toast(t('game_need_words'), true); return; }
 
   const questions = pickQuestions();
+  if (!questions.length) { toast(t('game_need_words'), true); return; }
   const uniq = [...new Set(questions.flatMap((q) => [q.ch, q.wrong]))];
 
   // 找出還沒緩存的
@@ -301,12 +312,12 @@ async function startPrep() {
     if (cached.length < 4) { toast(t('game_need_key'), true); return; }
     const qs = [];
     const shuffled = cached.sort(() => Math.random() - 0.5);
+    const all = words.filter((w) => !w.archived).map((w) => w.ch);
     for (const ch of shuffled.slice(0, Q_COUNT)) {
-      let wrong = ch;
-      const all = words.filter((w) => !w.archived).map((w) => w.ch);
-      while (wrong === ch) wrong = all[(Math.random() * all.length) | 0];
-      qs.push({ ch, wrong });
+      const wrong = pickWrong(ch, all);
+      if (wrong) qs.push({ ch, wrong });
     }
+    if (!qs.length) { toast(t('game_need_words'), true); return; }
     beginGame(qs);
     return;
   }

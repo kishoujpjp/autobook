@@ -9,7 +9,7 @@ import {
   tagPhrases, clearPhraseTags, removePhrases, allPhraseTags, phraseGroupCount,
   phraseStat, setPhraseStat,
   repGroups, saveRepGroups, addRepGroup, removeRepGroup, groupPhrases,
-  idbGet, idbSet,
+  idbGet, idbSet, isKid,
 } from './store.js';
 import { ttsText, generatePhrases, generatePhraseImage } from './gemini.js';
 import { phonemesOf } from './phonemes.js';
@@ -93,10 +93,12 @@ function aiOverlay(text) {
 function renderHome() {
   root.classList.remove('story-fixed');
   root.innerHTML = '';
+  // 小孩帳號：AI 補足（花額度）、題庫（可刪題）、評分嚴格度都是家長的事，不顯示
+  const kid = isKid();
   root.append(
     el('div', { class: 'spread', style: 'margin-bottom:16px;' },
       el('div', { class: 'h1', style: 'margin-bottom:0;' }, '🎤 ', t('rep_title')),
-      el('div', { class: 'row' },
+      kid ? null : el('div', { class: 'row' },
         el('button', { class: 'btn sky', onclick: () => { sfx.tap(); fillContent(); } }, '✨ ', t('rep_fill_ai')),
         el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); openBankModal(); } }, '📚 ', t('rep_bank')),
       ),
@@ -125,17 +127,19 @@ function renderHome() {
     mkStrict('std', t('rep_strict_std')),
     mkStrict('hard', t('rep_strict_hard')),
   );
-  root.append(el('div', { class: 'card', style: 'margin-bottom:18px;' },
-    el('div', { class: 'settings-line' },
-      el('span', { text: `🎯 ${t('rep_strict')}` }), strictSeg,
-    ),
-  ));
+  if (!kid) {
+    root.append(el('div', { class: 'card', style: 'margin-bottom:18px;' },
+      el('div', { class: 'settings-line' },
+        el('span', { text: `🎯 ${t('rep_strict')}` }), strictSeg,
+      ),
+    ));
+  }
 
   if (!repGroups.length) {
     root.append(el('div', { class: 'card story-empty' },
       el('span', { class: 'emoji', text: '🗣️' }),
-      el('p', { text: t('rep_no_groups') }),
-      el('button', { class: 'btn big', onclick: () => { sfx.tap(); openBankModal(); } }, '📚 ', t('rep_bank')),
+      el('p', { text: t(kid ? 'rep_no_groups_kid' : 'rep_no_groups') }),
+      kid ? null : el('button', { class: 'btn big', onclick: () => { sfx.tap(); openBankModal(); } }, '📚 ', t('rep_bank')),
     ));
     return;
   }

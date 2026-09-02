@@ -11,7 +11,7 @@ import {
   settings, saveSettings, words, isHan, addWords, bumpUsed, bumpRead, setMark, getCard, currentAccount,
   stories, addStory, removeStory, getStory, saveStories, currentAccountId,
   storyMedia, setStoryMedia, newMediaId, deleteMediaBlob, storyReads, bumpStoryReads,
-  idbGet, idbSet, hasAudioCached,
+  idbGet, idbSet, hasAudioCached, isKid, shelfVictim, MAX_STORIES,
   DEMO_STORY_HANT, DEMO_STORY_HANS,
 } from './store.js';
 import { generateStory, generateImage, pickImageStyle, ttsChar, findNewChars, detectPolys, errHintKey, setLogListener } from './gemini.js';
@@ -71,18 +71,22 @@ export function render() {
   root.innerHTML = '';
   const story = currentId ? getStory(currentId) : null;
   root.classList.toggle('story-fixed', !!story);
+  // 小孩帳號：頁首只留書架。閱讀設定（含編輯、重置、媒體管理）與生成都是家長的事。
+  const kid = isKid();
 
   root.append(
     el('div', { class: 'spread', style: 'margin-bottom:16px;' },
       el('div', { class: 'h1', style: 'margin-bottom:0;' }, '📖 ', t('story_title')),
       el('div', { class: 'row' },
-        story
+        story && !kid
           ? el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); openReadSettings(story); } }, '⚙️ ', t('read_settings'))
           : null,
         stories.length
           ? el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); openShelfModal(); } }, '📚 ', t('shelf_title'))
           : null,
-        el('button', { class: 'btn berry', onclick: () => { sfx.tap(); openGenModal(); } }, '✨ ', t('new_story')),
+        kid
+          ? null
+          : el('button', { class: 'btn berry', onclick: () => { sfx.tap(); openGenModal(); } }, '✨ ', t('new_story')),
       ),
     ),
   );
@@ -91,8 +95,8 @@ export function render() {
     root.append(
       el('div', { class: 'card story-empty' },
         el('span', { class: 'emoji', text: '🧚' }),
-        ...t('story_empty').split('\n').map((line) => el('p', { text: line })),
-        el('button', { class: 'btn big', onclick: () => { sfx.tap(); openGenModal(); } }, '✨ ', t('make_story')),
+        ...t(kid ? 'story_empty_kid' : 'story_empty').split('\n').map((line) => el('p', { text: line })),
+        kid ? null : el('button', { class: 'btn big', onclick: () => { sfx.tap(); openGenModal(); } }, '✨ ', t('make_story')),
       ),
     );
     return;
@@ -502,13 +506,24 @@ export function render() {
 }
 
 // ---------- 圖片／影片 ----------
-/** YouTube／Vimeo 連結 → 可自動靜音循環播放的嵌入網址；其他連結回傳 null（當成直接檔案播） */
+/**
+ * YouTube／Vimeo 連結 → 可自動靜音循環播放的嵌入網址；其他連結回傳 null（當成直接檔案播）。
+ * 兒童產品的加固：用 youtube-nocookie、關掉控制列／鍵盤／全螢幕／註解，
+ * 再配合 iframe 的 sandbox（不給跳頁、不給彈窗）與蓋在上面的透明遮罩（.media-shield），
+ * 小孩點到影片標題或 logo 不會跳出 App 進 YouTube。
+ */
 function embedUrl(url) {
   if (!url) return null;
   const yt = String(url).match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/);
-  if (yt) return `https://www.youtube.com/embed/${yt[1]}?autoplay=1&mute=1&loop=1&playlist=${yt[1]}&playsinline=1&rel=0`;
+  if (yt) {
+    return `https://www.youtube-nocookie.com/embed/${yt[1]}?autoplay=1&mute=1&loop=1&playlist=${yt[1]}`
+      + '&playsinline=1&rel=0&controls=0&modestbranding=1&disablekb=1&fs=0&iv_load_policy=3';
+  }
   const vm = String(url).match(/vimeo\.com\/(?:video\/)?(\d+)/);
-  if (vm) return `https://player.vimeo.com/video/${vm[1]}?autoplay=1&muted=1&loop=1&playsinline=1`;
+  if (vm) {
+    return `https://player.vimeo.com/video/${vm[1]}?autoplay=1&muted=1&loop=1&playsinline=1`
+      + '&controls=0&title=0&byline=0&portrait=0&dnt=1';
+  }
   return null;
 }
 
@@ -553,8 +568,9 @@ function createMediaView(m) {
       // iframe 一放進 DOM 就開始載入播放，所以等揭曉時才建立
       let frame = null;
       const ph = el('span', { class: 'media-none-emoji', text: '🎬' });
+      const shield = el('div', { class: 'media-shield' }); // 吃掉所有點擊：小孩點影片不會跳去 YouTube
       box.append(ph);
-      const stop = () => { if (frame) { frame.remove(); frame = null; box.append(ph); } };
+      const stop = () => { if (frame) { frame.remove(); shield.remove(); frame = null; box.append(ph); } };
       return {
         el: box,
         kind,
@@ -563,9 +579,11 @@ function createMediaView(m) {
           ph.remove();
           frame = el('iframe', {
             class: 'media-el', src: embed, frameborder: '0',
-            allow: 'autoplay; encrypted-media; picture-in-picture', allowfullscreen: '',
+            // 不給 allow-top-navigation／allow-popups：播放器裡的連結點了也出不去
+            sandbox: 'allow-scripts allow-same-origin allow-presentation',
+            allow: 'autoplay; encrypted-media',
           });
-          box.append(frame);
+          box.append(frame, shield);
         },
         stop,
         destroy: stop,
@@ -1384,6 +1402,16 @@ function openAddNewChars(story) {
   );
 }
 
+/**
+ * 書架有上限（MAX_STORIES）。以前滿了會靜默丟掉最舊的一本（連家長上傳的照片影片一起）；
+ * 現在做新書前先問，不同意就不做（也不浪費 API 額度）。
+ */
+async function ensureShelfRoom() {
+  const victim = shelfVictim();
+  if (!victim) return true;
+  return confirmDialog(t('shelf_full_confirm', { n: MAX_STORIES, title: displayText(victim, victim.title) }));
+}
+
 // ---------- 生成面板 ----------
 function openGenModal() {
   const m = openModal(`✨ ${t('gen_title')}`);
@@ -1444,11 +1472,12 @@ function openGenModal() {
       m.close();
       openManualModal();
     } }, '📝 ', t('manual_add')),
-    el('button', { class: 'btn big berry', onclick: () => {
+    el('button', { class: 'btn big berry', onclick: async () => {
       if (words.length < 10 && settings.apiKey) {
         toast(t('gen_need_words'), true);
         return;
       }
+      if (!(await ensureShelfRoom())) return;
       sfx.whoosh();
       // 今日新字：直接加入字表，並列為本次必用字
       const todayChars = [...new Set([...todayInput.value].filter(isHan))];
@@ -1502,6 +1531,7 @@ function openManualModal() {
   m.foot.append(el('button', { class: 'btn big mint', onclick: async () => {
     const text = textInput.value.trim();
     if (!text || ![...text].some(isHan)) { toast(t('manual_need_text'), true); return; }
+    if (!(await ensureShelfRoom())) return;
     sfx.tap();
     const lang = getLang();
     const title = titleInput.value.trim() || [...text].slice(0, 8).join('');
@@ -1658,6 +1688,10 @@ async function runGeneration(mustInclude, extraPrompt) {
       }
     } else if (settings.apiKey && !settings.genImage) {
       addLog(`⏭️ ${t('gen_log_img_skip')}`);
+    } else if (!settings.apiKey) {
+      // 示範模式：配一張內建插圖，第一次體驗讀完才不會揭開一片空白
+      story.hasImage = true;
+      story.media = [{ id: `${id}|demo`, kind: 'image', url: 'icons/demo-cat.svg' }];
     }
 
     // 記錄用字次數（以生成語系字形比對回字表原字）

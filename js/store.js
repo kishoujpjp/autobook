@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.22.0';
+export const VERSION = '1.23.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -41,13 +41,53 @@ const DEFAULT_SETTINGS = {
 /** 備份要涵蓋的 localStorage 鍵（全部資料鍵） */
 export const BACKUP_KEYS = Object.values(LS);
 
-function load(key, fallback) {
+/**
+ * 讀 localStorage。壞 JSON、存成 "null"、型別不對（例如備份被手改過）一律回 fallback——
+ * 一筆壞資料不可以讓整個 App 在 module 求值階段就炸成白畫面。
+ */
+function load(key, fallback, check) {
+  let raw = null;
   try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch { return fallback; }
+    raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const v = JSON.parse(raw);
+    if (v === null || v === undefined) return stash(key, raw, fallback);
+    if (check && !check(v)) return stash(key, raw, fallback);
+    return v;
+  } catch { return stash(key, raw, fallback); }
 }
-function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+/** 壞資料不直接丟：先留一份在 `<key>.bad`（救援層匯出會帶上），之後存檔才會蓋掉原 key */
+function stash(key, raw, fallback) {
+  try { if (raw) localStorage.setItem(`${key}.bad`, raw); } catch { /* 空間滿就算了 */ }
+  console.warn('bad data in', key, '→ fallback');
+  return fallback;
+}
+const isArr = Array.isArray;
+const isObj = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+/** 陣列型資料再過一層：每筆都要是物件且必要欄位型別正確，不合格的丟掉（而不是整包放棄） */
+function loadList(key, ok) {
+  return load(key, [], isArr).filter((x) => isObj(x) && ok(x));
+}
+
+let lastSaveFail = 0;
+/**
+ * 寫 localStorage。配額滿、Safari 私密模式、iOS 偶發 SecurityError 都不能讓例外炸掉呼叫端
+ * （否則 click handler 半途中止、flushSaves 永遠寫不進去）。失敗回 false，並通知 UI（10 秒內只通知一次）。
+ */
+function save(key, val) {
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+    return true;
+  } catch (e) {
+    console.warn('save failed', key, e);
+    const now = Date.now();
+    if (now - lastSaveFail > 10000) {
+      lastSaveFail = now;
+      try { window.dispatchEvent(new CustomEvent('autobook:savefail', { detail: { key, message: String(e && e.message || e) } })); } catch { /* ignore */ }
+    }
+    return false;
+  }
+}
 
 // ---------- 延遲寫入（效能） ----------
 // 字表與故事在點讀/標註時每一下都會「存檔」，同步 stringify＋寫 localStorage
@@ -64,8 +104,10 @@ function scheduleSave(key, getter) {
 export function flushSaves() {
   clearTimeout(saveTimer);
   saveTimer = 0;
-  for (const [key, getter] of pendingSaves) save(key, getter());
-  pendingSaves.clear();
+  // 逐 key 隔離：一個 key 寫失敗不影響其他 key；失敗的留在佇列，下次有機會再寫
+  for (const [key, getter] of [...pendingSaves]) {
+    if (save(key, getter())) pendingSaves.delete(key);
+  }
 }
 /** 丟棄延遲中的寫入（匯入備份/清除資料後 reload 前呼叫，避免舊資料在 pagehide 蓋回去） */
 export function cancelPendingSaves() {
@@ -81,7 +123,7 @@ if (typeof window !== 'undefined') {
 }
 
 // ---------- settings ----------
-export const settings = Object.assign({}, DEFAULT_SETTINGS, load(LS.settings, {}));
+export const settings = Object.assign({}, DEFAULT_SETTINGS, load(LS.settings, {}, isObj));
 export function saveSettings() { save(LS.settings, settings); }
 
 // 舊預設文字模型自動升級
@@ -96,7 +138,7 @@ if (settings.textModel === 'gemini-2.5-flash') {
 // archived＝入庫（不進遊戲，仍可用於故事，字表排最後）
 // cards＝熟悉度紀錄，依「帳號|語系」分開：{ 'accId|lang': {mark, markedAt, flashCount, ok, ng} }
 //   mark＝'green'(學會)/'red'(還不會)/null；flashCount＝字卡出現次數；ok/ng＝聽音認字答對/錯
-export let words = load(LS.words, []);
+export let words = loadList(LS.words, (w) => typeof w.ch === 'string' && w.ch.length > 0);
 export function saveWords() { scheduleSave(LS.words, () => words); }
 
 /** 熟悉度紀錄的鍵：指定帳號（預設目前帳號）＋目前語系 */
@@ -249,10 +291,23 @@ export function bumpGame(ch, correct) {
 //          media:  [{ id, kind, url }],                圖片／影片清單（見下方 storyMedia）
 //          polys:  [{ char, word }] }                  多音字與所屬詞（每本偵測一次）
 // 舊版全域 highlights 於故事頁首次開啟時遷移給當時的帳號
-export let stories = load(LS.stories, []);
+export let stories = loadList(LS.stories, (s) => typeof s.id === 'string' && typeof s.text === 'string');
+for (const s of stories) {
+  // 每帳號紀錄欄位若被改壞（非物件），重設成空的，render 時才不會炸
+  if (s.hlBy != null && !isObj(s.hlBy)) s.hlBy = {};
+  if (s.marksBy != null && !isObj(s.marksBy)) s.marksBy = {};
+  if (s.readsBy != null && !isObj(s.readsBy)) s.readsBy = {};
+  if (s.media != null && !isArr(s.media)) delete s.media;
+  if (typeof s.title !== 'string') s.title = '';
+}
 export function saveStories() { scheduleSave(LS.stories, () => stories); }
 
-const MAX_STORIES = 24;
+export const MAX_STORIES = 24;
+
+/** 書架滿了會被淘汰的那本（最舊的一本），沒滿回 null。做新書前先問過使用者，不要靜默丟掉。 */
+export function shelfVictim() {
+  return stories.length >= MAX_STORIES ? stories[stories.length - 1] : null;
+}
 
 export async function addStory(story) {
   stories.unshift(story);
@@ -321,8 +376,8 @@ export function bumpStoryReads(story) {
 
 // ---------- 跟讀題庫 ----------
 // phrase: { id, text, addedAt, hasImage, tags:[], stats: { [accId]: {last, best, tries} } }
-export let phrases = load(LS.phrases, []);
-for (const p of phrases) if (!p.tags) p.tags = [];
+export let phrases = loadList(LS.phrases, (p) => typeof p.id === 'string' && typeof p.text === 'string');
+for (const p of phrases) if (!isArr(p.tags)) p.tags = [];
 export function savePhrases() { save(LS.phrases, phrases); }
 
 /** 加入題目池（可帶 tags）。回傳 {added, ids}；ids 含所有輸入行對應的題目 id（重複的對到既有題） */
@@ -406,7 +461,7 @@ export async function removePhrase(id) {
 
 // ---------- 跟讀練習組 ----------
 // group: { id, name, ids:[phraseId], addedAt }
-export let repGroups = load(LS.repGroups, []);
+export let repGroups = loadList(LS.repGroups, (g) => typeof g.id === 'string' && isArr(g.ids));
 export function saveRepGroups() { save(LS.repGroups, repGroups); }
 
 export function addRepGroup(name, ids) {
@@ -449,8 +504,13 @@ export function setPhraseStat(p, score) {
 
 // ---------- 帳號 ----------
 // account: { id, name, role:'parent'|'kid', avatar:{kind:'preset',preset} | {kind:'image',fallback} }
-export let accounts = load(LS.accounts, []);
-export let currentAccountId = load(LS.currentAccount, null);
+export let accounts = loadList(LS.accounts, (a) => typeof a.id === 'string');
+for (const a of accounts) {
+  if (a.role !== 'kid' && a.role !== 'parent') a.role = 'parent';
+  if (typeof a.name !== 'string') a.name = '';
+  if (!isObj(a.avatar)) a.avatar = { kind: 'preset', preset: 'bear' };
+}
+export let currentAccountId = load(LS.currentAccount, null, (v) => typeof v === 'string');
 
 if (!accounts.length) {
   accounts = [{
@@ -471,6 +531,13 @@ export function saveAccounts() { save(LS.accounts, accounts); }
 export function currentAccount() {
   return accounts.find((a) => a.id === currentAccountId) || accounts[0];
 }
+
+/**
+ * 目前是不是小孩帳號——全站唯一的判斷點。
+ * 小孩帳號只能：翻頁、點字、開書、再讀一遍、玩遊戲、跟讀；
+ * 生成、編輯、刪除、AI、媒體管理、狀態重置、設定、題庫一律不顯示。
+ */
+export function isKid() { return currentAccount().role === 'kid'; }
 
 export function setCurrentAccount(id) {
   if (accounts.some((a) => a.id === id)) {

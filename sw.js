@@ -1,11 +1,12 @@
 // Service Worker：app shell 快取（cache-first），API 一律走網路
-const CACHE = 'autobook-v1.22.0';
+const CACHE = 'autobook-v1.23.0';
 // 音節音檔獨立持久快取：檔案不變，cache-first；版本更新時不清除（不用重抓 25MB）
 const SYL_CACHE = 'autobook-syl-1';
 const SHELL = [
   './',
   './index.html',
   './css/app.css',
+  './js/rescue.js',
   './js/main.js',
   './js/i18n.js',
   './js/store.js',
@@ -30,6 +31,7 @@ const SHELL = [
   './icons/icon2-192.png',
   './icons/icon2-512.png',
   './icons/icon2-180.png',
+  './icons/demo-cat.svg',
 ];
 
 self.addEventListener('install', (e) => {

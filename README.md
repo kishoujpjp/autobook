@@ -1,6 +1,6 @@
 # 自動繪本 Autobook
 
-給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.19.0**。
+給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.23.0**。
 
 - 線上版（GitHub Pages，push `main` 自動部署）：https://kishoujpjp.github.io/autobook/
 - 純前端 ES modules、無 build step；AI 走使用者自備的 Gemini API Key（存本機）。
@@ -97,7 +97,13 @@
 
 ### 通用
 - 全介面與圖示自繪（SVG），禁用 iOS 長按選字與雙擊縮放；音效全部 WebAudio 合成零素材。
-- 沒填 API Key 時為示範模式（示範字表＋示範故事）。
+- 沒填 API Key 時為示範模式（示範字表＋示範故事，示範故事配內建插圖 `icons/demo-cat.svg`）。
+- **小孩帳號的權限邊界（v1.23.0）**：`store.isKid()` 是全站唯一判斷點。小孩帳號只能翻頁、點字、開書、再讀一遍、玩遊戲、跟讀；故事頁的「新故事」「閱讀設定」（含編輯／重置／媒體管理）、跟讀頁的「AI 補足」「題庫」「評分嚴格度」、遊戲頁的「不熟模式」、設定分頁一律不顯示，`main.js` 的分頁切換也在程式面擋設定分頁。
+- **救援層 `js/rescue.js`（v1.23.0）**：非 module 的傳統 script，在 `main.js` 之前載入。啟動完成前（`window.__autobookReady` 尚未為 true）的任何錯誤——含 module 語法錯、壞資料讓 store.js 求值失敗——會顯示最小救援畫面（重新載入／匯出資料／重設全部資料／先繼續使用）；啟動完成後的錯誤只寫進 `autobook.errlog`，不打擾小孩。`main.js` 各分頁 init 各自 try/catch，一個分頁壞掉不拖垮其他分頁。
+- **資料層防護（v1.23.0）**：`store.load()` 對壞 JSON、`"null"`、型別不對的資料一律回預設值，原始內容先留在 `<key>.bad`（救援層匯出會帶上）；陣列型資料逐筆驗證必要欄位。`save()` 包 try/catch，寫入失敗（配額滿、私密模式）不炸呼叫端，改發 `autobook:savefail` 事件由 UI toast 提醒備份；`flushSaves` 逐 key 隔離，失敗的留在佇列。
+- **書架上限（`MAX_STORIES` 24 本）不再靜默淘汰**：做新書（AI 或手動）前先用 `shelfVictim()` 檢查，滿了跳確認框說明會丟掉哪一本，不同意就不做、也不花 API。
+- **內嵌影片加固**：YouTube 走 `youtube-nocookie.com` 並關掉控制列／鍵盤／全螢幕／註解，Vimeo 關掉標題／作者／頭像並 `dnt=1`；iframe 加 `sandbox="allow-scripts allow-same-origin allow-presentation"`（不給跳頁與彈窗），上面再蓋一層透明 `.media-shield` 吃掉點擊，小孩點影片不會跳出 App。
+- **聽音認字的干擾項改 `pickWrong()`**：從「其他未入庫字」過濾後隨機取，只剩一個字時回 null 並略過該題（舊寫法 `while (wrong === ch)` 在只剩一個未入庫字時會無限迴圈凍住 iPad）；開始前檢查的是「未入庫字數 ≥ 4」而非字表總數。
 
 ## 發音架構（重要）
 
