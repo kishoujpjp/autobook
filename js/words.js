@@ -3,12 +3,11 @@
 import { t, getLang } from './i18n.js';
 import { el, toast, confirmDialog } from './ui.js';
 import { icon } from './icons.js';
-import { showPage } from './nav.js';
 import { sfx } from './sfx.js';
 import {
   settings, saveSettings, words, addWords, removeWords, setArchived,
   getCard, cycleMark,
-  accounts, currentAccount, activeAccount, activeAccId, copyWords, wordCountOf,
+  currentAccount, activeAccount,
 } from './store.js';
 import { manageKidRow } from './account.js';
 import { speakChar } from './voice.js';
@@ -50,15 +49,12 @@ function sortedWords(acc) {
 
 function render() {
   root.innerHTML = '';
-  root.append(el('div', { class: 'row', style: 'margin-bottom:18px;' },
-    el('button', { class: 'icon-btn', 'aria-label': t('parent_back_hub'), onclick: () => { sfx.tap(); showPage('parent'); } }, icon('back')),
-    el('div', { class: 'h1', style: 'margin:0;' }, icon('cards'), t('words_title')),
-  ));
+  root.append(el('div', { class: 'h1' }, icon('cards'), t('words_title')));
 
-  // 小孩模式：可以看字表，但固定鎖定——沒有新增/整理/補齊發音，點字只發音
+  // 小孩模式：沒有新增/整理/鎖定工具；點字會唸，鎖定沒開時也可以直接標紅綠（親子一起看字表用）
   const kidMode = currentAccount().role === 'kid';
-  const acc = null; // getCard/cycleMark 的帳號參數：null＝作用中字表的主人（正在管理的小孩）
-  const locked = kidMode || settings.wordsLocked;
+  const acc = null; // getCard/cycleMark 的帳號參數：null＝紅綠紀錄的對象（小孩自己或家長正在管理的小孩）
+  const locked = settings.wordsLocked;
 
   // ---- 新增區（小孩模式不顯示） ----
   if (!kidMode) {
@@ -87,23 +83,12 @@ function render() {
     ));
   }
 
-  // ---- 正在管理哪個小孩的字表（每個小孩各自一份：字、紅綠、入庫都獨立） ----
+  // ---- 正在管理哪個小孩的紅綠（字表共用，紅綠依帳號） ----
   const kidRow = manageKidRow(() => { selected.clear(); render(); });
   if (kidRow) {
-    const me = activeAccount();
-    const others = accounts.filter((a) => a.role === 'kid' && a.id !== activeAccId && wordCountOf(a.id));
     root.append(el('div', { class: 'card', style: 'padding:14px 16px;margin-bottom:14px;' },
       kidRow,
-      el('p', { class: 'settings-note', style: 'margin-top:8px;', text: t('words_manage_hint', { n: me.name }) }),
-      (!words.length && others.length)
-        ? el('div', { class: 'row', style: 'margin-top:10px;' }, ...others.map((o) =>
-          el('button', { class: 'btn ghost small', onclick: () => {
-            sfx.tap();
-            const n = copyWords(o.id, activeAccId);
-            toast(t('words_copied', { n }));
-            render();
-          } }, icon('copy'), t('words_copy_from', { n: o.name }))))
-        : null,
+      el('p', { class: 'settings-note', style: 'margin-top:8px;', text: t('words_manage_hint', { n: activeAccount().name }) }),
     ));
   }
 

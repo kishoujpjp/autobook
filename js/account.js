@@ -8,7 +8,7 @@ import { sfx } from './sfx.js';
 import {
   accounts, saveAccounts, currentAccount, setCurrentAccount,
   removeAccount, parentCount, idbSet, idbDel, settings, saveSettings, isKid,
-  activeAccId, setManageAcc, moveWords, activateWords,
+  activeAccId, setManageAcc, activateWords,
 } from './store.js';
 import { PRESETS, avatarEl } from './avatars.js';
 import { showPage } from './nav.js';
@@ -53,13 +53,13 @@ export function refreshAvatarBtn() {
 export function applyRole() {
   if (!isKid()) return;
   // 小孩帳號：站在家長層的任何一頁都送回故事頁（分頁列本來就沒有這些頁）
-  for (const name of ['parent', 'words', 'settings']) {
+  for (const name of ['parent', 'settings']) {
     const page = document.getElementById(`page-${name}`);
     if (page && page.classList.contains('active')) showPage('story');
   }
 }
 
-/** 家長用：「正在管理哪個小孩的字表」頭像列（每個小孩各自一份字表）。小孩帳號或沒有小孩時回 null。 */
+/** 家長用：「正在管理哪個小孩的紅綠」頭像列（字表共用，紅綠依帳號）。小孩帳號或沒有小孩時回 null。 */
 export function manageKidRow(onChange) {
   if (isKid()) return null;
   const kids = accounts.filter((a) => a.role === 'kid');
@@ -386,10 +386,6 @@ export function openAccountEditor(existing, onDone) {
     }
     acc.name = name;
     acc.role = role;
-    if (!existing && role === 'kid' && accounts.filter((a) => a.role === 'kid').length === 1) {
-      // 第一個小孩帳號：家長手上的字表（舊版單一字表）整份交給小孩
-      moveWords(currentAccount().id, acc.id);
-    }
     activateWords();
     acc.avatar = avatar;
     if (uploadBlob) await idbSet('avatars', acc.id, uploadBlob).catch(() => {});

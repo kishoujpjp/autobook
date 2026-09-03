@@ -1,12 +1,12 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.27.0';
+export const VERSION = '1.28.0';
 
 const LS = {
   settings: 'autobook.settings',
-  words: 'autobook.words',      // 舊版單一字表（v1.27.0 起只用來遷移）
-  wordsBy: 'autobook.wordsBy',  // 每個帳號一份字表：{ 帳號id: word[] }
+  words: 'autobook.words',
+  wordsBy: 'autobook.wordsBy',  // v1.27.0 的每帳號字表（只用來遷移；留在白名單讓舊備份也能匯入）
   stories: 'autobook.stories',
   accounts: 'autobook.accounts',
   currentAccount: 'autobook.currentAccount',
@@ -36,7 +36,7 @@ const DEFAULT_SETTINGS = {
   repStrict: 'std',       // 跟讀評分嚴格度：'easy' | 'std' | 'hard'
   theme: 'light',         // 'light' | 'dark'（夜間模式，睡前共讀）；js/theme.js 在 CSS 前先套用
   onboarded: false,       // 首啟三步 onboarding 跑過了（有資料的舊用戶啟動時直接標成 true）
-  manageAcc: '',          // 家長正在管理哪個小孩的字表（帳號 id；空＝第一個小孩）
+  manageAcc: '',          // 家長正在管理（看、標）哪個小孩的紅綠（帳號 id；空＝第一個小孩）
 
   textModel: 'gemini-3-flash-preview',
   imageModel: 'gemini-2.5-flash-image',
@@ -145,20 +145,15 @@ if (settings.textModel === 'gemini-2.5-flash') {
 // cards＝熟悉度紀錄，依「帳號|語系」分開：{ 'accId|lang': {mark, markedAt, flashCount, ok, ng} }
 //   mark＝'green'(學會)/'red'(還不會)/null；flashCount＝字卡出現次數；ok/ng＝聽音認字答對/錯
 const okWord = (w) => typeof w.ch === 'string' && w.ch.length > 0;
-// v1.27.0：每個小孩各自一份字表（各自的字、紅綠、入庫）。wordsBy = { 帳號id: word[] }；
-// 舊版單一字表（autobook.words）第一次啟動時整份搬給第一個小孩帳號（沒有小孩就給家長）。
-const legacyWords = loadList(LS.words, okWord);
-const wordsBy = load(LS.wordsBy, {}, isObj);
-for (const [k, v] of Object.entries(wordsBy)) {
-  if (!isArr(v)) { delete wordsBy[k]; continue; }
-  wordsBy[k] = v.filter((w) => isObj(w) && okWord(w));
-}
-/** 作用中的字表：小孩帳號＝自己的；家長＝正在管理的小孩的（activateWords() 切換；live binding，各模組 import 的 words 會跟著換） */
-export let words = [];
+// 字表全家共用一份（兩個小孩一起讀同一本書、學同一批字，新字只要加一次）；
+// 紅綠、字卡次數等熟悉度依「帳號|語系」分開存在 cards 裡（見 cardKey）。
+// v1.27.0 曾短暫改成每帳號一份（autobook.wordsBy），v1.28.0 起動時合併回共用（見下方遷移）。
+export let words = loadList(LS.words, okWord);
+export function saveWords() { scheduleSave(LS.words, () => words); }
+/** 紅綠紀錄的對象：小孩帳號＝自己；家長＝正在管理的小孩（settings.manageAcc），見 activateWords() */
 export let activeAccId = null;
-export function saveWords() { scheduleSave(LS.wordsBy, () => wordsBy); }
 
-/** 熟悉度紀錄的鍵：指定帳號（預設作用中字表的主人）＋目前語系 */
+/** 熟悉度紀錄的鍵：指定帳號（預設＝紅綠紀錄的對象）＋目前語系 */
 export function cardKey(accId) {
   return `${accId || activeAccId}|${settings.lang}`;
 }
@@ -270,13 +265,13 @@ export function addWords(text) {
 }
 
 export function removeWord(ch) {
-  words = wordsBy[activeAccId] = words.filter((w) => w.ch !== ch);
+  words = words.filter((w) => w.ch !== ch);
   saveWords();
 }
 
 export function removeWords(chs) {
   const set = new Set(chs);
-  words = wordsBy[activeAccId] = words.filter((w) => !set.has(w.ch));
+  words = words.filter((w) => !set.has(w.ch));
   saveWords();
 }
 
@@ -564,7 +559,7 @@ export function setCurrentAccount(id) {
   }
 }
 
-// ---------- 字表歸屬（每個小孩一份，v1.27.0）----------
+// ---------- 紅綠紀錄的對象（v1.28.0）----------
 function resolveActiveAcc() {
   const cur = currentAccount();
   if (cur.role === 'kid') return cur.id;
@@ -572,49 +567,35 @@ function resolveActiveAcc() {
   if (settings.manageAcc && kids.some((a) => a.id === settings.manageAcc)) return settings.manageAcc;
   return kids.length ? kids[0].id : cur.id;
 }
-/** 依目前帳號／管理對象，把 words 指到該帳號的字表 */
+/** 依目前帳號／管理對象決定紅綠寫給誰（字表本身共用） */
 export function activateWords() {
   activeAccId = resolveActiveAcc();
-  if (!wordsBy[activeAccId]) wordsBy[activeAccId] = [];
-  words = wordsBy[activeAccId];
 }
-/** 家長：選擇正在管理哪個小孩的字表 */
+/** 家長：選擇正在管理（看、標）哪個小孩的紅綠 */
 export function setManageAcc(id) {
   settings.manageAcc = id;
   saveSettings();
   activateWords();
 }
 export function activeAccount() { return accounts.find((a) => a.id === activeAccId) || currentAccount(); }
-export function wordCountOf(accId) { return (wordsBy[accId] || []).length; }
-/** 把 from 的字表整份搬給 to（to 必須是空的）：第一個小孩帳號建立時，家長手上的舊字表交給小孩 */
-export function moveWords(fromId, toId) {
-  if (!wordsBy[fromId] || !wordsBy[fromId].length || (wordsBy[toId] && wordsBy[toId].length)) return false;
-  wordsBy[toId] = wordsBy[fromId];
-  wordsBy[fromId] = [];
-  saveWords();
-  activateWords();
-  return true;
-}
-/** 複製 from 的字（不含紅綠與入庫）給 to，回傳新增的字數 */
-export function copyWords(fromId, toId) {
-  const src = wordsBy[fromId] || [];
-  const dst = wordsBy[toId] || (wordsBy[toId] = []);
-  const have = new Set(dst.map((w) => w.ch));
-  let n = 0;
-  for (const w of src) {
-    if (have.has(w.ch)) continue;
-    dst.push({ ch: w.ch, addedAt: w.addedAt || Date.now(), usedCount: 0, readCount: 0, archived: false, cards: {} });
-    n++;
+// v1.27.0 的每帳號字表合併回共用一份（只做一次）：字取聯集、各帳號的 cards 合併、入庫取聯集
+const wordsByOld = load(LS.wordsBy, null, isObj);
+if (wordsByOld) {
+  const byCh = new Map(words.map((w) => [w.ch, w]));
+  for (const list of Object.values(wordsByOld)) {
+    if (!isArr(list)) continue;
+    for (const w of list) {
+      if (!isObj(w) || !okWord(w)) continue;
+      const hit = byCh.get(w.ch);
+      if (!hit) { words.push(w); byCh.set(w.ch, w); continue; }
+      hit.archived = !!(hit.archived || w.archived);
+      hit.usedCount = Math.max(hit.usedCount || 0, w.usedCount || 0);
+      if (!hit.cards) hit.cards = {};
+      for (const [k, c] of Object.entries(w.cards || {})) if (!hit.cards[k]) hit.cards[k] = c;
+    }
   }
-  if (n) saveWords();
-  activateWords();
-  return n;
-}
-// 舊版單一字表遷移（只做一次：wordsBy 還沒有任何帳號時）
-if (!Object.keys(wordsBy).length && legacyWords.length) {
-  const firstKid = accounts.find((a) => a.role === 'kid');
-  wordsBy[firstKid ? firstKid.id : currentAccountId] = legacyWords;
-  save(LS.wordsBy, wordsBy);
+  save(LS.words, words);
+  try { localStorage.removeItem(LS.wordsBy); } catch { /* ignore */ }
 }
 activateWords();
 
@@ -625,9 +606,7 @@ export function parentCount() {
 export async function removeAccount(id) {
   accounts = accounts.filter((a) => a.id !== id);
   saveAccounts();
-  delete wordsBy[id]; // 這個小孩的字表一起刪
   if (settings.manageAcc === id) { settings.manageAcc = ''; saveSettings(); }
-  saveWords();
   await idbDel('avatars', id).catch(() => {});
   if (currentAccountId === id) setCurrentAccount(accounts[0].id);
   activateWords();
