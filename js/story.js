@@ -119,7 +119,10 @@ export function render() {
 
   const dispTitle = displayText(story, story.title);
   const dispText = displayText(story, story.text);
-  const dispNew = (story.newChars || []).map((ch) => displayText(story, ch));
+  // 本篇新字依「目前這個小孩的字表」重算：每個小孩的字表不同，存下來的 newChars 只是生成當時的
+  const storyLang = story.lang || 'zh-Hant';
+  const bankNow = new Set(words.map((w) => convertTo(w.ch, storyLang)));
+  const dispNew = findNewChars(story.text || '', bankNow).map((ch) => displayText(story, ch));
 
   const chars = [...dispText];
   const hanTotal = chars.filter(isHan).length || 1;
@@ -316,6 +319,13 @@ export function render() {
   // ---- 文字按鈕 ----
   const hanIndices = [];
   const bankMap = buildBankMap();
+  /** 認字表上的紅綠（作用中小孩的紀錄）：重讀時字塊先照它顯示；這一輪點過的才以 marks 為準 */
+  function seedMark(ch) {
+    const b = bankMap.get(ch);
+    const w = b ? words.find((x) => x.ch === b) : null;
+    return w ? getCard(w).mark : null;
+  }
+  function shownMark(idx, ch) { return marks.has(idx) ? marks.get(idx) : seedMark(ch); }
 
   function markCls(mk) {
     return mk === 'green' ? ' mk-g' : mk === 'red' ? ' mk-r' : '';
@@ -328,7 +338,7 @@ export function render() {
    */
   function makeZi(ch, idx, speak) {
     const btn = el('button', {
-      class: `zi${mode === 'hl' && highlights.has(idx) ? ' hl' : ''}${mode === 'mark' ? markCls(marks.get(idx)) : ''}`,
+      class: `zi${mode === 'hl' && highlights.has(idx) ? ' hl' : ''}${mode === 'mark' ? markCls(shownMark(idx, ch)) : ''}`,
       text: ch,
     });
 
@@ -364,16 +374,21 @@ export function render() {
         }
         story.hlBy[currentAccountId] = [...highlights];
       } else {
-        // 標註模式：白→綠→紅→白，紅綠都算「讀過」，同步進認字卡（最後標註為準）
-        const cur = marks.get(idx) || null;
-        const next = cur === null ? 'green' : cur === 'green' ? 'red' : null;
+        // 標註模式：白→綠→紅→白，紅綠都算「讀過」，同步進認字表（最後標註為準）。
+        // 重讀時字塊先照認字表上的紅綠顯示：第一下＝讀過了、維持原標註（再點一下才改），
+        // 每個小孩重複讀同一本，自己還不會的字一直看得到，不會被讀一遍就清掉。
+        const tapped = marks.has(idx);
+        const cur = tapped ? (marks.get(idx) || null) : seedMark(ch);
+        const keep = !tapped && cur !== null;
+        const next = keep ? cur : cur === null ? 'green' : cur === 'green' ? 'red' : null;
         if (next) marks.set(idx, next); else marks.delete(idx);
         btn.classList.remove('mk-g', 'mk-r');
         if (next) btn.classList.add(next === 'green' ? 'mk-g' : 'mk-r');
-        if (next === 'green') sfx.correct();
+        if (keep) sfx.tick();
+        else if (next === 'green') sfx.correct();
         else if (next === 'red') sfx.unpop();
         else sfx.tap();
-        if (bankCh) setMark(bankCh, next);
+        if (bankCh && !keep) setMark(bankCh, next);
         // 發音規則：標綠（已學會）不發音；標紅發音一次幫忙複習；清除不發音
         if (settings.storySpeak && next === 'red') speak();
         story.marksBy[currentAccountId] = Object.fromEntries(marks);
@@ -491,7 +506,12 @@ export function render() {
   completeNow = () => {
     for (const { btn, i } of ziBtns) {
       if (mode === 'hl') { highlights.add(i); btn.classList.add('hl'); }
-      else if (!marks.has(i)) { marks.set(i, 'green'); btn.classList.add('mk-g'); }
+      else if (!marks.has(i)) {
+        const m2 = seedMark(chars[i]) || 'green'; // 認字表上標紅的維持紅
+        marks.set(i, m2);
+        btn.classList.remove('mk-g', 'mk-r');
+        btn.classList.add(m2 === 'green' ? 'mk-g' : 'mk-r');
+      }
     }
     if (mode === 'hl') story.hlBy[currentAccountId] = [...highlights];
     else story.marksBy[currentAccountId] = Object.fromEntries(marks);

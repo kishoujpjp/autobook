@@ -8,17 +8,16 @@ import { sfx } from './sfx.js';
 import {
   settings, saveSettings, words, addWords, removeWords, setArchived,
   getCard, cycleMark,
-  accounts, currentAccount,
+  accounts, currentAccount, activeAccount, activeAccId, copyWords, wordCountOf,
 } from './store.js';
+import { manageKidRow } from './account.js';
 import { speakChar } from './voice.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
-import { avatarEl } from './avatars.js';
 
 let root = null;
 let editMode = false;
 let selected = new Set();
 let sortMode = 'new'; // new | least | most | weak
-let viewAccId = null; // 家長檢視的小孩帳號 id（null＝自己）
 
 export function initWords(rootEl) {
   root = rootEl;
@@ -28,7 +27,6 @@ export function initWords(rootEl) {
 export function refreshWordsPage() {
   editMode = false;
   selected.clear();
-  viewAccId = null;
   render();
 }
 
@@ -59,11 +57,8 @@ function render() {
 
   // 小孩模式：可以看字表，但固定鎖定——沒有新增/整理/補齊發音，點字只發音
   const kidMode = currentAccount().role === 'kid';
-  if (kidMode) viewAccId = null;
-  if (viewAccId && !accounts.some((a) => a.id === viewAccId)) viewAccId = null;
-  const acc = viewAccId; // getCard/cycleMark 的帳號參數（null＝目前帳號）
-  // 家長檢視小孩時不受鎖定影響（切過來就是要幫小孩改紅綠；鎖定是防小孩亂按自己的）
-  const locked = kidMode || (!viewAccId && settings.wordsLocked);
+  const acc = null; // getCard/cycleMark 的帳號參數：null＝作用中字表的主人（正在管理的小孩）
+  const locked = kidMode || settings.wordsLocked;
 
   // ---- 新增區（小孩模式不顯示） ----
   if (!kidMode) {
@@ -92,31 +87,22 @@ function render() {
     ));
   }
 
-  // ---- 家長檢視小孩紀錄（有小孩帳號才顯示） ----
-  const kids = accounts.filter((a) => a.role === 'kid');
-  if (!kidMode && kids.length) {
-    const row = el('div', { class: 'view-acct-row' });
-    const mkView = (id, account, label) => {
-      const b = el('button', { class: `view-acct${viewAccId === id ? ' on' : ''}` },
-        avatarEl(account, 'avatar view-avatar'),
-        el('span', { text: label }),
-      );
-      b.addEventListener('click', () => {
-        sfx.tap();
-        if (viewAccId === id) return;
-        viewAccId = id;
-        selected.clear();
-        render();
-      });
-      return b;
-    };
-    row.append(mkView(null, currentAccount(), t('words_view_mine')));
-    for (const k of kids) row.append(mkView(k.id, k, k.name));
+  // ---- 正在管理哪個小孩的字表（每個小孩各自一份：字、紅綠、入庫都獨立） ----
+  const kidRow = manageKidRow(() => { selected.clear(); render(); });
+  if (kidRow) {
+    const me = activeAccount();
+    const others = accounts.filter((a) => a.role === 'kid' && a.id !== activeAccId && wordCountOf(a.id));
     root.append(el('div', { class: 'card', style: 'padding:14px 16px;margin-bottom:14px;' },
-      row,
-      viewAccId
-        ? el('p', { class: 'settings-note', style: 'margin-top:8px;',
-            text: t('words_view_hint', { n: accounts.find((a) => a.id === viewAccId).name }) })
+      kidRow,
+      el('p', { class: 'settings-note', style: 'margin-top:8px;', text: t('words_manage_hint', { n: me.name }) }),
+      (!words.length && others.length)
+        ? el('div', { class: 'row', style: 'margin-top:10px;' }, ...others.map((o) =>
+          el('button', { class: 'btn ghost small', onclick: () => {
+            sfx.tap();
+            const n = copyWords(o.id, activeAccId);
+            toast(t('words_copied', { n }));
+            render();
+          } }, icon('copy'), t('words_copy_from', { n: o.name }))))
         : null,
     ));
   }

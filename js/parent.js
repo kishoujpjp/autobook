@@ -9,6 +9,7 @@ import { showPage } from './nav.js';
 import { stories, words, repGroups, phrases, settings, isKid } from './store.js';
 import { openGenModal, openReadSettingsCurrent, currentStoryId } from './story.js';
 import { openBankModal } from './repeat.js';
+import { manageKidRow } from './account.js';
 
 let root = null;
 
@@ -39,6 +40,7 @@ function render() {
       ),
     ),
     el('p', { class: 'settings-note', style: 'margin:-6px 0 16px;', text: t('parent_note') }),
+    (() => { const r = manageKidRow(render); return r ? el('div', { class: 'card', style: 'padding:14px 16px;margin-bottom:18px;' }, r, el('p', { class: 'settings-note', style: 'margin-top:8px;', text: t('manage_note') })) : null; })(),
     el('div', { class: 'ptiles' },
       tile('sparkle', t('new_story'), t('parent_new_desc'), 'p-berry', () => { sfx.tap(); openGenModal(); }),
       tile('cards', t('words_title'), t('parent_words_desc', { n: words.length }), 'p-mint', () => { sfx.tap(); showPage('words'); }),

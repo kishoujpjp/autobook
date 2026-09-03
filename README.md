@@ -1,6 +1,6 @@
 # 自動繪本 Autobook
 
-給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.26.0**。
+給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.27.0**。
 
 - 線上版（GitHub Pages，push `main` 自動部署）：https://kishoujpjp.github.io/autobook/
 - 純前端 ES modules、無 build step；AI 走使用者自備的 Gemini API Key（存本機）。
@@ -127,6 +127,8 @@
 - **kid 級 toast（v1.26.0）**：小孩帳號的 toast 一律大圖示（✓／⚠）＋短音效＋大字（`.toast.kid`）。
 - **首啟 onboarding（v1.26.0）**：`js/onboarding.js`——完全沒資料時三步：選頭像（建立小孩帳號）→ 放進示範字表與示範書（`createDemoStory()`）→ 家長入口說明（可直接去設定 PIN／API Key）。`settings.onboarded` 記住；有資料的舊用戶啟動時直接標成已完成。
 - **標籤精簡（v1.26.0）**：`rs_mode`、`set_tap_speak`、`weak_mode`、`set_lang`、`set_tts_key`、`set_dl_syl`、`gen_today`、`gen_mix` 去掉括號說明，說明改成獨立 `settings-note`。
+- **每個小孩各自一份認字表（v1.27.0）**：`autobook.wordsBy = { 帳號id: word[] }`，字、紅綠、入庫、用字次數全部獨立；舊版單一字表 `autobook.words` 第一次啟動整份搬給第一個小孩帳號（沒有小孩就留給家長），之後不再使用（仍在備份白名單裡，舊備份可匯入）。`store.words` 是「作用中的字表」（`export let`，live binding）：小孩登入＝自己的；家長＝正在管理的小孩（`settings.manageAcc`，家長頁與字表頁頂端的「正在管理」頭像列切換，`setManageAcc()`）。`cardKey()` 也以作用中字表的主人為準，家長幫小孩標紅綠寫的是那個小孩的紀錄。新建第一個小孩帳號時家長手上的字表自動交給小孩（`moveWords`）；字表空的小孩可一鍵「複製另一個小孩的字表」（`copyWords`，只複製字不複製紅綠）。刪帳號連字表一起刪。生成故事、遊戲、本篇新字都用作用中的字表；**本篇新字改成每次依作用中字表重算**（存下來的 `newChars` 只是生成當時的）。
+- **重讀不清掉認字表標註（v1.27.0）**：標註模式的字塊先照認字表上的紅綠顯示（`seedMark`），這一輪點過的才以 `story.marksBy` 為準；**點第一下＝讀過了、維持原標註**（tick 音），再點一下才輪換（綠→紅→白）並寫回字表。「再讀一遍」「狀態重置」只清這一輪的進度，每個小孩重讀同一本時自己還不會的字一直看得到。「直接完成」對標紅的字維持紅。
 - **聽音認字的干擾項改 `pickWrong()`**：從「其他未入庫字」過濾後隨機取，只剩一個字時回 null 並略過該題（舊寫法 `while (wrong === ch)` 在只剩一個未入庫字時會無限迴圈凍住 iPad）；開始前檢查的是「未入庫字數 ≥ 4」而非字表總數。
 
 ## 發音架構（重要）

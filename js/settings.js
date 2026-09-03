@@ -415,7 +415,7 @@ async function importBackupFile(file) {
   // ---- 1. localStorage：只收白名單鍵，逐鍵驗證 JSON 與型別 ----
   const local = {};
   const keyOk = {
-    'autobook.settings': isObj, 'autobook.accounts': Array.isArray, 'autobook.words': Array.isArray,
+    'autobook.settings': isObj, 'autobook.accounts': Array.isArray, 'autobook.words': Array.isArray, 'autobook.wordsBy': isObj,
     'autobook.stories': Array.isArray, 'autobook.phrases': Array.isArray, 'autobook.repGroups': Array.isArray,
     'autobook.currentAccount': (v) => typeof v === 'string',
   };

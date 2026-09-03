@@ -4,7 +4,7 @@ import { t } from './i18n.js';
 import { el, openModal, toast } from './ui.js';
 import { icon } from './icons.js';
 import { sfx } from './sfx.js';
-import { settings, saveSettings, stories, words, accounts, saveAccounts, addWords, DEMO_WORDS } from './store.js';
+import { settings, saveSettings, stories, words, accounts, saveAccounts, addWords, DEMO_WORDS, setManageAcc } from './store.js';
 import { PRESETS, presetSvg } from './avatars.js';
 import { createDemoStory } from './story.js';
 import { showPage } from './nav.js';
@@ -63,12 +63,14 @@ export function openOnboarding() {
       m.foot.append(skip, el('button', { class: 'btn', onclick: () => {
         sfx.tap();
         const name = kidName.trim() || t('ob_kid_default');
-        accounts.push({
+        const kid = {
           id: `a-kid-${Date.now().toString(36)}`,
           name, role: 'kid',
           avatar: { kind: 'preset', preset },
-        });
+        };
+        accounts.push(kid);
         saveAccounts();
+        setManageAcc(kid.id); // 接下來放的示範字表是這個小孩的
         step = 1; renderStep();
       } }, t('ob_next'), icon('next')));
       return;
