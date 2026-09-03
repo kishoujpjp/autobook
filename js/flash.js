@@ -8,6 +8,7 @@
 // 熟悉度紀錄依「帳號×語系」分開（store.cards）。
 import { t, getLang } from './i18n.js';
 import { el, toast } from './ui.js';
+import { icon } from './icons.js';
 import { sfx } from './sfx.js';
 import {
   settings, saveSettings, words, isCooling, getCard, cycleMark, bumpFlash,
@@ -256,7 +257,7 @@ export function startFlash(root, mode, onExit, opts = {}) {
   root.append(
     el('div', { class: 'fc-stage' },
       el('div', { class: 'spread' },
-        el('div', { class: 'row' }, backBtn, el('div', { class: 'h1', style: 'margin:0;' }, mode === 'char' ? '🃏 ' : '🧩 ', title)),
+        el('div', { class: 'row' }, backBtn, el('div', { class: 'h1', style: 'margin:0;' }, icon(mode === 'char' ? 'cards' : 'puzzle'), title)),
         el('div', { class: 'row' }, lenSeg, counter),
       ),
       cardArea,

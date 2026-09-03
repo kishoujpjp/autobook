@@ -3,6 +3,7 @@
 // 允許重複錄音刷分；左右邊緣箭頭或滑動換題（本輪沒分數不可往前）。
 import { t } from './i18n.js';
 import { el, toast, openModal, confirmDialog, infoDialog, confetti } from './ui.js';
+import { icon } from './icons.js';
 import { sfx, playBlob, speakNative } from './sfx.js';
 import {
   settings, saveSettings, phrases, addPhrases, savePhrases,
@@ -106,16 +107,16 @@ function renderHome() {
   const kid = isKid();
   root.append(
     el('div', { class: 'spread', style: 'margin-bottom:16px;' },
-      el('div', { class: 'h1', style: 'margin-bottom:0;' }, '🎤 ', t('rep_title')),
+      el('div', { class: 'h1', style: 'margin-bottom:0;' }, icon('mic'), t('rep_title')),
       kid ? null : el('div', { class: 'row' },
-        el('button', { class: 'btn sky', onclick: () => { sfx.tap(); fillContent(); } }, '✨ ', t('rep_fill_ai')),
-        el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); openBankModal(); } }, '📚 ', t('rep_bank')),
+        el('button', { class: 'btn sky', onclick: () => { sfx.tap(); fillContent(); } }, icon('sparkle'), t('rep_fill_ai')),
+        el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); openBankModal(); } }, icon('folder'), t('rep_bank')),
       ),
     ),
   );
 
   if (!srCtor()) {
-    root.append(el('p', { class: 'settings-note', style: 'margin-bottom:12px;', text: `⚠️ ${t('rep_sr_unavail')}` }));
+    root.append(el('p', { class: 'settings-note', style: 'margin-bottom:12px;' }, icon('warn'), ' ', t('rep_sr_unavail')));
   }
 
   // 評分嚴格度
@@ -139,16 +140,16 @@ function renderHome() {
   if (!kid) {
     root.append(el('div', { class: 'card', style: 'margin-bottom:18px;' },
       el('div', { class: 'settings-line' },
-        el('span', { text: `🎯 ${t('rep_strict')}` }), strictSeg,
+        el('span', {}, icon('target'), t('rep_strict')), strictSeg,
       ),
     ));
   }
 
   if (!repGroups.length) {
     root.append(el('div', { class: 'card story-empty' },
-      el('span', { class: 'emoji', text: '🗣️' }),
+      el('span', { class: 'emoji' }, icon('chat')),
       el('p', { text: t(kid ? 'rep_no_groups_kid' : 'rep_no_groups') }),
-      kid ? null : el('button', { class: 'btn big', onclick: () => { sfx.tap(); openBankModal(); } }, '📚 ', t('rep_bank')),
+      kid ? null : el('button', { class: 'btn big', onclick: () => { sfx.tap(); openBankModal(); } }, icon('folder'), t('rep_bank')),
     ));
     return;
   }
@@ -259,7 +260,7 @@ function filterBar(st, onChange, { orphan = true } = {}) {
     chips.append(c);
   }
   if (orphan) {
-    const oc = el('button', { class: `tagchip warn${st.orphan ? ' on' : ''}`, text: `📎 ${t('rep_f_orphan')}` });
+    const oc = el('button', { class: `tagchip warn${st.orphan ? ' on' : ''}`, text: t('rep_f_orphan') });
     oc.addEventListener('click', () => { sfx.tap(); st.orphan = !st.orphan; oc.classList.toggle('on'); onChange(); });
     chips.append(oc);
   }
@@ -269,7 +270,7 @@ function filterBar(st, onChange, { orphan = true } = {}) {
 }
 
 function openBankModal(initialTab = 'groups') {
-  const m = openModal(`📚 ${t('rep_bank')}`, { onClose: renderHome });
+  const m = openModal(t('rep_bank'), { icon: 'folder', onClose: renderHome });
   let tab = initialTab;
   const content = el('div', {});
   const tabSeg = el('div', { class: 'seg', style: 'margin-bottom:14px;' });
@@ -303,15 +304,15 @@ function openBankModal(initialTab = 'groups') {
     function refreshGroups() {
       groupList.innerHTML = '';
       for (const g of repGroups) {
-        const edit = el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); openGroupEditor(g, refreshGroups); } }, '✏️');
-        const del = el('button', { class: 'book-del', text: '🗑' });
+        const edit = el('button', { class: 'btn ghost small', 'aria-label': t('edit_label'), onclick: () => { sfx.tap(); openGroupEditor(g, refreshGroups); } }, icon('edit'));
+        const del = el('button', { class: 'book-del', 'aria-label': t('del_label') }, icon('trash'));
         del.addEventListener('click', async () => {
           sfx.tap();
           const yes = await confirmDialog(t('rep_group_del_confirm', { n: g.name }));
           if (yes) { removeRepGroup(g.id); refreshGroups(); }
         });
         groupList.append(el('div', { class: 'book-row' },
-          el('span', { class: 'book-open', text: `📦 ${g.name}（${g.ids.length}）` }),
+          el('span', { class: 'book-open' }, icon('package'), `${g.name}（${g.ids.length}）`),
           edit, del,
         ));
       }
@@ -332,7 +333,7 @@ function openBankModal(initialTab = 'groups') {
       return b;
     };
     modeSeg.append(mkMode('word', t('rep_ai_word')), mkMode('sentence', t('rep_ai_sentence')));
-    const aiBtn = el('button', { class: 'btn sky small' }, '🪄 ', t('rep_ai_go'));
+    const aiBtn = el('button', { class: 'btn sky small' }, icon('wand'), t('rep_ai_go'));
     aiBtn.addEventListener('click', async () => {
       sfx.tap();
       if (!settings.apiKey) { toast(t('rep_need_key_ai'), true); return; }
@@ -353,9 +354,9 @@ function openBankModal(initialTab = 'groups') {
     content.append(
       groupList,
       el('div', { class: 'row', style: 'margin:6px 0 4px;' },
-        el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); openGroupEditor(null, refreshGroups); } }, '➕ ', t('rep_group_new')),
+        el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); openGroupEditor(null, refreshGroups); } }, icon('plus'), t('rep_group_new')),
       ),
-      el('div', { class: 'field-label', text: `🪄 ${t('rep_ai_go')}（${t('rep_ai_note')}）` }),
+      el('div', { class: 'field-label' }, icon('wand'), `${t('rep_ai_go')}（${t('rep_ai_note')}）`),
       el('div', { class: 'row' }, topicInput, modeSeg, aiBtn),
     );
   }
@@ -365,7 +366,7 @@ function openBankModal(initialTab = 'groups') {
     // 新增區（可帶一個 tag）
     const input = el('textarea', { class: 'text-area', placeholder: t('rep_bank_add_ph'), autocapitalize: 'off', style: 'min-height:70px;' });
     const tagIn = el('input', { class: 'text-input', placeholder: t('rep_tag_ph'), autocapitalize: 'off', style: 'max-width:220px;' });
-    const addBtn = el('button', { class: 'btn mint small' }, '➕ ', t('rep_bank_add'));
+    const addBtn = el('button', { class: 'btn mint small' }, icon('plus'), t('rep_bank_add'));
     addBtn.addEventListener('click', () => {
       sfx.tap();
       const tg = tagIn.value.trim();
@@ -385,7 +386,7 @@ function openBankModal(initialTab = 'groups') {
         const gN = phraseGroupCount(p.id);
         const metaBits = [];
         if ((p.tags || []).length) metaBits.push(p.tags.map((x) => `#${x}`).join(' '));
-        metaBits.push(gN ? t('rep_in_groups', { n: gN }) : `📎 ${t('rep_f_orphan')}`);
+        metaBits.push(gN ? t('rep_in_groups', { n: gN }) : t('rep_f_orphan'));
         const row = el('button', { class: `rep-pick${selected.has(p.id) ? ' on' : ''}` },
           el('span', { text: p.text }),
           el('span', { class: 'meta', text: metaBits.join('｜') }),
@@ -411,15 +412,15 @@ function openBankModal(initialTab = 'groups') {
         return b;
       };
       m.foot.append(
-        mk('sky', `📦 ${t('rep_batch_group', { n })}`, () => {
+        mk('sky', t('rep_batch_group', { n }), () => {
           sfx.tap();
           openGroupChooser([...selected], () => { selected.clear(); render(); });
         }),
-        mk('ghost', `🏷 ${t('rep_batch_tag', { n })}`, () => {
+        mk('ghost', t('rep_batch_tag', { n }), () => {
           sfx.tap();
           openTagModal([...selected], () => render());
         }),
-        mk('berry', `🗑 ${t('rep_batch_del', { n })}`, async () => {
+        mk('danger', t('rep_batch_del', { n }), async () => {
           sfx.tap();
           const yes = await confirmDialog(t('rep_del_sel_confirm', { n }));
           if (yes) {
@@ -446,9 +447,9 @@ function openBankModal(initialTab = 'groups') {
 
 // ---- 加入練習組選擇器 ----
 function openGroupChooser(ids, onDone) {
-  const m = openModal(`📦 ${t('rep_pick_group')}`);
+  const m = openModal(t('rep_pick_group'), { icon: 'package' });
   for (const g of repGroups) {
-    const row = el('button', { class: 'book-open', style: 'width:100%;margin-bottom:10px;', text: `📦 ${g.name}（${g.ids.length}）` });
+    const row = el('button', { class: 'book-open', style: 'width:100%;margin-bottom:10px;' }, icon('package'), `${g.name}（${g.ids.length}）`);
     row.addEventListener('click', () => {
       sfx.sparkle();
       const set = new Set(g.ids);
@@ -462,13 +463,13 @@ function openGroupChooser(ids, onDone) {
     m.body.append(row);
   }
   m.foot.append(
-    el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); m.close(); openGroupEditor(null, onDone, ids); } }, '➕ ', t('rep_group_new')),
+    el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); m.close(); openGroupEditor(null, onDone, ids); } }, icon('plus'), t('rep_group_new')),
   );
 }
 
 // ---- 批次打 tag ----
 function openTagModal(ids, onDone) {
-  const m = openModal(`🏷 ${t('rep_tag_title')}`);
+  const m = openModal(t('rep_tag_title'), { icon: 'tag' });
   const input = el('input', { class: 'text-input', placeholder: t('rep_tag_ph'), autocapitalize: 'off' });
   const chips = el('div', { class: 'row', style: 'gap:8px;margin-top:12px;' });
   for (const tg of allPhraseTags()) {
@@ -497,7 +498,7 @@ function openTagModal(ids, onDone) {
 
 // ---- 練習組編輯（命名＋勾選題目，含搜尋過濾） ----
 function openGroupEditor(existing, onDone, preIds) {
-  const m = openModal(existing ? `✏️ ${existing.name}` : `➕ ${t('rep_group_new')}`);
+  const m = openModal(existing ? existing.name : t('rep_group_new'), { icon: existing ? 'edit' : 'plus' });
   const nameInput = el('input', {
     class: 'text-input', placeholder: t('rep_group_name_ph'),
     value: existing ? existing.name : '',
@@ -530,7 +531,7 @@ function openGroupEditor(existing, onDone, preIds) {
   );
   renderList();
 
-  const saveBtn = el('button', { class: 'btn mint' }, '💾 ', t('acc_save'));
+  const saveBtn = el('button', { class: 'btn mint' }, icon('save'), t('acc_save'));
   saveBtn.addEventListener('click', () => {
     sfx.tap();
     const name = nameInput.value.trim();
@@ -552,7 +553,7 @@ function openGroupEditor(existing, onDone, preIds) {
 
 // ---- AI 出題預覽：確認增刪後存成練習組（自動打主題 tag） ----
 function openAiPreview(items, defaultName, onDone) {
-  const m = openModal(`🪄 ${t('rep_ai_preview')}`);
+  const m = openModal(t('rep_ai_preview'), { icon: 'wand' });
   const nameInput = el('input', { class: 'text-input', value: defaultName });
   const kept = [...items];
 
@@ -560,7 +561,7 @@ function openAiPreview(items, defaultName, onDone) {
   function renderRows() {
     list.innerHTML = '';
     kept.forEach((text, i) => {
-      const del = el('button', { class: 'book-del', text: '✕' });
+      const del = el('button', { class: 'book-del', 'aria-label': t('del_label') }, icon('close'));
       del.addEventListener('click', () => { sfx.tap(); kept.splice(i, 1); renderRows(); });
       list.append(el('div', { class: 'book-row' },
         el('span', { class: 'book-open', text }),
@@ -573,11 +574,11 @@ function openAiPreview(items, defaultName, onDone) {
   m.body.append(
     el('div', { class: 'field-label', style: 'margin-top:0;', text: t('rep_group_name') }),
     nameInput,
-    el('div', { class: 'field-label', text: '📋' }),
+    el('div', { class: 'field-label' }, icon('clipboard')),
     list,
   );
 
-  const saveBtn = el('button', { class: 'btn mint' }, '💾 ', t('acc_save'));
+  const saveBtn = el('button', { class: 'btn mint' }, icon('save'), t('acc_save'));
   saveBtn.addEventListener('click', () => {
     sfx.tap();
     const name = nameInput.value.trim();
@@ -671,7 +672,7 @@ function startPractice(items) {
     root.append(
       el('div', { class: 'card rep-end2' },
         el('div', { class: 'end-list-col' },
-          el('h2', { text: `📋 ${t('rep_scoreboard')}` }),
+          el('h2', {}, icon('clipboard'), t('rep_scoreboard')),
           el('div', { class: 'end-list' },
             items.map((p, qi) => answers[qi] ? el('div', { class: 'end-row' },
               el('span', { class: 'txt', text: p.text }),
@@ -738,7 +739,7 @@ function startPractice(items) {
     root.append(
       el('div', { class: 'rep-stage' },
         el('div', { class: 'spread' },
-          el('div', { class: 'row' }, backBtn, el('div', { class: 'h1', style: 'margin:0;' }, '🎤 ', t('rep_title'))),
+          el('div', { class: 'row' }, backBtn, el('div', { class: 'h1', style: 'margin:0;' }, icon('mic'), t('rep_title'))),
           el('span', { class: 'fc-counter', text: `${i + 1} / ${items.length}` }),
         ),
         main,
@@ -804,7 +805,7 @@ function startPractice(items) {
       } else {
         img.remove();
         figWrap.style.background = 'linear-gradient(160deg,#BFE3FF 0%,#E8F6E4 55%,#FFF3C9 100%)';
-        figWrap.append(el('div', { class: 'rep-fig-emoji', text: '🌈' }));
+        figWrap.append(el('div', { class: 'rep-fig-emoji' }, icon('rainbow')));
       }
     })();
 
@@ -836,7 +837,7 @@ function startPractice(items) {
       });
       scorePill.textContent = String(a.score);
       scorePill.className = `rep-score ${scoreCls(a.score)}`;
-      if (a.heard) hint.textContent = `👂 ${a.heard}`;
+      if (a.heard) hint.replaceChildren(icon('ear'), ' ', a.heard);
       refreshEdges();
     }
     if (answers[i]) showAnswer(answers[i]);

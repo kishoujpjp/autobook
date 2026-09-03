@@ -5,7 +5,8 @@
 // 一本書可以放多組圖片／影片，讀完一遍換下一組（讀完最後一組之後固定用最後一組）
 // 顯示時故事文字依語系做繁簡轉換（儲存保持生成當下的字形）
 import { t, getLang } from './i18n.js';
-import { el, toast, openModal, confirmDialog, infoDialog, confetti } from './ui.js';
+import { el, toast, openModal, confirmDialog, infoDialog, confetti, switchEl } from './ui.js';
+import { icon } from './icons.js';
 import { sfx, playBlob, speakNative } from './sfx.js';
 import {
   settings, saveSettings, words, isHan, addWords, bumpUsed, bumpRead, setMark, getCard, currentAccount,
@@ -76,17 +77,17 @@ export function render() {
 
   root.append(
     el('div', { class: 'spread', style: 'margin-bottom:16px;' },
-      el('div', { class: 'h1', style: 'margin-bottom:0;' }, '📖 ', t('story_title')),
+      el('div', { class: 'h1', style: 'margin-bottom:0;' }, icon('book'), t('story_title')),
       el('div', { class: 'row' },
         story && !kid
-          ? el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); openReadSettings(story); } }, '⚙️ ', t('read_settings'))
+          ? el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); openReadSettings(story); } }, icon('sliders'), t('read_settings'))
           : null,
         stories.length
-          ? el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); openShelfModal(); } }, '📚 ', t('shelf_title'))
+          ? el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); openShelfModal(); } }, icon('folder'), t('shelf_title'))
           : null,
         kid
           ? null
-          : el('button', { class: 'btn berry', onclick: () => { sfx.tap(); openGenModal(); } }, '✨ ', t('new_story')),
+          : el('button', { class: 'btn berry', onclick: () => { sfx.tap(); openGenModal(); } }, icon('sparkle'), t('new_story')),
       ),
     ),
   );
@@ -94,9 +95,9 @@ export function render() {
   if (!story) {
     root.append(
       el('div', { class: 'card story-empty' },
-        el('span', { class: 'emoji', text: '🧚' }),
+        el('span', { class: 'emoji' }, icon('fairy')),
         ...t(kid ? 'story_empty_kid' : 'story_empty').split('\n').map((line) => el('p', { text: line })),
-        kid ? null : el('button', { class: 'btn big', onclick: () => { sfx.tap(); openGenModal(); } }, '✨ ', t('make_story')),
+        kid ? null : el('button', { class: 'btn big', onclick: () => { sfx.tap(); openGenModal(); } }, icon('sparkle'), t('make_story')),
       ),
     );
     return;
@@ -174,9 +175,9 @@ export function render() {
     const done = doneCount() >= hanTotal;
     const reads = storyReads(story);
     againBtn.hidden = !done;
-    againBtn.textContent = `🔁 ${t('story_again')}`; // 還剩幾個沒打開看旁邊的 chip，按鈕留短的才排得下
+    againBtn.replaceChildren(icon('refresh'), t('story_again')); // 還剩幾個沒打開看旁邊的 chip，按鈕留短的才排得下
     replayBtn.hidden = !(done && layout === 'focus');
-    replayBtn.textContent = `🖼 ${t('media_replay')}`;
+    replayBtn.replaceChildren(icon('image'), t('media_replay'));
     slotChip.hidden = media.length < 2;
     slotChip.textContent = t('media_unlocked', { a: Math.min(reads, media.length), b: media.length });
   }
@@ -192,8 +193,8 @@ export function render() {
   if (titleLine) textWrap.append(titleLine);
   const scroll = el('div', { class: 'story-scroll' }, textWrap);
   const textCard = el('div', { class: 'card text-card' }, scroll);
-  const upBtn = el('button', { class: 'page-btn', text: '▲' });
-  const downBtn = el('button', { class: 'page-btn', text: '▼' });
+  const upBtn = el('button', { class: 'page-btn', 'aria-label': t('page_prev') }, icon('prev'));
+  const downBtn = el('button', { class: 'page-btn', 'aria-label': t('page_next') }, icon('next'));
   const pageInd = el('span', { class: 'page-ind', text: '1 / 1' });
 
   // 頁高鎖成整行：先算放得下幾行（字塊高 + 10px 基本行距），
@@ -281,7 +282,8 @@ export function render() {
     pageRO.observe(textCard);
   }
 
-  const pager = el('div', { class: 'story-pager' }, downBtn, pageInd, upBtn);
+  // 左 ◀ 上一頁／右 ▶ 下一頁，橫直向一致（v1.25.0 推翻 v1.1 的「下一頁在左」）
+  const pager = el('div', { class: 'story-pager' }, upBtn, pageInd, downBtn);
   if (layout === 'focus') {
     // 專注閱讀：整頁都是文字框（書名就是第一行），下面一條頁尾——
     // 上排是不可點的進度條，下排左邊擺功能（新字、動作鈕）、右邊擺翻頁鈕，
@@ -382,29 +384,35 @@ export function render() {
   // 書名：一排跟內文同款的字塊（點了會唸），不進 ziBtns 所以不影響「這一頁讀完了沒」
   if (titleLine) {
     const storedTitle = [...(story.title || '')];
+    let grp = null;
     [...dispTitle].forEach((ch, k) => {
       if (!isHan(ch)) {
         const sp = el('span', { class: 'punct', text: ch });
-        titleLine.append(sp);
+        if (grp) grp.append(sp); else titleLine.append(sp);
         titleTiles.push(sp);
         return;
       }
       const stored = storedTitle[k] || ch;
       const btn = makeZi(ch, -(k + 1), () => speakOne(stored, ch));
-      titleLine.append(btn);
+      grp = el('span', { class: 'zg' }, btn);
+      titleLine.append(grp);
       titleTiles.push(btn);
     });
   }
 
+  // 每個字塊包一層 .zg；後面的標點塞進同一個群組，flex 換行時標點永遠跟著前一個字（杜絕行首標點）
+  let lastGrp = null;
   chars.forEach((ch, i) => {
-    if (ch === '\n') { textWrap.append(el('div', { class: 'linebreak' })); return; }
+    if (ch === '\n') { textWrap.append(el('div', { class: 'linebreak' })); lastGrp = null; return; }
     if (!isHan(ch)) {
-      textWrap.append(el('span', { class: 'punct', text: ch }));
+      const sp = el('span', { class: 'punct', text: ch });
+      if (lastGrp) lastGrp.append(sp); else textWrap.append(sp);
       return;
     }
     hanIndices.push(i);
     const btn = makeZi(ch, i, () => speakAt(story, ch, i));
-    textWrap.append(btn);
+    lastGrp = el('span', { class: 'zg' }, btn);
+    textWrap.append(lastGrp);
     ziBtns.push({ btn, i });
   });
 
@@ -558,7 +566,7 @@ function createMediaView(m) {
   const kind = m ? m.kind : 'none';
   if (!m) {
     box.classList.add('media-none');
-    box.append(el('span', { class: 'media-none-emoji', text: '🌈' }));
+    box.append(el('span', { class: 'media-none-emoji' }, icon('rainbow')));
     return { el: box, kind, start: noop, stop: noop, destroy: noop };
   }
 
@@ -567,7 +575,7 @@ function createMediaView(m) {
     if (embed) {
       // iframe 一放進 DOM 就開始載入播放，所以等揭曉時才建立
       let frame = null;
-      const ph = el('span', { class: 'media-none-emoji', text: '🎬' });
+      const ph = el('span', { class: 'media-none-emoji' }, icon('video'));
       const shield = el('div', { class: 'media-shield' }); // 吃掉所有點擊：小孩點影片不會跳去 YouTube
       box.append(ph);
       const stop = () => { if (frame) { frame.remove(); shield.remove(); frame = null; box.append(ph); } };
@@ -596,13 +604,13 @@ function createMediaView(m) {
     v.preload = 'auto';
     v.setAttribute('playsinline', '');
     v.setAttribute('muted', '');
-    const sound = el('button', { class: 'media-sound', text: '🔇' });
+    const sound = el('button', { class: 'media-sound', 'aria-label': t('media_sound') }, icon('mute'));
     sound.hidden = true; // 迷霧還沒散開前不露出喇叭鈕
     sound.addEventListener('click', (e) => {
       e.stopPropagation();
       sfx.tap();
       v.muted = !v.muted;
-      sound.textContent = v.muted ? '🔇' : '🔊';
+      sound.replaceChildren(icon(v.muted ? 'mute' : 'speaker'));
       v.play().catch(() => {});
     });
     box.append(v, sound);
@@ -631,7 +639,7 @@ function closeStage() {
 function openStage(view) {
   closeStage();
   const frame = el('div', { class: 'story-frame in' },
-    ...['tl', 'tr', 'bl', 'br'].map((k) => el('span', { class: `orn ${k}`, text: '✦' })),
+    ...['tl', 'tr', 'bl', 'br'].map((k) => el('span', { class: `orn ${k}` }, icon('sparkle'))),
     el('div', { class: 'frame-mat' }, view.el),
   );
   const shut = () => { sfx.tap(); view.stop(); closeStage(); };
@@ -651,7 +659,7 @@ function openStage(view) {
   });
   const stage = el('div', { class: 'reveal-stage' },
     frame,
-    el('button', { class: 'stage-close', onclick: (e) => { e.stopPropagation(); shut(); } }, '✕ ', t('reveal_close')),
+    el('button', { class: 'stage-close', onclick: (e) => { e.stopPropagation(); shut(); } }, icon('close'), t('reveal_close')),
   );
   stage.addEventListener('click', (e) => { if (e.target === stage) shut(); });
   // 掛在故事頁裡：切到別的分頁時整頁 display:none，舞台跟著收起來
@@ -671,12 +679,12 @@ function speakChar(story, dispCh) {
 
 /** 揭曉時灑在插圖上的魔法星星 */
 function spawnMagicStars(host) {
-  const glyphs = ['✨', '⭐', '🌟'];
+  const names = ['sparkle', 'star', 'sparkle'];
   for (let i = 0; i < 12; i++) {
-    const s = el('span', { class: 'magic-star', text: glyphs[i % glyphs.length] });
+    const s = el('span', { class: 'magic-star' }, icon(names[i % names.length]));
     s.style.left = `${6 + Math.random() * 84}%`;
     s.style.top = `${6 + Math.random() * 84}%`;
-    s.style.fontSize = `${22 + Math.random() * 26}px`;
+    s.style.width = s.style.height = `${22 + Math.random() * 26}px`;
     s.style.animationDelay = `${(Math.random() * 0.45).toFixed(2)}s`;
     host.append(s);
     setTimeout(() => s.remove(), 2200);
@@ -685,7 +693,7 @@ function spawnMagicStars(host) {
 
 // ---------- 閱讀設定（集中故事頁的工具鈕） ----------
 function openReadSettings(story) {
-  const m = openModal(`⚙️ ${t('read_settings')}`);
+  const m = openModal(t('read_settings'), { icon: 'sliders' });
   const mode = settings.storyMode === 'mark' ? 'mark' : 'hl';
 
   // 點讀模式
@@ -703,7 +711,7 @@ function openReadSettings(story) {
     });
     return b;
   };
-  modeSeg.append(mkMode('hl', `✨ ${t('story_mode_hl')}`), mkMode('mark', `🖍 ${t('story_mode_mark')}`));
+  modeSeg.append(mkMode('hl', t('story_mode_hl')), mkMode('mark', t('story_mode_mark')));
 
   // 字體大小
   const fontSeg = el('div', { class: 'seg' });
@@ -720,7 +728,7 @@ function openReadSettings(story) {
     });
     return b;
   };
-  fontSeg.append(mkFont('small', `🔡 ${t('font_small')}`), mkFont('big', `🔠 ${t('font_big')}`));
+  fontSeg.append(mkFont('small', t('font_small')), mkFont('big', t('font_big')));
 
   // 閱讀版面：並排（舊版）／專注閱讀（讀完才用特效打開大圖片框）
   const layoutSeg = el('div', { class: 'seg' });
@@ -738,25 +746,21 @@ function openReadSettings(story) {
     });
     return b;
   };
-  layoutSeg.append(mkLayout('side', `🖼 ${t('layout_side')}`), mkLayout('focus', `🔍 ${t('layout_focus')}`));
+  layoutSeg.append(mkLayout('side', t('layout_side')), mkLayout('focus', t('layout_focus')));
 
   // 點字發音開關（標註模式下：標綠不發音、標紅發音一次）
-  const speakSw = el('button', { class: `switch${settings.storySpeak ? ' on' : ''}` });
-  speakSw.addEventListener('click', () => {
+  const speakSw = switchEl(settings.storySpeak, (on) => {
     sfx.tap();
-    settings.storySpeak = !settings.storySpeak;
+    settings.storySpeak = on;
     saveSettings();
-    speakSw.classList.toggle('on', settings.storySpeak);
-  });
+  }, t('rs_speak'));
 
   // 自動翻頁：這一頁的字都點過了，2 秒後自動翻下一頁
-  const autoSw = el('button', { class: `switch${settings.autoPage ? ' on' : ''}` });
-  autoSw.addEventListener('click', () => {
+  const autoSw = switchEl(settings.autoPage, (on) => {
     sfx.tap();
-    settings.autoPage = !settings.autoPage;
+    settings.autoPage = on;
     saveSettings();
-    autoSw.classList.toggle('on', settings.autoPage);
-  });
+  }, t('rs_autopage'));
 
   m.body.append(
     el('div', { class: 'field-label', text: t('rs_mode') }), modeSeg,
@@ -764,23 +768,23 @@ function openReadSettings(story) {
     el('div', { class: 'field-label', text: t('rs_layout') }), layoutSeg,
     el('p', { class: 'settings-note', text: t('rs_layout_note') }),
     el('div', { class: 'settings-line', style: 'margin-top:14px;' },
-      el('span', { text: `🗣️ ${t('rs_speak')}` }), speakSw,
+      el('span', {}, icon('speaker'), t('rs_speak')), speakSw,
     ),
     el('p', { class: 'settings-note', text: t('rs_speak_note') }),
     el('div', { class: 'settings-line', style: 'margin-top:14px;' },
-      el('span', { text: `📄 ${t('rs_autopage')}` }), autoSw,
+      el('span', {}, icon('next'), t('rs_autopage')), autoSw,
     ),
     el('p', { class: 'settings-note', text: t('rs_autopage_note') }),
   );
 
   // 這本書的圖片／影片（可放多組，讀完一遍換下一組）與內文編輯
   m.body.append(
-    el('div', { class: 'field-label', text: `🖼 ${t('rs_media')}` }),
+    el('div', { class: 'field-label' }, icon('image'), t('rs_media')),
     el('div', { class: 'row' },
       el('button', { class: 'btn sky small', onclick: () => { sfx.tap(); m.close(); openMediaModal(story, render); } },
-        '🖼 ', t('rs_media_btn')),
+        icon('image'), t('rs_media_btn')),
       el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); m.close(); openEditStoryModal(story, render); } },
-        '✏️ ', t('story_edit')),
+        icon('edit'), t('story_edit')),
     ),
   );
 
@@ -788,7 +792,7 @@ function openReadSettings(story) {
   m.body.append(
     el('div', { class: 'field-label', text: t('rs_add_new_label') }),
     el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); m.close(); openAddNewChars(story); } },
-      '➕ ', t('rs_add_new')),
+      icon('plus'), t('rs_add_new')),
   );
 
   // 閱讀進度：直接完成（跳過點讀，照樣播特效與計次）／狀態重置（回到還沒讀過）
@@ -798,9 +802,9 @@ function openReadSettings(story) {
       sfx.tap();
       m.close(); // 先關掉面板，特效才看得到
       if (completeNow) completeNow();
-    } }, '✅ ', t('rs_finish')));
+    } }, icon('check'), t('rs_finish')));
   }
-  progRow.append(el('button', { class: 'btn ghost small', onclick: async () => {
+  progRow.append(el('button', { class: 'btn danger small', onclick: async () => {
     sfx.tap();
     const yes = await confirmDialog(t('rs_reset_confirm'));
     if (!yes) return;
@@ -812,7 +816,7 @@ function openReadSettings(story) {
     m.close();
     toast(t('rs_reset_done'));
     render();
-  } }, '♻️ ', t('rs_reset')));
+  } }, icon('refresh'), t('rs_reset')));
   m.body.append(
     el('div', { class: 'field-label', text: t('rs_progress_label') }),
     progRow,
@@ -824,8 +828,8 @@ function openReadSettings(story) {
       sfx.tap();
       m.close();
       prepStoryVoice(story);
-    } }, '🔊 ', t('prep_voice')),
-    el('button', { class: 'btn ghost', onclick: async () => {
+    } }, icon('speaker'), t('prep_voice')),
+    el('button', { class: 'btn danger', onclick: async () => {
       sfx.tap();
       m.close();
       const yes = await confirmDialog(t('story_clear_confirm'));
@@ -835,7 +839,7 @@ function openReadSettings(story) {
       else if (story.marksBy) delete story.marksBy[currentAccountId];
       saveStories();
       render();
-    } }, '🧽 ', t('story_clear')),
+    } }, icon('broom'), t('story_clear')),
   );
 }
 
@@ -875,7 +879,7 @@ function shelfStats(story) {
 }
 function openShelfModal() {
   const urls = []; // 封面 blob URL，關閉時釋放
-  const m = openModal(`📚 ${t('shelf_title')}`, { onClose: () => urls.forEach((u) => URL.revokeObjectURL(u)) });
+  const m = openModal(t('shelf_title'), { icon: 'folder', onClose: () => urls.forEach((u) => URL.revokeObjectURL(u)) });
   const kid = currentAccount().role === 'kid';
   const sort = ['new', 'fresh', 'unread'].includes(settings.shelfSort) ? settings.shelfSort : 'new';
   const items = stories.map((s) => ({ s, st: shelfStats(s) }));
@@ -923,13 +927,13 @@ function openShelfModal() {
       const [c1, c2] = coverTint(s.id);
       art.classList.add('plain');
       art.style.background = `linear-gradient(160deg, ${c1}, ${c2})`;
-      const first = [...displayText(s, s.title)].find(isHan) || '📖';
+      const first = [...displayText(s, s.title)].find(isHan) || '書';
       art.append(el('span', { text: first }));
     }
     const prog = el('div', { class: 'bk-prog' }, el('i', { style: `width:${Math.round(st.ratio * 100)}%` }));
     const pills = el('div', { class: 'bk-pills' });
     if (st.fresh) pills.append(el('span', { class: 'chip new', text: t('shelf_pill_fresh', { n: st.fresh }) }));
-    if (st.done) pills.append(el('span', { class: 'chip done', text: `✓ ${t('shelf_pill_done')}` }));
+    if (st.done) pills.append(el('span', { class: 'chip done', text: t('shelf_pill_done') }));
     else if (st.ratio > 0) pills.append(el('span', { class: 'chip reading', text: t('shelf_pill_reading', { n: Math.round(st.ratio * 100) }) }));
     const label = el('div', { class: 'bk-label' },
       el('div', { class: 'bk-name', text: displayText(s, s.title) }),
@@ -944,14 +948,14 @@ function openShelfModal() {
 
     const acts = el('div', { class: 'bk-acts' });
     if (kid) {
-      acts.append(el('button', { class: 'btn sky small', onclick: open }, '📖 ', t('shelf_open')));
+      acts.append(el('button', { class: 'btn sky small', onclick: open }, icon('book'), t('shelf_open')));
     } else {
-      const editBtn = el('button', { class: 'book-del book-edit', text: '✏️' });
+      const editBtn = el('button', { class: 'book-del book-edit', 'aria-label': t('story_edit') }, icon('edit'));
       editBtn.addEventListener('click', () => {
         sfx.tap();
         openEditStoryModal(s, () => { m.close(); if (currentId === s.id) render(); openShelfModal(); });
       });
-      const delBtn = el('button', { class: 'book-del', text: '🗑' });
+      const delBtn = el('button', { class: 'book-del', 'aria-label': t('del_label') }, icon('trash'));
       delBtn.addEventListener('click', async () => {
         sfx.tap();
         const yes = await confirmDialog(t('story_del_confirm'));
@@ -981,14 +985,14 @@ function openShelfModal() {
 // 內文變動後，索引式的點讀/標註紀錄與多音字資料都會失效，一律重設。
 function openEditStoryModal(story, onSaved) {
   let imgUrl = null;
-  const m = openModal(`✏️ ${t('story_edit')}`, {
+  const m = openModal(t('story_edit'), { icon: 'edit',
     onClose: () => { if (imgUrl) URL.revokeObjectURL(imgUrl); },
   });
   const titleInput = el('input', { class: 'text-input', value: s2t(story.title) });
   const textArea = el('textarea', { class: 'text-area', style: 'min-height:220px;margin-top:4px;' });
   textArea.value = s2t(story.text);
 
-  const saveBtn = el('button', { class: 'btn mint' }, '💾 ', t('acc_save'));
+  const saveBtn = el('button', { class: 'btn mint' }, icon('save'), t('acc_save'));
   saveBtn.addEventListener('click', () => {
     sfx.tap();
     const text = textArea.value.trim();
@@ -1013,12 +1017,12 @@ function openEditStoryModal(story, onSaved) {
     el('div', { class: 'field-label', text: t('story_edit_text') }),
     textArea,
     el('p', { class: 'settings-note', text: t('story_edit_note') }),
-    el('div', { class: 'field-label', text: `🖼 ${t('rs_media')}` }),
+    el('div', { class: 'field-label' }, icon('image'), t('rs_media')),
     el('button', { class: 'btn sky small', onclick: () => {
       sfx.tap();
       m.close();
       openMediaModal(story, onSaved);
-    } }, '🖼 ', t('rs_media_btn')),
+    } }, icon('image'), t('rs_media_btn')),
   );
   // 這本的插圖放在最下面，改文字時捲下去就能對照
   const cover = storyMedia(story).find((mi) => mi.kind === 'image');
@@ -1042,7 +1046,7 @@ function openEditStoryModal(story, onSaved) {
 function openMediaModal(story, onChanged) {
   const urls = [];
   let changed = false;
-  const m = openModal(`🖼 ${t('media_title')}`, {
+  const m = openModal(t('media_title'), { icon: 'image',
     onClose: () => {
       urls.forEach((u) => URL.revokeObjectURL(u));
       if (changed && onChanged) onChanged();
@@ -1065,12 +1069,12 @@ function openMediaModal(story, onChanged) {
     media.forEach((mi, i) => {
       const thumb = el('div', { class: `mi-thumb${mi.kind === 'video' ? ' vid' : ''}` });
       if (mi.kind === 'video') {
-        thumb.append(el('span', { text: '🎬' }));
+        thumb.append(icon('video'));
       } else if (mi.url) {
         thumb.style.backgroundImage = `url("${mi.url}")`;
       } else {
         idbGet('images', mi.id).then((blob) => {
-          if (!blob) { thumb.append(el('span', { text: '❔' })); return; }
+          if (!blob) { thumb.append(icon('help')); return; }
           const u = URL.createObjectURL(blob);
           urls.push(u);
           thumb.style.backgroundImage = `url("${u}")`;
@@ -1099,7 +1103,7 @@ function openMediaModal(story, onChanged) {
         [n[i + 1], n[i]] = [n[i], n[i + 1]];
         commit(n);
       });
-      const del = el('button', { class: 'mi-btn danger', text: '🗑' });
+      const del = el('button', { class: 'mi-btn danger', 'aria-label': t('del_label') }, icon('trash'));
       del.addEventListener('click', async () => {
         sfx.tap();
         const yes = await confirmDialog(t('media_del_confirm'));
@@ -1169,7 +1173,7 @@ function openMediaModal(story, onChanged) {
     linkKind = k;
     for (const [kk, bb] of Object.entries(kindBtns)) bb.classList.toggle('on', kk === k);
   };
-  for (const [k, label] of [['image', `🖼 ${t('media_kind_image')}`], ['video', `🎬 ${t('media_kind_video')}`]]) {
+  for (const [k, label] of [['image', t('media_kind_image')], ['video', t('media_kind_video')]]) {
     const b = el('button', { class: k === linkKind ? 'on' : '', text: label });
     b.addEventListener('click', () => { sfx.tap(); setKind(k); });
     kindBtns[k] = b;
@@ -1181,7 +1185,7 @@ function openMediaModal(story, onChanged) {
   });
   // 貼上網址時自動猜類型（猜錯可以馬上按上面的按鈕改）
   linkInput.addEventListener('input', () => setKind(guessKind(linkInput.value.trim())));
-  const addLink = el('button', { class: 'btn ghost small' }, '🔗 ', t('media_add_link'));
+  const addLink = el('button', { class: 'btn ghost small' }, icon('link'), t('media_add_link'));
   addLink.addEventListener('click', () => {
     const url = linkInput.value.trim();
     if (!/^https?:\/\//i.test(url)) { toast(t('media_link_bad'), true); return; }
@@ -1192,7 +1196,7 @@ function openMediaModal(story, onChanged) {
   });
 
   // ---- AI 再畫一張（用這本存下來的畫圖提示，沒有就拿內文開頭當場景）----
-  const aiBtn = el('button', { class: 'btn berry small' }, '✨ ', t('media_ai'));
+  const aiBtn = el('button', { class: 'btn berry small' }, icon('sparkle'), t('media_ai'));
   aiBtn.addEventListener('click', async () => {
     sfx.tap();
     const label = aiBtn.textContent;
@@ -1216,13 +1220,13 @@ function openMediaModal(story, onChanged) {
   m.body.append(
     el('p', { class: 'settings-note', style: 'margin-top:0;', text: t('media_hint') }),
     list,
-    el('div', { class: 'field-label', text: `➕ ${t('media_add_link')}` }),
+    el('div', { class: 'field-label' }, icon('plus'), t('media_add_link')),
     kindSeg,
     el('div', { class: 'row', style: 'flex-wrap:nowrap;margin-top:8px;' }, linkInput, addLink),
-    el('div', { class: 'field-label', text: `➕ ${t('media_add_image')}／${t('media_add_video')}` }),
+    el('div', { class: 'field-label' }, icon('plus'), `${t('media_add_image')}／${t('media_add_video')}`),
     el('div', { class: 'row' },
-      el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); imgFile.click(); } }, '🖼 ', t('media_add_image')),
-      el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); vidFile.click(); } }, '🎬 ', t('media_add_video')),
+      el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); imgFile.click(); } }, icon('image'), t('media_add_image')),
+      el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); vidFile.click(); } }, icon('video'), t('media_add_video')),
       settings.apiKey ? aiBtn : null,
     ),
     el('p', { class: 'settings-note', text: t('media_video_note') }),
@@ -1327,7 +1331,7 @@ function mixRadar() {
   svg.addEventListener('pointerup', stopDrag);
   svg.addEventListener('pointercancel', stopDrag);
 
-  const randBtn = el('button', { class: 'btn ghost small', text: `🎲 ${t('mix_random')}` });
+  const randBtn = el('button', { class: 'btn ghost small' }, icon('dice'), t('mix_random'));
   randBtn.addEventListener('click', () => {
     sfx.tap();
     for (const a of AXES) mix[a.key] = (Math.random() * 11) | 0;
@@ -1348,13 +1352,13 @@ function storyNewHant(story) {
 function openAddNewChars(story) {
   const cands = storyNewHant(story);
   if (!cands.length) { toast(t('no_new_chars')); return; }
-  const m = openModal(`➕ ${t('add_new_title')}`);
+  const m = openModal(t('add_new_title'), { icon: 'plus' });
   const selected = new Set(cands); // 預設全選，點掉不要的
   const grid = el('div', { class: 'pick-grid' });
   const btns = new Map();
   const okBtn = el('button', { class: 'btn mint' });
   const refresh = () => {
-    okBtn.textContent = `✅ ${t('add_new_confirm', { n: selected.size })}`;
+    okBtn.replaceChildren(icon('check'), t('add_new_confirm', { n: selected.size }));
     okBtn.disabled = selected.size === 0;
   };
   for (const ch of cands) {
@@ -1390,7 +1394,7 @@ function openAddNewChars(story) {
     let msg = t('words_added', { n: added });
     if (dup) msg += t('words_dup', { n: dup });
     toast(msg);
-    if (collide.length) infoDialog('💡', t('words_collide', { list: collide.join('、') }));
+    if (collide.length) infoDialog(t('info_title'), t('words_collide', { list: collide.join('、') }));
     // 本篇新字清單重算（這些字現在在字表裡了）
     story.newChars = storyNewHant(story);
     saveStories();
@@ -1415,7 +1419,7 @@ async function ensureShelfRoom() {
 // ---------- 生成面板 ----------
 function openGenModal() {
   let mic = null; // 語音輸入：面板關掉（含按下生成）時一定要停，不然麥克風會一直收音
-  const m = openModal(`✨ ${t('gen_title')}`, { onClose: () => { if (mic) mic.stop(); } });
+  const m = openModal(t('gen_title'), { icon: 'sparkle', onClose: () => { if (mic) mic.stop(); } });
   const selected = new Set();
 
   // 必用字選擇（最近新加的優先）
@@ -1440,31 +1444,29 @@ function openGenModal() {
   });
 
   const promptInput = el('textarea', { class: 'text-area', placeholder: t('gen_extra_ph') });
-  const micBtn = el('button', { class: 'mic-btn', text: '🎤' });
+  const micBtn = el('button', { class: 'mic-btn', 'aria-label': t('mic_label') }, icon('mic'));
   mic = setupMic(micBtn, promptInput);
 
   // 生成插圖 toggle（記住上次設定）
-  const imgSw = el('button', { class: `switch${settings.genImage ? ' on' : ''}` });
-  imgSw.addEventListener('click', () => {
+  const imgSw = switchEl(settings.genImage, (on) => {
     sfx.tap();
-    settings.genImage = !settings.genImage;
+    settings.genImage = on;
     saveSettings();
-    imgSw.classList.toggle('on', settings.genImage);
-  });
+  }, t('gen_image'));
 
   m.body.append(
-    el('div', { class: 'field-label', text: `🌱 ${t('gen_today')}` }),
+    el('div', { class: 'field-label' }, icon('leaf'), t('gen_today')),
     todayInput,
     el('div', { class: 'field-label', text: t('gen_must') }),
     grid,
-    el('div', { class: 'field-label', text: `🎛️ ${t('gen_mix')}` }),
+    el('div', { class: 'field-label' }, icon('sliders'), t('gen_mix')),
     mixRadar(),
     el('div', { class: 'field-label', text: t('gen_extra') }),
     el('div', { class: 'row', style: 'flex-wrap:nowrap;align-items:flex-start;' }, promptInput, micBtn),
     el('div', { class: 'settings-line', style: 'margin-top:12px;' },
-      el('span', { text: `🖼️ ${t('gen_image')}` }), imgSw,
+      el('span', {}, icon('image'), t('gen_image')), imgSw,
     ),
-    settings.apiKey ? null : el('p', { class: 'settings-note', text: `⚠️ ${t('demo_mode')}` }),
+    settings.apiKey ? null : el('p', { class: 'settings-note' }, icon('warn'), ' ', t('demo_mode')),
   );
 
   m.foot.append(
@@ -1472,7 +1474,7 @@ function openGenModal() {
       sfx.tap();
       m.close();
       openManualModal();
-    } }, '📝 ', t('manual_add')),
+    } }, icon('edit'), t('manual_add')),
     el('button', { class: 'btn big berry', onclick: async () => {
       if (words.length < 10 && settings.apiKey) {
         toast(t('gen_need_words'), true);
@@ -1486,13 +1488,13 @@ function openGenModal() {
       const must = [...new Set([...todayChars, ...selected])];
       m.close();
       runGeneration(must, promptInput.value.trim());
-    } }, '🪄 ', t('gen_go')),
+    } }, icon('wand'), t('gen_go')),
   );
 }
 
 // ---------- 手動加入繪本（自己輸入文字＋上傳插圖） ----------
 function openManualModal() {
-  const m = openModal(`📝 ${t('manual_add')}`);
+  const m = openModal(t('manual_add'), { icon: 'edit' });
 
   const titleInput = el('input', {
     class: 'text-input', placeholder: t('manual_title_ph'),
@@ -1507,7 +1509,7 @@ function openManualModal() {
   const preview = el('img', {
     alt: '', style: 'display:none;max-width:100%;border-radius:16px;margin-top:10px;',
   });
-  const pickBtn = el('button', { class: 'btn ghost small' }, '🖼 ', t('manual_pick_img'));
+  const pickBtn = el('button', { class: 'btn ghost small' }, icon('image'), t('manual_pick_img'));
   pickBtn.addEventListener('click', () => { sfx.tap(); fileInput.click(); });
   fileInput.addEventListener('change', async () => {
     const file = fileInput.files && fileInput.files[0];
@@ -1559,7 +1561,7 @@ function openManualModal() {
     m.close();
     sfx.sparkle();
     render();
-  } }, '💾 ', t('manual_save')));
+  } }, icon('save'), t('manual_save')));
 }
 
 /** 上傳圖縮到最長邊 max（維持比例）回傳 JPEG blob */
@@ -1622,9 +1624,9 @@ function setupMic(btn, input) {
 async function runGeneration(mustInclude, extraPrompt) {
   const ac = new AbortController(); // 「停止」鈕：中止 API 呼叫（含重試），什麼都不存
   const m = openModal('', { closable: false });
-  const emoji = el('span', { class: 'big-emoji', text: '🧚' });
+  const emoji = el('span', { class: 'big-emoji' }, icon('fairy'));
   const msg = el('p', { text: t('gen_writing') });
-  const stopBtn = el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); stopBtn.disabled = true; ac.abort(); } }, '⏹ ', t('gen_stop'));
+  const stopBtn = el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); stopBtn.disabled = true; ac.abort(); } }, icon('stop'), t('gen_stop'));
   m.foot.append(stopBtn);
   // 進度 log：顯示目前生成到哪個階段；出錯時原因直接留在視窗裡好除錯
   const logBox = el('div', { class: 'gen-log' });
@@ -1687,7 +1689,7 @@ async function runGeneration(mustInclude, extraPrompt) {
 
     // 產插圖
     if (settings.apiKey && settings.genImage && imagePrompt) {
-      emoji.textContent = '🎨';
+      emoji.replaceChildren(icon('palette'));
       msg.textContent = t('gen_drawing');
       const style = pickImageStyle(); // 風格池隨機選一種，畫風多樣化
       addLog(`🎨 ${t('gen_log_img')}（${settings.imageModel}｜${style.name}）…`);
@@ -1730,7 +1732,7 @@ async function runGeneration(mustInclude, extraPrompt) {
     if (e.message === 'CANCELLED') { m.close(); toast(t('gen_cancelled')); return; }
     // 失敗時視窗留著，log 保留完整過程好除錯；按「好」才關
     stopBtn.remove();
-    emoji.textContent = '😢';
+    emoji.replaceChildren(icon('sad'));
     if (e.message === 'GEN_FAIL') {
       msg.textContent = t('gen_fail');
       addLog(`❌ ${t('gen_fail')}`);
@@ -1805,10 +1807,10 @@ async function prepStoryVoice(story) {
   const msg = el('p', { text: t('game_prep') });
   const fill = el('div', { class: 'prep-fill' });
   m.body.append(el('div', { class: 'loading-scene' },
-    el('span', { class: 'big-emoji', text: '🔊' }), msg,
+    el('span', { class: 'big-emoji' }, icon('speaker')), msg,
     el('div', { class: 'prep-bar' }, fill),
   ));
-  const stopBtn = el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); stopBtn.disabled = true; ac.abort(); } }, '⏹ ', t('gen_stop'));
+  const stopBtn = el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); stopBtn.disabled = true; ac.abort(); } }, icon('stop'), t('gen_stop'));
   m.foot.append(stopBtn);
   const cancelled = () => { m.close(); toast(t('gen_cancelled')); };
 
@@ -1863,7 +1865,7 @@ async function prepStoryVoice(story) {
       t('tts_fail_detail', { n: fail, total: jobs.length }),
       failed.slice(0, 20).join('、') + (failed.length > 20 ? '…' : ''),
       lastErr ? lastErr.message : '',
-      hint ? `👉 ${t(hint)}` : '',
+      hint ? `→ ${t(hint)}` : '',
       t('tts_fallback_note'),
     ].filter(Boolean).join('\n'), true);
     return;

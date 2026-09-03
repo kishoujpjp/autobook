@@ -8,44 +8,48 @@
 <meta name="referrer" content="no-referrer">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="自動繪本">
+<meta name="theme-color" content="#FFF7EA">
 <title>自動繪本</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon2-180.png">
 <link rel="icon" href="icons/icon2-192.png">
+<script src="js/theme.js"></script>
+<link rel="preload" href="fonts/tw-kai-trad.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/fonts.css">
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
   <main id="pages">
-    <section id="page-story" class="page active"></section>
-    <section id="page-game" class="page"></section>
-    <section id="page-repeat" class="page"></section>
-    <section id="page-words" class="page"></section>
-    <section id="page-settings" class="page"></section>
+    <section id="page-story" class="page active" role="tabpanel" aria-labelledby="tab-story"></section>
+    <section id="page-game" class="page" role="tabpanel" aria-labelledby="tab-game"></section>
+    <section id="page-repeat" class="page" role="tabpanel" aria-labelledby="tab-repeat"></section>
+    <section id="page-words" class="page" role="tabpanel" aria-labelledby="tab-words"></section>
+    <section id="page-settings" class="page" role="tabpanel" aria-labelledby="tab-settings"></section>
   </main>
 
-  <nav id="tabbar">
-    <button class="tab active" data-page="story">
-      <span class="tab-icon">📖</span><span class="tab-label" data-i18n="tab_story">故事</span>
+  <nav id="tabbar" role="tablist" aria-label="主選單">
+    <button class="tab active" id="tab-story" role="tab" aria-selected="true" data-page="story" data-icon="book">
+      <span class="tab-icon"></span><span class="tab-label" data-i18n="tab_story">故事</span>
     </button>
-    <button class="tab" data-page="game">
-      <span class="tab-icon">🎈</span><span class="tab-label" data-i18n="tab_game">遊戲</span>
+    <button class="tab" id="tab-game" role="tab" aria-selected="false" data-page="game" data-icon="balloon">
+      <span class="tab-icon"></span><span class="tab-label" data-i18n="tab_game">遊戲</span>
     </button>
-    <button class="tab" data-page="repeat">
-      <span class="tab-icon">🎤</span><span class="tab-label" data-i18n="tab_repeat">跟讀</span>
+    <button class="tab" id="tab-repeat" role="tab" aria-selected="false" data-page="repeat" data-icon="mic">
+      <span class="tab-icon"></span><span class="tab-label" data-i18n="tab_repeat">跟讀</span>
     </button>
-    <button class="tab" data-page="words">
-      <span class="tab-icon">🗂️</span><span class="tab-label" data-i18n="tab_words">字表</span>
+    <button class="tab" id="tab-words" role="tab" aria-selected="false" data-page="words" data-icon="cards">
+      <span class="tab-icon"></span><span class="tab-label" data-i18n="tab_words">字表</span>
     </button>
-    <button class="tab" data-page="settings">
-      <span class="tab-icon">⚙️</span><span class="tab-label" data-i18n="tab_settings">設定</span>
+    <button class="tab" id="tab-settings" role="tab" aria-selected="false" data-page="settings" data-icon="gear">
+      <span class="tab-icon"></span><span class="tab-label" data-i18n="tab_settings">設定</span>
     </button>
   </nav>
 
   <div id="modal-root"></div>
-  <div id="toast-root"></div>
-  <canvas id="confetti-canvas"></canvas>
+  <div id="toast-root" role="status" aria-live="polite"></div>
+  <canvas id="confetti-canvas" aria-hidden="true"></canvas>
 
   <script src="js/rescue.js"></script>
   <script type="module" src="js/main.js"></script>

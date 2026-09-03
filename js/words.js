@@ -2,6 +2,7 @@
 // 顯示字形跟隨語系（資料仍存輸入時的原字形）；熟悉度依帳號×語系分開
 import { t, getLang } from './i18n.js';
 import { el, toast, confirmDialog } from './ui.js';
+import { icon } from './icons.js';
 import { sfx } from './sfx.js';
 import {
   settings, saveSettings, words, addWords, removeWords, setArchived,
@@ -50,7 +51,7 @@ function sortedWords(acc) {
 
 function render() {
   root.innerHTML = '';
-  root.append(el('div', { class: 'h1' }, '🗂️ ', t('words_title')));
+  root.append(el('div', { class: 'h1' }, icon('cards'), t('words_title')));
 
   // 小孩模式：可以看字表，但固定鎖定——沒有新增/整理/補齊發音，點字只發音
   const kidMode = currentAccount().role === 'kid';
@@ -63,7 +64,7 @@ function render() {
   // ---- 新增區（小孩模式不顯示） ----
   if (!kidMode) {
     const input = el('textarea', { class: 'text-area', placeholder: t('words_add_ph') });
-    const addBtn = el('button', { class: 'btn mint' }, '➕ ', t('words_add'));
+    const addBtn = el('button', { class: 'btn mint' }, icon('plus'), t('words_add'));
     addBtn.addEventListener('click', () => {
       sfx.tap();
       const { added, dup, collide } = addWords(input.value);
@@ -111,7 +112,7 @@ function render() {
       row,
       viewAccId
         ? el('p', { class: 'settings-note', style: 'margin-top:8px;',
-            text: `👀 ${t('words_view_hint', { n: accounts.find((a) => a.id === viewAccId).name })}` })
+            text: t('words_view_hint', { n: accounts.find((a) => a.id === viewAccId).name }) })
         : null,
     ));
   }
@@ -131,7 +132,7 @@ function render() {
 
   if (!total) {
     root.append(el('div', { class: 'card story-empty' },
-      el('span', { class: 'emoji', text: '🌱' }),
+      el('span', { class: 'emoji' }, icon('leaf')),
       el('p', { text: t('words_empty') }),
     ));
     return;
@@ -150,30 +151,30 @@ function render() {
     editMode = false;
     root.append(el('div', { class: 'spread', style: 'margin-bottom:10px;' }, seg));
     root.append(el('p', { class: 'settings-note', style: 'margin-bottom:12px;',
-      text: `👉 ${t('words_kid_hint')}` }));
+      text: t('words_kid_hint') }));
   } else {
     // 鎖定：點字只發音，不改紅綠（防小孩亂按）
     const lockBtn = el('button', {
       class: `btn small ${settings.wordsLocked ? 'berry' : 'ghost'}`,
       onclick: () => { sfx.tap(); settings.wordsLocked = !settings.wordsLocked; saveSettings(); render(); },
-    }, settings.wordsLocked ? `🔒 ${t('words_unlock')}` : `🔓 ${t('words_lock')}`);
+    }, settings.wordsLocked ? [icon('lock'), t('words_unlock')] : [icon('unlock'), t('words_lock')]);
 
     const editBtn = el('button', {
       class: `btn small ${editMode ? 'mint' : 'ghost'}`,
       onclick: () => { sfx.tap(); editMode = !editMode; selected.clear(); render(); },
-    }, editMode ? `✅ ${t('words_edit_done')}` : `🧹 ${t('words_edit')}`);
+    }, editMode ? [icon('check'), t('words_edit_done')] : [icon('broom'), t('words_edit')]);
 
     // 編輯模式：刪除選取 + 入庫/出庫
-    const delBtn = el('button', { class: 'btn berry small' });
+    const delBtn = el('button', { class: 'btn danger small' });
     const archBtn = el('button', { class: 'btn ghost small' });
     function refreshToolBtns() {
       delBtn.textContent = '';
-      delBtn.append('🗑 ', t('words_del_multi', { n: selected.size }));
+      delBtn.append(icon('trash'), t('words_del_multi', { n: selected.size }));
       delBtn.disabled = selected.size === 0;
       const allArchived = selected.size > 0 &&
         [...selected].every((ch) => words.find((w) => w.ch === ch)?.archived);
       archBtn.textContent = '';
-      archBtn.append('📦 ', t(allArchived ? 'words_unarchive' : 'words_archive', { n: selected.size }));
+      archBtn.append(icon('package'), t(allArchived ? 'words_unarchive' : 'words_archive', { n: selected.size }));
       archBtn.disabled = selected.size === 0;
       archBtn.dataset.mode = allArchived ? 'un' : 'in';
     }
@@ -206,8 +207,8 @@ function render() {
       ),
     ));
     root.append(el('p', { class: 'settings-note', style: 'margin-bottom:12px;',
-      text: editMode ? `👉 ${t('words_edit_hint')}`
-        : settings.wordsLocked ? `👉 ${t('words_lock_hint')}` : `👉 ${t('words_mark_hint')}` }));
+      text: editMode ? t('words_edit_hint')
+        : settings.wordsLocked ? t('words_lock_hint') : t('words_mark_hint') }));
   }
 
   // ---- 字格 ----

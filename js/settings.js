@@ -1,6 +1,7 @@
 // 設定頁：語系、API Key、模型、快取管理、版本
 import { t, setLang, getLang } from './i18n.js';
-import { el, toast, confirmDialog, infoDialog, openModal } from './ui.js';
+import { el, toast, confirmDialog, infoDialog, openModal, switchEl } from './ui.js';
+import { icon } from './icons.js';
 import { sfx, b64ToBytes, speakNative } from './sfx.js';
 import { testModels, errHintKey, readErrLog, clearErrLog } from './gemini.js';
 import {
@@ -31,7 +32,7 @@ export function refreshSettingsPage() { render(); }
 
 function render() {
   root.innerHTML = '';
-  root.append(el('div', { class: 'h1' }, '⚙️ ', t('settings_title')));
+  root.append(el('div', { class: 'h1' }, icon('gear'), t('settings_title')));
 
   // ---- 帳號 ----
   const accList = el('div', {});
@@ -44,18 +45,18 @@ function render() {
         : null,
       el('span', { class: `role-chip${a.role === 'kid' ? ' kid' : ''}`, text: t(a.role === 'kid' ? 'acc_kid' : 'acc_parent') }),
       el('button', {
-        class: 'btn ghost small',
+        class: 'btn ghost small', 'aria-label': t('acc_edit'),
         onclick: () => { sfx.tap(); openAccountEditor(a, render); },
-      }, '✏️'),
+      }, icon('edit')),
     );
     accList.append(row);
   }
   root.append(el('div', { class: 'card' },
-    el('div', { class: 'field-label', style: 'margin-top:0;', text: `👨‍👩‍👧 ${t('acc_title')}` }),
+    el('div', { class: 'field-label', style: 'margin-top:0;' }, icon('users'), t('acc_title')),
     accList,
     el('div', { class: 'row', style: 'margin-top:14px;' },
       el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); openAccountEditor(null, render); } },
-        '➕ ', t('acc_add')),
+        icon('plus'), t('acc_add')),
     ),
     parentGateLine(),
     pinLine(),
@@ -70,9 +71,10 @@ function render() {
   );
   root.append(el('div', { class: 'card' },
     el('div', { class: 'settings-line' },
-      el('span', { text: `🌏 ${t('set_lang')}` }), langSeg,
+      el('span', {}, icon('globe'), t('set_lang')), langSeg,
     ),
     tapSpeakLine(),
+    themeLine(),
   ));
 
   // ---- API Key ----
@@ -95,7 +97,7 @@ function render() {
   keyInput.addEventListener('change', async () => {
     if (await commitKey()) toast(t('saved'));
   });
-  const testBtn = el('button', { class: 'btn sky small' }, '📡 ', t('set_test'));
+  const testBtn = el('button', { class: 'btn sky small' }, icon('radio'), t('set_test'));
   testBtn.addEventListener('click', async () => {
     sfx.tap();
     if (!(await commitKey())) return;
@@ -104,7 +106,7 @@ function render() {
   });
 
   const errlogBtn = el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); openErrLog(); } },
-    '📋 ', t('errlog_title'));
+    icon('clipboard'), t('errlog_title'));
 
   const ttsKeyInput = el('input', {
     class: 'text-input', type: 'password',
@@ -118,11 +120,11 @@ function render() {
   });
 
   root.append(el('div', { class: 'card' },
-    el('div', { class: 'field-label', text: `🔑 ${t('set_api')}` }),
+    el('div', { class: 'field-label' }, icon('key'), t('set_api')),
     keyInput,
     el('p', { class: 'settings-note', text: t('set_api_note') }),
     el('div', { class: 'row', style: 'margin-top:12px;' }, testBtn, errlogBtn),
-    el('div', { class: 'field-label', text: `🔊 ${t('set_tts_key')}` }),
+    el('div', { class: 'field-label' }, icon('speaker'), t('set_tts_key')),
     ttsKeyInput,
     advancedModels(),
   ));
@@ -135,29 +137,31 @@ function render() {
         if (!(await confirmDialog(t('set_clear_audio_confirm')))) return;
         await idbClear('audio').catch(() => {});
         toast(t('set_cleared'));
-      } }, '🔇 ', t('set_clear_audio')),
+      } }, icon('mute'), t('set_clear_audio')),
       el('button', { class: 'btn ghost small', onclick: () => {
         // 同步呼叫（不先 await）：這正是要驗證的 iOS 手勢限制
         const ok = speakNative(t('native_test_text'));
         const n = ('speechSynthesis' in window) ? speechSynthesis.getVoices().length : -1;
         toast(ok ? t('native_test_sent', { n }) : t('native_test_unavail'), !ok);
-      } }, '🗣 ', t('native_test')),
+      } }, icon('chat'), t('native_test')),
       isNativeApp() ? null : el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); downloadAllSyllables(); } },
-        '⬇️ ', t('set_dl_syl')),
+        icon('download'), t('set_dl_syl')),
       el('button', { class: 'btn ghost small', onclick: async () => {
         sfx.tap();
         if (!(await confirmDialog(t('set_demo_confirm', { n: DEMO_WORDS.length })))) return;
         const { added } = addWords(DEMO_WORDS);
         toast(added ? t('set_demo_loaded') : t('words_dup', { n: 0 }));
-      } }, '🌱 ', t('set_demo_words')),
-      el('button', { class: 'btn berry small', onclick: async () => {
+      } }, icon('leaf'), t('set_demo_words')),
+    ),
+    el('div', { class: 'danger-row' },
+      el('button', { class: 'btn danger small', onclick: async () => {
         sfx.tap();
         const yes = await confirmDialog(t('set_clear_all_confirm'));
         if (yes) {
           await clearAll();
           location.reload();
         }
-      } }, '🗑️ ', t('set_clear_all')),
+      } }, icon('trash'), t('set_clear_all')),
     ),
   ));
 
@@ -171,10 +175,10 @@ function render() {
     fileInput.value = '';
   });
   root.append(el('div', { class: 'card' },
-    el('div', { class: 'field-label', style: 'margin-top:0;', text: `🗂 ${t('set_backup')}` }),
+    el('div', { class: 'field-label', style: 'margin-top:0;' }, icon('package'), t('set_backup')),
     el('div', { class: 'row' },
-      el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); exportBackup(); } }, '📤 ', t('set_backup_export')),
-      el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); fileInput.click(); } }, '📥 ', t('set_backup_import')),
+      el('button', { class: 'btn mint small', onclick: () => { sfx.tap(); exportBackup(); } }, icon('upload'), t('set_backup_export')),
+      el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); fileInput.click(); } }, icon('download'), t('set_backup_import')),
     ),
     el('p', { class: 'settings-note', text: t('backup_note') }),
     fileInput,
@@ -182,15 +186,16 @@ function render() {
 
   // ---- 隱私說明 ----
   root.append(el('div', { class: 'card' },
-    el('div', { class: 'field-label', style: 'margin-top:0;', text: `🔏 ${t('privacy_title')}` }),
+    el('div', { class: 'field-label', style: 'margin-top:0;' }, icon('lock'), t('privacy_title')),
     ...privacyParagraphs(),
+    el('p', { class: 'settings-note', style: 'font-size:15px;margin-top:12px;', text: t('kai_credit') }),
   ));
 
   // ---- 版本 ----
   root.append(el('div', { class: 'card' },
     el('div', { class: 'settings-line' },
-      el('span', { text: `📦 ${t('set_version')}` }),
-      el('span', { style: 'color:var(--ink-soft);', text: `v${VERSION}` }),
+      el('span', {}, icon('info'), t('set_version')),
+      el('span', { style: 'color:var(--ink-2);', text: `v${VERSION}` }),
     ),
   ));
 }
@@ -198,7 +203,7 @@ function render() {
 // ============ 連線診斷與錯誤紀錄 ============
 /** 逐項測試：文字／JSON 結構輸出／插圖／語音，即時顯示 ✅❌ 與失敗原因＋對策 */
 async function runDiagnostics() {
-  const m = openModal(`🩺 ${t('diag_title')}`);
+  const m = openModal(t('diag_title'), { icon: 'stethoscope' });
   const rows = new Map();
   for (const key of ['diag_text', 'diag_json', 'diag_image', 'diag_tts']) {
     const status = el('span', { class: 'diag-status', text: '…' });
@@ -215,11 +220,13 @@ async function runDiagnostics() {
   const results = await testModels((key, state) => {
     const r = rows.get(key);
     if (!r) return;
-    if (state === 'run') { r.status.textContent = '⏳'; return; }
-    r.status.textContent = state.ok ? '✅' : '❌';
+    if (state === 'run') { r.status.replaceChildren(icon('clock')); r.status.classList.remove('ok', 'bad'); return; }
+    r.status.replaceChildren(icon(state.ok ? 'check' : 'cross'));
+    r.status.classList.toggle('ok', !!state.ok);
+    r.status.classList.toggle('bad', !state.ok);
     if (!state.ok) {
       const hint = errHintKey(state.msg);
-      r.note.textContent = state.msg + (hint ? `\n👉 ${t(hint)}` : '');
+      r.note.textContent = state.msg + (hint ? `\n→ ${t(hint)}` : '');
     }
   });
 
@@ -230,7 +237,7 @@ async function runDiagnostics() {
 
 /** 最近 30 筆 API 錯誤（時間｜階段｜模型｜訊息），可複製回報 */
 function openErrLog() {
-  const m = openModal(`📋 ${t('errlog_title')}`);
+  const m = openModal(t('errlog_title'), { icon: 'clipboard' });
   const log = readErrLog();
   if (!log.length) {
     m.body.append(el('p', { class: 'settings-note', text: t('errlog_empty') }));
@@ -249,9 +256,9 @@ function openErrLog() {
       const text = log.map((e) => `${new Date(e.t).toISOString()} [${e.stage}] ${e.model}: ${e.msg}`).join('\n');
       try { await navigator.clipboard.writeText(text); toast(t('errlog_copied')); }
       catch { toast(t('copy_fail'), true); }
-    } }, '📋 ', t('errlog_copy')),
+    } }, icon('copy'), t('errlog_copy')),
     el('button', { class: 'btn berry small', onclick: () => { sfx.tap(); clearErrLog(); m.close(); toast(t('set_cleared')); } },
-      '🗑 ', t('errlog_clear')),
+      icon('trash'), t('errlog_clear')),
   );
 }
 
@@ -297,16 +304,16 @@ function blobToB64(blob) {
   });
 }
 
-function progressModal(emoji, label, onStop = null) {
+function progressModal(iconName, label, onStop = null) {
   const m = openModal('', { closable: false });
   const msg = el('p', { text: label });
   const fill = el('div', { class: 'prep-fill' });
   m.body.append(el('div', { class: 'loading-scene' },
-    el('span', { class: 'big-emoji', text: emoji }), msg,
+    el('span', { class: 'big-emoji' }, icon(iconName)), msg,
     el('div', { class: 'prep-bar' }, fill),
   ));
   if (onStop) {
-    const stopBtn = el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); stopBtn.disabled = true; onStop(); } }, '⏹ ', t('gen_stop'));
+    const stopBtn = el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); stopBtn.disabled = true; onStop(); } }, icon('stop'), t('gen_stop'));
     m.foot.append(stopBtn);
   }
   return {
@@ -320,7 +327,7 @@ function progressModal(emoji, label, onStop = null) {
 
 async function exportBackup() {
   flushSaves(); // 延遲中的寫入先落盤，備份才是最新資料
-  const pm = progressModal('📤', t('backup_preparing'));
+  const pm = progressModal('upload', t('backup_preparing'));
   try {
     const data = {
       app: 'autobook', appVersion: VERSION,
@@ -361,7 +368,7 @@ async function exportBackup() {
     pm.close();
 
     // 分享/下載必須在點按手勢中呼叫（iOS 限制），所以先出「準備好了」視窗
-    const m = openModal(`🗂 ${t('set_backup')}`);
+    const m = openModal(t('set_backup'), { icon: 'package' });
     m.body.append(
       el('p', {
         style: 'font-size:22px;font-weight:700;padding:6px 2px;',
@@ -381,7 +388,7 @@ async function exportBackup() {
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 30000);
       }
-    } }, '💾 ', t('backup_share')));
+    } }, icon('save'), t('backup_share')));
   } catch (e) {
     pm.close();
     console.error(e);
@@ -456,7 +463,7 @@ async function importBackupFile(file) {
   if (!yes) return;
 
   // ---- 3. 寫入：先記下舊值以便回復 ----
-  const pm = progressModal('📥', t('backup_importing'));
+  const pm = progressModal('download', t('backup_importing'));
   const prev = {};
   for (const key of BACKUP_KEYS) prev[key] = localStorage.getItem(key);
   const rollback = () => {
@@ -492,16 +499,16 @@ async function importBackupFile(file) {
 function pinLine() {
   const has = !!settings.parentPin;
   return el('div', { class: 'settings-line', style: 'margin-top:12px;' },
-    el('span', { text: `🔢 ${t(has ? 'pin_status_on' : 'pin_status_off')}` }),
+    el('span', {}, icon('keypad'), t(has ? 'pin_status_on' : 'pin_status_off')),
     el('div', { class: 'row' },
       el('button', { class: 'btn sky small', onclick: async () => { sfx.tap(); if (await openPinSetup()) render(); } },
-        '🔢 ', t(has ? 'pin_change' : 'pin_set')),
+        icon('keypad'), t(has ? 'pin_change' : 'pin_set')),
       has ? el('button', { class: 'btn ghost small', onclick: async () => {
         sfx.tap();
         if (!(await confirmDialog(t('pin_clear_confirm')))) return;
         clearPin();
         render();
-      } }, '🧹 ', t('pin_clear')) : null,
+      } }, icon('broom'), t('pin_clear')) : null,
     ),
   );
 }
@@ -516,7 +523,7 @@ function privacyConsent() {
   return new Promise((resolve) => {
     let settled = false;
     const done = (v) => { if (!settled) { settled = true; resolve(v); } };
-    const m = openModal(`🔏 ${t('privacy_consent_title')}`, { onClose: () => done(false) });
+    const m = openModal(t('privacy_consent_title'), { icon: 'lock', onClose: () => done(false) });
     m.body.append(...privacyParagraphs());
     m.foot.append(
       el('button', { class: 'btn ghost', text: t('cancel'), onclick: () => { sfx.tap(); done(false); m.close(); } }),
@@ -545,28 +552,45 @@ function langBtn(lang, label) {
 }
 
 function tapSpeakLine() {
-  const sw = el('button', { class: `switch${settings.tapSpeak ? ' on' : ''}` });
-  sw.addEventListener('click', () => {
+  const sw = switchEl(settings.tapSpeak, (on) => {
     sfx.tap();
-    settings.tapSpeak = !settings.tapSpeak;
+    settings.tapSpeak = on;
     saveSettings();
-    sw.classList.toggle('on', settings.tapSpeak);
-  });
+  }, t('set_tap_speak'));
   return el('div', { class: 'settings-line' },
-    el('span', { text: `🗣️ ${t('set_tap_speak')}` }), sw,
+    el('span', {}, icon('speaker'), t('set_tap_speak')), sw,
+  );
+}
+
+/** 夜間模式：寫 settings.theme，立刻套到 <html data-theme> 與狀態列色 */
+export function applyTheme() {
+  const dark = settings.theme === 'dark';
+  if (dark) document.documentElement.dataset.theme = 'dark';
+  else delete document.documentElement.dataset.theme;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', dark ? '#2A2119' : '#FFF7EA');
+}
+
+function themeLine() {
+  const sw = switchEl(settings.theme === 'dark', (on) => {
+    sfx.tap();
+    settings.theme = on ? 'dark' : 'light';
+    saveSettings();
+    applyTheme();
+  }, t('set_theme_dark'));
+  return el('div', { class: 'settings-line' },
+    el('span', {}, icon('moon'), t('set_theme_dark')), sw,
   );
 }
 
 function parentGateLine() {
-  const sw = el('button', { class: `switch${settings.parentGateOn ? ' on' : ''}` });
-  sw.addEventListener('click', () => {
+  const sw = switchEl(settings.parentGateOn, (on) => {
     sfx.tap();
-    settings.parentGateOn = !settings.parentGateOn;
+    settings.parentGateOn = on;
     saveSettings();
-    sw.classList.toggle('on', settings.parentGateOn);
-  });
+  }, t('set_parent_gate'));
   return el('div', { class: 'settings-line', style: 'margin-top:12px;' },
-    el('span', { text: `🔒 ${t('set_parent_gate')}` }), sw,
+    el('span', {}, icon('lock'), t('set_parent_gate')), sw,
   );
 }
 

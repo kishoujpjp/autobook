@@ -22,9 +22,9 @@
     hant: {
       title: '載入出了問題',
       body: '資料或程式檔可能壞掉了。你的字表、故事都還在裝置裡，先匯出一份備份再處理最安全。',
-      reload: '🔄 重新載入',
-      export: '📤 匯出資料',
-      reset: '🗑 重設全部資料',
+      reload: '重新載入',
+      export: '匯出資料',
+      reset: '重設全部資料',
       close: '先繼續使用',
       resetQ: '要清掉這台裝置上的全部資料嗎？（字表、故事、帳號、圖片、語音全部會不見）',
       resetQ2: '真的要清掉嗎？這個動作不能復原。',
@@ -34,9 +34,9 @@
     hans: {
       title: '加载出了问题',
       body: '数据或程序文件可能坏掉了。你的字表、故事都还在设备里，先导出一份备份再处理最安全。',
-      reload: '🔄 重新加载',
-      export: '📤 导出数据',
-      reset: '🗑 重置全部数据',
+      reload: '重新加载',
+      export: '导出数据',
+      reset: '重置全部数据',
       close: '先继续使用',
       resetQ: '要清掉这台设备上的全部数据吗？（字表、故事、账号、图片、语音全部会不见）',
       resetQ2: '真的要清掉吗？这个动作不能恢复。',
@@ -128,7 +128,7 @@
     var card = document.createElement('div');
     card.style.cssText = 'background:#FFF7EA;color:#4A3B2A;border-radius:28px;padding:28px;max-width:560px;width:100%;box-shadow:0 10px 0 rgba(74,59,42,.15);font-family:-apple-system,"PingFang TC",system-ui,sans-serif;';
     var h = document.createElement('div');
-    h.textContent = '😢 ' + t.title;
+    h.textContent = t.title;
     h.style.cssText = 'font-size:26px;font-weight:800;margin-bottom:10px;';
     var p = document.createElement('p');
     p.textContent = t.body;

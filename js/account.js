@@ -3,6 +3,7 @@
 // 小孩切到家長帳號要先過家長確認。
 import { t } from './i18n.js';
 import { el, toast, openModal, confirmDialog } from './ui.js';
+import { icon } from './icons.js';
 import { sfx } from './sfx.js';
 import {
   accounts, saveAccounts, currentAccount, setCurrentAccount,
@@ -15,7 +16,7 @@ let onAccountChange = null; // main.js 提供：套用權限＋刷新頁面
 
 export function initAccountUI(changeCb) {
   onAccountChange = changeCb;
-  avatarBtn = el('button', { id: 'avatar-btn', 'aria-label': 'account' });
+  avatarBtn = el('button', { id: 'avatar-btn', 'aria-label': t('acc_switch') });
   avatarBtn.addEventListener('click', () => { sfx.tap(); openSwitchModal(); });
   document.body.append(avatarBtn);
   refreshAvatarBtn();
@@ -45,7 +46,7 @@ export function applyRole() {
 
 // ---------- 切換帳號 ----------
 function openSwitchModal() {
-  const m = openModal(`👨‍👩‍👧 ${t('acc_switch')}`);
+  const m = openModal(t('acc_switch'), { icon: 'users' });
   const grid = el('div', { class: 'switch-grid' });
   for (const a of accounts) {
     const item = el('button', { class: `switch-item${a.id === currentAccount().id ? ' current' : ''}` },
@@ -103,7 +104,7 @@ function pinPad(title, check = null, onWrong = null) {
     let code = '';
     let settled = false;
     const done = (v) => { if (!settled) { settled = true; resolve(v); } };
-    const m = openModal(`🔒 ${title}`, { onClose: () => done(null) });
+    const m = openModal(title, { icon: 'lock', onClose: () => done(null) });
     const dots = el('div', { class: 'pin-dots' }, ...[0, 1, 2, 3].map(() => el('span', { class: 'pin-dot' })));
     const pad = el('div', { class: 'pin-pad' });
     const refresh = () => {
@@ -202,7 +203,7 @@ function mathGate() {
 
     let settled = false;
     const done = (ok) => { if (!settled) { settled = true; resolve(ok); } };
-    const m = openModal(`🔒 ${t('acc_gate')}`, { onClose: () => done(false) });
+    const m = openModal(t('acc_gate'), { icon: 'lock', onClose: () => done(false) });
     let tries = 0;
     m.body.append(
       el('p', { style: 'font-size:30px;font-weight:800;text-align:center;padding:8px 0 18px;', text: `${t('acc_gate_q')}：${q} = ?` }),
@@ -228,7 +229,7 @@ function mathGate() {
 
 // ---------- 新增／編輯帳號（設定頁呼叫） ----------
 export function openAccountEditor(existing, onDone) {
-  const m = openModal(existing ? `✏️ ${t('acc_edit')}` : `➕ ${t('acc_add')}`);
+  const m = openModal(existing ? t('acc_edit') : t('acc_add'), { icon: existing ? 'edit' : 'plus' });
 
   const nameInput = el('input', {
     class: 'text-input', placeholder: t('acc_name_ph'),
@@ -278,7 +279,7 @@ export function openAccountEditor(existing, onDone) {
   // 上傳格
   const fileInput = el('input', { type: 'file', accept: 'image/*', style: 'display:none;' });
   const uploadPick = el('button', { class: 'preset-pick upload', 'data-preset': '__upload__' }, uploadPreview);
-  uploadPreview.innerHTML = '<div style="font-size:30px;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">📷</div>';
+  uploadPreview.replaceChildren(icon('camera'));
   if (existing && existing.avatar.kind === 'image') {
     const tmp = avatarEl(existing, 'avatar');
     uploadPreview.replaceWith(tmp);
@@ -313,7 +314,7 @@ export function openAccountEditor(existing, onDone) {
 
   // 刪除（不能刪掉最後一個家長）
   if (existing) {
-    const delBtn = el('button', { class: 'btn ghost small' }, '🗑 ', t('acc_delete'));
+    const delBtn = el('button', { class: 'btn danger small' }, icon('trash'), t('acc_delete'));
     delBtn.addEventListener('click', async () => {
       sfx.tap();
       if (existing.role === 'parent' && parentCount() <= 1) {
@@ -332,7 +333,7 @@ export function openAccountEditor(existing, onDone) {
     m.foot.append(delBtn);
   }
 
-  const saveBtn = el('button', { class: 'btn mint' }, '💾 ', t('acc_save'));
+  const saveBtn = el('button', { class: 'btn mint' }, icon('save'), t('acc_save'));
   saveBtn.addEventListener('click', async () => {
     sfx.tap();
     const name = nameInput.value.trim();

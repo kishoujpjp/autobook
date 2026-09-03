@@ -1,6 +1,7 @@
 // UI 小工具：DOM 建構、toast、modal、confirm、彩帶
 import { t } from './i18n.js';
 import { sfx } from './sfx.js';
+import { icon } from './icons.js';
 
 export function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
@@ -19,7 +20,7 @@ export function el(tag, attrs = {}, ...children) {
 
 export function toast(msg, warn = false) {
   const root = document.getElementById('toast-root');
-  const node = el('div', { class: `toast${warn ? ' warn' : ''}`, text: msg });
+  const node = el('div', { class: `toast${warn ? ' warn' : ''}` }, warn ? icon('warn') : null, msg);
   root.append(node);
   setTimeout(() => {
     node.style.transition = 'opacity 0.4s, transform 0.4s';
@@ -29,21 +30,21 @@ export function toast(msg, warn = false) {
   }, 2600);
 }
 
-/** 開啟 modal，回傳 {close, body, foot}；onClose 在關閉時呼叫 */
-export function openModal(title, { onClose, closable = true } = {}) {
+/** 開啟 modal，回傳 {close, body, foot}；onClose 在關閉時呼叫；icon 是標題前的圖示名（js/icons.js） */
+export function openModal(title, { onClose, closable = true, icon: iconName = null } = {}) {
   const root = document.getElementById('modal-root');
   const body = el('div', { class: 'modal-body' });
   const foot = el('div', { class: 'modal-foot' });
-  const head = el('div', { class: 'modal-head' }, el('span', { text: title }));
+  const head = el('div', { class: 'modal-head' }, el('span', {}, iconName ? icon(iconName) : null, title));
   const mask = el('div', { class: 'modal-mask' });
-  const modal = el('div', { class: 'modal' }, head, body, foot);
+  const modal = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title || undefined }, head, body, foot);
 
   function close() {
     mask.remove();
     if (onClose) onClose();
   }
   if (closable) {
-    head.append(el('button', { class: 'modal-close', text: '✕', onclick: () => { sfx.tap(); close(); } }));
+    head.append(el('button', { class: 'modal-close', 'aria-label': t('close_label'), onclick: () => { sfx.tap(); close(); } }, icon('close')));
   }
   mask.append(modal);
   mask.addEventListener('click', (e) => { if (e.target === mask && closable) close(); });
@@ -54,7 +55,7 @@ export function openModal(title, { onClose, closable = true } = {}) {
 /** 兒童友善的確認對話框 */
 export function confirmDialog(message) {
   return new Promise((resolve) => {
-    const m = openModal('🤔', { closable: false });
+    const m = openModal(t('confirm_title'), { closable: false, icon: 'help' });
     m.body.append(el('p', { text: message, style: 'font-size:24px;font-weight:700;padding:10px 4px 6px;' }));
     m.foot.append(
       el('button', { class: 'btn ghost', text: t('cancel'), onclick: () => { sfx.tap(); m.close(); resolve(false); } }),
@@ -69,7 +70,7 @@ export function infoDialog(title, message, isError = false) {
     const m = openModal(title, { closable: false });
     m.body.append(el('p', {
       text: message,
-      style: `font-size:19px;font-weight:600;padding:6px 4px 10px;word-break:break-all;white-space:pre-wrap;${isError ? 'color:var(--berry-deep);' : ''}`,
+      style: `font-size:19px;font-weight:600;padding:6px 4px 10px;word-break:break-all;white-space:pre-wrap;${isError ? 'color:var(--danger);' : ''}`,
     }));
     m.foot.append(
       el('button', { class: 'btn', text: t('ok'), onclick: () => { sfx.tap(); m.close(); resolve(); } }),
@@ -77,8 +78,20 @@ export function infoDialog(title, message, isError = false) {
   });
 }
 
+/** 開關（role=switch）：on 是初始狀態，onToggle(next) 回傳 false 可取消切換 */
+export function switchEl(on, onToggle, label = '') {
+  const sw = el('button', { class: `switch${on ? ' on' : ''}`, role: 'switch', 'aria-checked': on ? 'true' : 'false', 'aria-label': label || null });
+  sw.addEventListener('click', () => {
+    const next = !sw.classList.contains('on');
+    if (onToggle && onToggle(next) === false) return;
+    sw.classList.toggle('on', next);
+    sw.setAttribute('aria-checked', next ? 'true' : 'false');
+  });
+  return sw;
+}
+
 // ---------- 彩帶 ----------
-const COLORS = ['#FF8A3D', '#4ECDC4', '#FF6B9D', '#5AA9F9', '#FFD93D', '#7DC855'];
+const COLORS = ['#E9631A', '#199E94', '#E64B82', '#2F82D6', '#FFD93D', '#7DC855'];
 let confettiRunning = false;
 
 export function confetti(durationMs = 2200, count = 120) {

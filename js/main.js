@@ -3,6 +3,7 @@ import { setLang, t } from './i18n.js';
 import { settings, isKid } from './store.js';
 import { sfx } from './sfx.js';
 import { toast } from './ui.js';
+import { icon } from './icons.js';
 import { initStory, refreshStoryPage } from './story.js';
 import { initGame, refreshGamePage } from './game.js';
 import { initWords, refreshWordsPage } from './words.js';
@@ -31,13 +32,17 @@ const refreshers = {
 let activePage = 'story';
 
 document.querySelectorAll('#tabbar .tab').forEach((tab) => {
+  tab.querySelector('.tab-icon').replaceChildren(icon(tab.dataset.icon)); // 分頁列圖示（SVG，取代 emoji）
   tab.addEventListener('click', () => {
     const target = tab.dataset.page;
     if (target === activePage) return;
     if (target === 'settings' && isKid()) return; // 小孩帳號：分頁除了藏起來，程式面也要擋
     sfx.tap();
     activePage = target;
-    document.querySelectorAll('#tabbar .tab').forEach((x) => x.classList.toggle('active', x === tab));
+    document.querySelectorAll('#tabbar .tab').forEach((x) => {
+      x.classList.toggle('active', x === tab);
+      x.setAttribute('aria-selected', x === tab ? 'true' : 'false');
+    });
     for (const [name, elp] of Object.entries(pages)) {
       elp.classList.toggle('active', name === target);
     }

@@ -1,7 +1,8 @@
 // 遊戲頁：聽音認字。開始前先把 10 題語音緩存好，之後重複利用。
 import { t, getLang } from './i18n.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
-import { el, toast, confetti, infoDialog, openModal } from './ui.js';
+import { el, toast, confetti, infoDialog, openModal, switchEl } from './ui.js';
+import { icon } from './icons.js';
 import { sfx, playBlob, speakNative } from './sfx.js';
 import { settings, saveSettings, words, bumpGame, getCard, idbGet, idbSet, hasAudioCached, isKid } from './store.js';
 import { ttsChar } from './gemini.js';
@@ -31,9 +32,9 @@ function renderIntro() {
   viewSeq++;
   root.innerHTML = '';
 
-  function entry(emoji, label, desc, cls, onclick) {
+  function entry(iconName, label, desc, cls, onclick) {
     const card = el('button', { class: `game-entry ${cls}`, onclick },
-      el('span', { class: 'ge-emoji', text: emoji }),
+      el('span', { class: 'ge-emoji' }, icon(iconName)),
       el('span', { class: 'ge-label', text: label }),
       el('span', { class: 'ge-desc', text: desc }),
     );
@@ -41,28 +42,26 @@ function renderIntro() {
   }
 
   // 不熟模式開關
-  const weakSwitch = el('button', { class: `switch${settings.weakMode ? ' on' : ''}` });
-  weakSwitch.addEventListener('click', () => {
+  const weakSwitch = switchEl(settings.weakMode, (on) => {
     sfx.tap();
-    settings.weakMode = !settings.weakMode;
+    settings.weakMode = on;
     saveSettings();
-    weakSwitch.classList.toggle('on', settings.weakMode);
-  });
+  }, t('weak_mode'));
 
   root.append(
-    el('div', { class: 'h1' }, '🎈 ', t('game_title')),
+    el('div', { class: 'h1' }, icon('balloon'), t('game_title')),
     el('div', { class: 'game-menu' },
-      entry('🦊', t('game_menu_listen'), t('game_intro'), 'listen', async () => {
+      entry('fox', t('game_menu_listen'), t('game_intro'), 'listen', async () => {
         sfx.tap();
         if (!(await weakModeGate())) return;
         startPrep();
       }),
-      entry('🃏', t('game_menu_flash'), t('game_menu_flash_desc'), 'flash', () => {
+      entry('cards', t('game_menu_flash'), t('game_menu_flash_desc'), 'flash', () => {
         sfx.tap();
         if (words.length < 4) { toast(t('game_need_words'), true); return; }
         openFlashMenu();
       }),
-      entry('🧩', t('game_menu_word'), t('game_menu_word_desc'), 'word', async () => {
+      entry('puzzle', t('game_menu_word'), t('game_menu_word_desc'), 'word', async () => {
         sfx.tap();
         if (words.length < 4) { toast(t('game_need_words'), true); return; }
         if (!(await weakModeGate())) return;
@@ -72,7 +71,7 @@ function renderIntro() {
     // 不熟模式是家長調的出題範圍，小孩帳號不顯示
     isKid() ? null : el('div', { class: 'card', style: 'max-width:1100px;margin:20px auto 0;' },
       el('div', { class: 'settings-line' },
-        el('span', { text: `🔥 ${t('weak_mode')}` }), weakSwitch,
+        el('span', {}, icon('fire'), t('weak_mode')), weakSwitch,
       ),
     ),
   );
@@ -83,18 +82,18 @@ let pickSort = 'weak';     // 選字清單排序：weak | new | least | most
 const pickSel = new Set(); // 已選的字（切換排序時保留）
 
 function openFlashMenu() {
-  const m = openModal(`🃏 ${t('game_menu_flash')}`);
-  const mk = (cls, emoji, label, onclick) =>
-    el('button', { class: `btn big ${cls}`, style: 'width:100%;justify-content:center;', onclick }, `${emoji} `, label);
+  const m = openModal(t('game_menu_flash'), { icon: 'cards' });
+  const mk = (cls, iconName, label, onclick) =>
+    el('button', { class: `btn big ${cls}`, style: 'width:100%;justify-content:center;', onclick }, icon(iconName), label);
   m.body.append(
     el('div', { style: 'display:flex;flex-direction:column;gap:12px;padding:6px 0;min-width:min(340px,72vw);' },
-      mk('mint', '🚀', t('flash_start_all'), async () => {
+      mk('mint', 'rocket', t('flash_start_all'), async () => {
         sfx.tap();
         m.close();
         if (!(await weakModeGate())) return;
         startFlash(root, 'char', renderIntro);
       }),
-      mk('sky', '🎯', t('flash_pick'), () => {
+      mk('sky', 'target', t('flash_pick'), () => {
         sfx.tap();
         m.close();
         pickSel.clear();
@@ -224,11 +223,11 @@ function renderFlashPicker() {
 
   root.append(
     el('div', { class: 'spread' },
-      el('div', { class: 'row' }, backBtn, el('div', { class: 'h1', style: 'margin:0;' }, '🎯 ', t('flash_pick'))),
+      el('div', { class: 'row' }, backBtn, el('div', { class: 'h1', style: 'margin:0;' }, icon('target'), t('flash_pick'))),
       el('div', { class: 'row' }, allBtn, clearBtn, startBtn),
     ),
     el('div', { class: 'spread', style: 'margin:10px 0;' }, seg),
-    el('p', { class: 'settings-note', style: 'margin-bottom:12px;', text: `👉 ${t('flash_pick_hint')}` }),
+    el('p', { class: 'settings-note', style: 'margin-bottom:12px;', text: t('flash_pick_hint') }),
     grid,
   );
 }
@@ -337,9 +336,9 @@ async function startPrep() {
   const msg = el('p', { text: `${t('game_prep')} 0/${missing.length}` });
   const fill = el('div', { class: 'prep-fill' });
   root.append(
-    el('div', { class: 'h1' }, '🎈 ', t('game_title')),
+    el('div', { class: 'h1' }, icon('balloon'), t('game_title')),
     el('div', { class: 'card game-stage loading-scene' },
-      el('span', { class: 'big-emoji', text: '🔊' }), msg,
+      el('span', { class: 'big-emoji' }, icon('speaker')), msg,
       el('div', { class: 'prep-bar' }, fill),
     ),
   );
@@ -398,8 +397,8 @@ function renderQuestion() {
     }),
   );
 
-  const scoreEl = el('div', { class: 'game-score', text: `⭐ ${score} ${t('game_score')}` });
-  const speaker = el('button', { class: 'speaker-btn', text: '🔊' });
+  const scoreEl = el('div', { class: 'game-score' }, icon('star'), `${score} ${t('game_score')}`);
+  const speaker = el('button', { class: 'speaker-btn', 'aria-label': t('speaker_label') }, icon('speaker'));
 
   async function play() {
     speaker.classList.add('playing');
@@ -438,7 +437,7 @@ function renderQuestion() {
         cards.forEach((c) => { if (c.dataset.ch === q.ch) c.classList.add('right'); });
       }
       state.answers.push(correct);
-      scoreEl.textContent = `⭐ ${state.score} ${t('game_score')}`;
+      scoreEl.replaceChildren(icon('star'), `${state.score} ${t('game_score')}`);
       await new Promise((r) => setTimeout(r, correct ? 900 : 1500));
       state.idx++;
       renderQuestion();
@@ -471,12 +470,12 @@ function renderEnd() {
   root.innerHTML = '';
   root.append(
     el('div', { class: 'card game-stage game-end' },
-      el('div', { style: 'font-size:100px;', text: ratio >= 0.8 ? '🏆' : ratio >= 0.5 ? '🎉' : '💪' }),
+      el('div', { class: 'big-emoji' }, icon(ratio >= 0.8 ? 'trophy' : ratio >= 0.5 ? 'smile' : 'hand')),
       el('h2', { text: grade }),
-      el('div', { class: 'stars', text: '⭐'.repeat(starCount) + '☆'.repeat(5 - starCount) }),
+      el('div', { class: 'stars' }, ...Array.from({ length: 5 }, (_, k) => icon('star', k < starCount ? '' : 'off'))),
       el('p', { text: `${score} / ${questions.length}` }),
       el('div', { class: 'row', style: 'justify-content:center;' },
-        el('button', { class: 'btn big berry', onclick: () => { sfx.tap(); startPrep(); } }, '🔁 ', t('game_again')),
+        el('button', { class: 'btn big berry', onclick: () => { sfx.tap(); startPrep(); } }, icon('refresh'), t('game_again')),
       ),
     ),
   );

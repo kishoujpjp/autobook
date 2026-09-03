@@ -1,6 +1,6 @@
 # 自動繪本 Autobook
 
-給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.24.0**。
+給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.25.0**。
 
 - 線上版（GitHub Pages，push `main` 自動部署）：https://kishoujpjp.github.io/autobook/
 - 純前端 ES modules、無 build step；AI 走使用者自備的 Gemini API Key（存本機）。
@@ -112,6 +112,14 @@
 - **背景競態（v1.24.0）**：遊戲與跟讀各有 `viewSeq` 畫面世代；準備語音、懶生成配圖、延遲示範發音回來時若世代已變（使用者切走）一律放棄，不會在別的分頁出聲或蓋畫面。生成面板的語音輸入在面板關閉時 `abort()`，最長只收 30 秒。跟讀配圖、頭像、上傳預覽的 blob URL 在圖片解碼後即釋放。
 - **CSP（v1.24.0）**：`index.html` 加 `Content-Security-Policy` meta（script 只准自家；connect 只到 Gemini；img／media 允許 https 連結與 blob；frame 只准 youtube-nocookie 與 Vimeo）與 `referrer=no-referrer`。**動到外部資源時記得同步改 CSP**。Capacitor 殼內若發現資源被擋，先查 Safari Web Inspector 的 CSP 訊息。
 - **品質閘門（v1.24.0）**：`npm run lint`（ESLint flat config，`eslint.config.js`；資料表不檢查）與 `npm test`（`node:test`，`tests/`：壞資料回退、addWords 去重、shelfVictim、findNewChars、joinB64、errHintKey、pickWrong、scoreAttempt）。GitHub Actions 改為 **check（lint → test → build）→ deploy**，只發佈 `dist/`（不再把 `scripts/`、`ios/`、`tools/` 放上 Pages）。Capacitor 殼內隱藏「下載全部發音」（沒有 SW，抓了也讀不到）。
+- **設計系統（v1.25.0，Phase 2）**：`css/app.css` 全面 token 化——色票（`--primary/--mint/--sky/--berry` 深色變體做硬邊陰影；`--ok/--no/--new/--warn` 學習狀態四色全站唯一一套；`--danger` 紅描邊只給刪除／清除／重置，且單獨成列 `.danger-row`）、型階 11 階、圓角 `--r-1/2/3/pill`、動效 `--t-press/switch/reward`、尺寸 `--tap-kid 64`／`--tap-parent 48`（`.btn` 小孩鈕、`.btn.small` 家長鈕）。彩色鈕全部白字對比 ≥3:1，黃底一律深字。
+- **學習字改楷體（v1.25.0）**：`fonts/tw-kai-trad.woff2`（Big5 常用 5401＋詞庫，3.2 MB）＋ `fonts/tw-kai-simp.woff2`（簡體專有 1795 字，0.6 MB，`unicode-range` 按需載入），由 `tools/make_fonts.py` 從全字庫正楷體 TW-Kai 子集化（需 `pip install fonttools brotli`；原檔快取在 `tools/.cache/`）。只套在字塊、字卡、詞卡、選字、新字方塊、書架封面（`.zi .nc-zi .pick-zi .word-chip .w .fc-zi .choice-card .bk-art.plain`），`font-weight:400`＋`-webkit-text-stroke:.6px`，不合成粗體。授權標示在設定頁隱私卡（`kai_credit`）。字表外的罕用字會退回 PingFang。
+- **標點附著（v1.25.0）**：故事字塊每個字包一層 `.zg`，後面的標點塞進同一個群組，flex 換行不會再出現行首標點；書名列同理。
+- **✓✗ 角標（v1.25.0）**：`.mk-g/.mk-r/.fc-zi.g/.fc-zi.r` 的 `::after` 用 CSS mask 畫勾叉，紅綠色弱也分得出。
+- **SVG 圖示庫（v1.25.0）**：`js/icons.js`（48 viewBox、圓頭粗線、currentColor，約 70 顆），`icon(name)` 回傳 `<svg class="ic">`；分頁列、頁首、按鈕、modal 標題（`openModal(title, { icon })`）全部改用，介面與 i18n 字串內不再放 emoji（只留故事內容與家長端生成 log）。
+- **夜間模式（v1.25.0）**：設定頁「夜間模式（睡前共讀）」開關（`settings.theme`），`js/theme.js` 在 CSS 之前把 `data-theme="dark"` 寫到 `<html>`（不閃亮底），`:root[data-theme="dark"]` 整套 token 換色，`theme-color` meta 同步。
+- **翻頁鈕方向（v1.25.0）**：改為左 ◀ 上一頁／右 ▶ 下一頁，橫直向一致（推翻 v1.1 的「下一頁在左」；防誤觸靠進度條隔離）。
+- **a11y 基礎（v1.25.0）**：分頁列 `role=tablist/tab`＋`aria-selected`、modal `role=dialog aria-modal`、開關 `role=switch aria-checked`（`switchEl()`）、toast `aria-live`、圖示鈕全部 `aria-label`、`:focus-visible` 焦點環、`prefers-reduced-motion` 關動畫。`.page` 上緣避開瀏海、內容最寬 1280px 置中、插圖寬度有 160px 下限。
 - **聽音認字的干擾項改 `pickWrong()`**：從「其他未入庫字」過濾後隨機取，只剩一個字時回 null 並略過該題（舊寫法 `while (wrong === ch)` 在只剩一個未入庫字時會無限迴圈凍住 iPad）；開始前檢查的是「未入庫字數 ≥ 4」而非字表總數。
 
 ## 發音架構（重要）
