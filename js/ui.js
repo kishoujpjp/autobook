@@ -4,6 +4,9 @@ import { sfx } from './sfx.js';
 import { icon } from './icons.js';
 import { isKid } from './store.js';
 
+/** 全站互動時間常數（毫秒）：雙擊合成、防連點、長按——以前三處各自寫死 */
+export const TIMING = Object.freeze({ dblTap: 350, tapGuard: 450, longPress: 500 });
+
 export function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {

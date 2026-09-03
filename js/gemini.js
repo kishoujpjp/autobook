@@ -255,9 +255,12 @@ export function findNewChars(text, knownSet) {
 // 會思考的模型（gemini-3 / gemini-2.5 文字系）收到請求後可能沉默 30~60 秒才吐第一個字，
 // SSE 連線這段時間沒有資料流動，行動 Safari 會把閒置連線砍掉（Load failed）。
 // 把思考壓到最低：第一批字幾秒內就到，連線開始流動就不會被砍；幼兒繪本也不需要深思。
-let thinkUnsupported = false; // 模型不吃 thinkingConfig（HTTP 400）時記住，之後不再送
+// 模型不吃 thinkingConfig（HTTP 400）時記住 10 分鐘、只記那個模型：以前是全域永久關掉，
+// 任何一次 400（包含跟 thinking 無關的）都會讓之後每次生成回到「沉默 30 秒被砍線」的老問題
+const THINK_OFF_MS = 10 * 60 * 1000;
+const thinkOffUntil = new Map(); // model → timestamp
 function thinkCfg(model) {
-  if (thinkUnsupported) return {};
+  if ((thinkOffUntil.get(model) || 0) > Date.now()) return {};
   if (/^gemini-3/.test(model)) return { thinkingConfig: { thinkingLevel: 'low' } };
   if (/^gemini-2\.5/.test(model)) return { thinkingConfig: { thinkingBudget: 0 } };
   return {};
@@ -273,7 +276,7 @@ async function callStreamTextThink(model, generationConfig, prompt, opts) {
     }, opts);
   } catch (e) {
     if (cfg.thinkingConfig && /HTTP 400/.test(e.message)) {
-      thinkUnsupported = true;
+      thinkOffUntil.set(model, Date.now() + THINK_OFF_MS);
       emitLog(`⚠️ 模型不支援 thinkingConfig（${e.message.slice(0, 80)}），改用預設重試`);
       return await callStreamText(model, {
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
@@ -283,6 +286,8 @@ async function callStreamTextThink(model, generationConfig, prompt, opts) {
     throw e;
   }
 }
+
+export const STORY_MAX_CHARS = 1500; // 故事內文上限（正常約 200 字）
 
 /** 洗牌（Fisher–Yates）：字表注入提示詞前打亂，避免模型每次看到同樣的開頭 */
 function shuffle(arr) {
@@ -417,6 +422,13 @@ export async function generateStory({ knownChars, mustInclude, extraPrompt, mix,
       emitLog(`❌ 第 ${attempt} 次失敗：缺少 title/story 欄位`);
       continue;
     }
+    // 輸出上限：繪本約 200 字；模型失控吐幾萬字會建幾萬顆字塊把頁面卡死
+    if (typeof data.story !== 'string' || typeof data.title !== 'string' ||
+        data.story.length > STORY_MAX_CHARS || data.title.length > 40) {
+      notes.push(`第 ${attempt} 次：輸出太長（${String(data.story).length} 字）`);
+      emitLog(`❌ 第 ${attempt} 次失敗：輸出太長（${String(data.story).length} 字，上限 ${STORY_MAX_CHARS}）`);
+      continue;
+    }
 
     const newChars = findNewChars(data.story, knownSet);
     const result = {
@@ -524,7 +536,10 @@ async function streamImage(prompt, signal = null) {
     out = await callStream(settings.imageModel, body, { timeoutMs: 150000, stage: 'image', signal });
   }
   if (!out.inlineParts.length) throw new Error('NO_IMAGE');
-  return new Blob([joinB64(out.inlineParts)], { type: out.inlineMime || 'image/png' });
+  // mime 由模型回報：只收圖片，其他一律不存進 IndexedDB
+  const mime = out.inlineMime || 'image/png';
+  if (!/^image\/(png|jpeg|webp|gif)$/i.test(mime)) throw new Error(`NO_IMAGE（${mime}）`);
+  return new Blob([joinB64(out.inlineParts)], { type: mime });
 }
 
 // ---------- 插圖風格池：每次出圖隨機選一種，畫風多樣化 ----------

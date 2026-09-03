@@ -1,6 +1,6 @@
 # 自動繪本 Autobook
 
-給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.28.0**。
+給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.29.0**。
 
 - 線上版（GitHub Pages，push `main` 自動部署）：https://kishoujpjp.github.io/autobook/
 - 純前端 ES modules、無 build step；AI 走使用者自備的 Gemini API Key（存本機）。
@@ -113,9 +113,8 @@
 - **CSP（v1.24.0）**：`index.html` 加 `Content-Security-Policy` meta（script 只准自家；connect 只到 Gemini；img／media 允許 https 連結與 blob；frame 只准 youtube-nocookie 與 Vimeo）與 `referrer=no-referrer`。**動到外部資源時記得同步改 CSP**。Capacitor 殼內若發現資源被擋，先查 Safari Web Inspector 的 CSP 訊息。
 - **品質閘門（v1.24.0）**：`npm run lint`（ESLint flat config，`eslint.config.js`；資料表不檢查）與 `npm test`（`node:test`，`tests/`：壞資料回退、addWords 去重、shelfVictim、findNewChars、joinB64、errHintKey、pickWrong、scoreAttempt）。GitHub Actions 改為 **check（lint → test → build）→ deploy**，只發佈 `dist/`（不再把 `scripts/`、`ios/`、`tools/` 放上 Pages）。Capacitor 殼內隱藏「下載全部發音」（沒有 SW，抓了也讀不到）。
 - **設計系統（v1.25.0，Phase 2）**：`css/app.css` 全面 token 化——色票（`--primary/--mint/--sky/--berry` 深色變體做硬邊陰影；`--ok/--no/--new/--warn` 學習狀態四色全站唯一一套；`--danger` 紅描邊只給刪除／清除／重置，且單獨成列 `.danger-row`）、型階 11 階、圓角 `--r-1/2/3/pill`、動效 `--t-press/switch/reward`、尺寸 `--tap-kid 64`／`--tap-parent 48`（`.btn` 小孩鈕、`.btn.small` 家長鈕）。彩色鈕全部白字對比 ≥3:1，黃底一律深字。
-- **學習字改楷體（v1.25.0）**：`fonts/tw-kai-trad.woff2`（Big5 常用 5401＋詞庫，3.2 MB）＋ `fonts/tw-kai-simp.woff2`（簡體專有 1795 字，0.6 MB，`unicode-range` 按需載入），由 `tools/make_fonts.py` 從全字庫正楷體 TW-Kai 子集化（需 `pip install fonttools brotli`；原檔快取在 `tools/.cache/`）。只套在字塊、字卡、詞卡、選字、新字方塊、書架封面（`.zi .nc-zi .pick-zi .word-chip .w .fc-zi .choice-card .bk-art.plain`），`font-weight:400`＋`-webkit-text-stroke:.6px`，不合成粗體。授權標示在設定頁隱私卡（`kai_credit`）。字表外的罕用字會退回 PingFang。
+- **學習字字體（v1.29.0 決定）**：字塊、字卡、詞卡、選字、新字方塊、書架封面用與介面同一套 PingFang 粗體（v1.25 曾改楷體 TW-Kai，用戶試用後認為原字體較清楚，字型檔已移除；`tools/make_fonts.py` 留著備用）。紅綠只用顏色，不加 ✓✗ 角標。
 - **標點附著（v1.25.0）**：故事字塊每個字包一層 `.zg`，後面的標點塞進同一個群組，flex 換行不會再出現行首標點；書名列同理。
-- **✓✗ 角標（v1.25.0）**：`.mk-g/.mk-r/.fc-zi.g/.fc-zi.r` 的 `::after` 用 CSS mask 畫勾叉，紅綠色弱也分得出。
 - **SVG 圖示庫（v1.25.0）**：`js/icons.js`（48 viewBox、圓頭粗線、currentColor，約 70 顆），`icon(name)` 回傳 `<svg class="ic">`；分頁列、頁首、按鈕、modal 標題（`openModal(title, { icon })`）全部改用，介面與 i18n 字串內不再放 emoji（只留故事內容與家長端生成 log）。
 - **夜間模式（v1.25.0）**：設定頁「夜間模式（睡前共讀）」開關（`settings.theme`），`js/theme.js` 在 CSS 之前把 `data-theme="dark"` 寫到 `<html>`（不閃亮底），`:root[data-theme="dark"]` 整套 token 換色，`theme-color` meta 同步。
 - **翻頁鈕方向（v1.25.0）**：改為左 ◀ 上一頁／右 ▶ 下一頁，橫直向一致（推翻 v1.1 的「下一頁在左」；防誤觸靠進度條隔離）。
@@ -129,6 +128,8 @@
 - **標籤精簡（v1.26.0）**：`rs_mode`、`set_tap_speak`、`weak_mode`、`set_lang`、`set_tts_key`、`set_dl_syl`、`gen_today`、`gen_mix` 去掉括號說明，說明改成獨立 `settings-note`。
 - **字表全家共用、紅綠依小孩分開（v1.28.0）**：兩個小孩一起讀同一本書、學同一批字，所以字表只有一份（`autobook.words`，新字加一次所有帳號都有）；紅綠、字卡次數等熟悉度存在每個字的 `cards['帳號id|語系']`，各帳號各自繼承。`store.activeAccId` 是「紅綠紀錄的對象」：小孩登入＝自己；家長＝正在管理的小孩（`settings.manageAcc`，家長頁與字表頁頂端的「正在管理」頭像列切換，`setManageAcc()`），`cardKey()` 以它為準，家長幫小孩標紅綠寫的是那個小孩的紀錄；本篇新字、遊戲出題、故事標註的紅綠也都看這個小孩。字表是分頁列的第四個分頁，小孩也能進去點字聽發音、直接標紅綠（家長可用「鎖定」讓點字只發音）。v1.27.0 曾短暫做成每帳號一份字表（`autobook.wordsBy`），v1.28.0 啟動時自動合併回共用（字取聯集、各帳號 cards 合併、入庫取聯集），鍵留在備份白名單讓 v1.27 的備份也能匯入。
 - **重讀不清掉認字表標註（v1.28.0）**：標註模式的字塊先照認字表上的紅綠顯示（`seedMark`），這一輪點過的才以 `story.marksBy` 為準；**點第一下＝讀過了、維持原標註**（tick 音），再點一下才輪換（綠→紅→白）並寫回字表。「再讀一遍」「狀態重置」只清這一輪的進度，每個小孩重讀同一本時自己還不會的字一直看得到。「直接完成」對標紅的字維持紅。
+- **詞庫不做黑名單（v1.29.0）**：`tools/make_wordbank.py` 的 `blocked()` 恆回 false，詞庫內容由家長自己審（資料源快取在 `tools/.cache/wordbank/`：jieba `dict.txt`、CC-CEDICT）。
+- **穩定性第一批（v1.29.0）**：SW 只快取型別對得上的回應（captive portal 的 HTML 不會被存成 js）且 `cache.put` 包 catch；故事輸出上限 1500 字、書名 40 字（超過視同失敗重試）；插圖只收 `image/png|jpeg|webp|gif`；thinkingConfig 遇 400 只關該模型 10 分鐘（不再全域永久關）；「AI 再畫一張」在面板關掉後完成會直接重繪故事頁；影片 destroy 加 `load()` 釋放解碼器；雙擊 350／防連點 450／長按 500 毫秒收進 `ui.js` 的 `TIMING`。
 - **聽音認字的干擾項改 `pickWrong()`**：從「其他未入庫字」過濾後隨機取，只剩一個字時回 null 並略過該題（舊寫法 `while (wrong === ch)` 在只剩一個未入庫字時會無限迴圈凍住 iPad）；開始前檢查的是「未入庫字數 ≥ 4」而非字表總數。
 
 ## 發音架構（重要）

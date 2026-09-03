@@ -1,14 +1,11 @@
 // Service Worker：app shell 快取（cache-first），API 一律走網路
-const CACHE = 'autobook-v1.28.0';
+const CACHE = 'autobook-v1.29.0';
 // 音節音檔獨立持久快取：檔案不變，cache-first；版本更新時不清除（不用重抓 25MB）
 const SYL_CACHE = 'autobook-syl-1';
 const SHELL = [
   './',
   './index.html',
   './css/app.css',
-  './css/fonts.css',
-  './fonts/tw-kai-trad.woff2',
-  './fonts/tw-kai-simp.woff2',
   './js/theme.js',
   './js/icons.js',
   './js/nav.js',
@@ -79,11 +76,18 @@ self.addEventListener('fetch', (e) => {
   const req = e.request.mode === 'navigate'
     ? new Request(e.request.url, { cache: 'no-cache' })
     : new Request(e.request, { cache: 'no-cache' });
+  // 只快取「型別對得上」的回應：captive portal 會對任何路徑回 200 的 HTML，
+  // 不檢查的話 js/main.js 會被存成一頁登入網頁，之後離線就白畫面
+  const wantsHtml = e.request.mode === 'navigate' || /\/$|\.html?$/.test(url.pathname);
   e.respondWith(
     fetch(req).then((res) => {
       if (res.ok && e.request.method === 'GET') {
-        const clone = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, clone));
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        const isHtml = ct.includes('text/html');
+        if (isHtml === wantsHtml) {
+          const clone = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, clone)).catch(() => {});
+        }
       }
       return res;
     }).catch(() => caches.match(e.request)),

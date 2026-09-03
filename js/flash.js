@@ -7,7 +7,7 @@
 //   紅轉綠 → 隔 3 張再確認一次；確認那張沒被標紅 → 學會，歸入熟悉群
 // 熟悉度紀錄依「帳號×語系」分開（store.cards）。
 import { t, getLang } from './i18n.js';
-import { el, toast } from './ui.js';
+import { el, toast, TIMING } from './ui.js';
 import { icon } from './icons.js';
 import { sfx } from './sfx.js';
 import {
@@ -306,7 +306,7 @@ export function startFlash(root, mode, onExit, opts = {}) {
       btn.addEventListener('click', async () => {
         // 防誤觸：短時間內連點不重複輪換
         const nowT = Date.now();
-        if (nowT - lastCycleAt < 450) return;
+        if (nowT - lastCycleAt < TIMING.tapGuard) return;
         lastCycleAt = nowT;
         const mark = cycleMark(ch);
         // 同一張卡裡相同的字全部同步變色

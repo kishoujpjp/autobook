@@ -1,8 +1,8 @@
 /* ============ 自動繪本 — 設計系統（v1.25.0）============
    原則：飽和色只出現在可互動的東西上；文字一律深色變體；黃色永遠配深字；
    成績三色（ok／warn／no）全站只有一套；陰影只用硬邊 3D（底邊＝該色的深色變體）。
-   學習字（字塊、字卡、詞卡、選字、新字方塊、書架封面）用楷體 TW-Kai 400＋0.6px 描邊，不合成粗體。
-   型階 11 階：12 · 14 · 16 · 18 · 20 · 24 · 30 · 36 · 48 · 64 · 96；學習字另有 48／72／108。
+   學習字（字塊、字卡、詞卡、選字、新字方塊、書架封面）與介面同字體，粗體。
+   型階 11 階：12 · 14 · 16 · 18 · 20 · 24 · 30 · 36 · 48 · 64 · 96。
    圓角 4 階：12（chip、輸入）、20（按鈕、字塊）、28（卡片、modal）、pill。
    動效三檔：按壓 90ms、切換 200ms、獎勵 900ms。 */
 :root {
@@ -67,8 +67,6 @@
 
   /* ---- 字型 ---- */
   --font-ui: "PingFang TC", "PingFang SC", "Heiti TC", "Microsoft JhengHei", system-ui, sans-serif;
-  --font-kai: "TW-Kai", "BiauKai", "Kaiti TC", "DFKai-SB", "KaiTi", serif;
-  --kai-stroke: 0.6px;
 
   font-size: 18px;
   color-scheme: light;
@@ -297,15 +295,8 @@ button {
 .text-input:focus, .text-area:focus { border-color: var(--primary); }
 .text-area { min-height: 96px; resize: none; }
 
-/* ============ 學習字（楷體）============ */
-.kai,
-.zi, .nc-zi, .pick-zi, .word-chip .w, .fc-zi, .choice-card, .bk-art.plain, .story-title-line .punct, .punct {
-  font-family: var(--font-kai);
-  font-weight: 400;
-  font-synthesis: none;
-  -webkit-text-stroke: var(--kai-stroke) currentColor;
-  paint-order: stroke fill;
-}
+/* ============ 學習字：用介面同一套字體（PingFang 粗體），用戶認為比楷體清楚 ============ */
+.zi, .nc-zi, .pick-zi, .word-chip .w, .fc-zi, .choice-card, .bk-art.plain { font-weight: 700; }
 
 /* ============ 故事頁 ============ */
 /* .active 必須同時存在，否則切到其他分頁時故事頁會殘留變背景 */
@@ -494,12 +485,12 @@ button {
   align-content: flex-start;
 }
 
-/* 字塊：楷體 48（大字 72），硬邊底邊 */
+/* 字塊：44（大字 66），硬邊底邊 */
 .zi {
   width: 72px;
   height: 72px;
   border-radius: var(--r-2);
-  font-size: 48px;
+  font-size: 44px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
@@ -520,31 +511,12 @@ button {
   box-shadow: 0 5px 0 var(--hl-deep);
 }
 .zi.hl:active { box-shadow: 0 1px 0 var(--hl-deep); }
-/* 標註模式：綠＝學會、紅＝不會；顏色之外再加 ✓✗ 角標（紅綠色弱也分得出） */
+/* 標註模式：綠＝學會、紅＝不會（只用顏色，小孩看得懂） */
 .zi.mk-g { background: var(--ok-bg); color: var(--ok); box-shadow: 0 5px 0 var(--ok-deep); }
 .zi.mk-g:active { box-shadow: 0 1px 0 var(--ok-deep); }
 .zi.mk-r { background: var(--no-bg); color: var(--no); box-shadow: 0 5px 0 var(--no-deep); }
 .zi.mk-r:active { box-shadow: 0 1px 0 var(--no-deep); }
 .zi.pop { animation: fcpop 0.3s var(--ease-out); }
-
-/* ✓✗ 角標（CSS mask，跟著文字色） */
-.mk-g::after, .mk-r::after, .fc-zi.g::after, .fc-zi.r::after {
-  content: "";
-  position: absolute;
-  top: 4px; right: 4px;
-  width: 0.36em; height: 0.36em;
-  min-width: 14px; min-height: 14px;
-  max-width: 26px; max-height: 26px;
-  background: currentColor;
-  -webkit-mask: var(--mark-icon) center / contain no-repeat;
-          mask: var(--mark-icon) center / contain no-repeat;
-  pointer-events: none;
-}
-.mk-g, .fc-zi.g { --mark-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M8 25 L19 36 L40 13' fill='none' stroke='%23000' stroke-width='9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
-.mk-r, .fc-zi.r { --mark-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M12 12 L36 36 M36 12 L12 36' fill='none' stroke='%23000' stroke-width='9' stroke-linecap='round'/%3E%3C/svg%3E"); }
-.word-chip.mk-g::after, .word-chip.mk-r::after { top: 6px; right: 6px; width: 18px; height: 18px; }
-.word-chip.mk-g::after { color: var(--ok); background: var(--ok); }
-.word-chip.mk-r::after { color: var(--no); background: var(--no); }
 
 /* 標點：附著在前一個字的方塊旁（.zg 群組，flex 不會把標點單獨換到行首） */
 .zg { display: inline-flex; align-items: center; gap: 4px; }
@@ -557,7 +529,6 @@ button {
   font-size: 40px;
   line-height: 1;
   color: var(--ink-2);
-  -webkit-text-stroke: 0;
 }
 .zg .punct { width: 30px; }
 .linebreak { width: 100%; height: 0; }
@@ -566,7 +537,7 @@ button {
 .story-text.bigfont .zi {
   width: 108px;
   height: 108px;
-  font-size: 72px;
+  font-size: 66px;
   border-radius: var(--r-3);
 }
 .story-text.bigfont .punct {
@@ -635,7 +606,7 @@ video.media-el { object-fit: contain; background: #1A1410; }
   border-radius: var(--r-1);
   background: var(--new-bg);
   color: var(--new);
-  font-size: 36px;
+  font-size: 32px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
@@ -899,7 +870,7 @@ video.media-el { object-fit: contain; background: #1A1410; }
   -webkit-mask-image: radial-gradient(ellipse 72% 72% at 50% 50%, #000 55%, transparent 100%);
           mask-image: radial-gradient(ellipse 72% 72% at 50% 50%, #000 55%, transparent 100%);
 }
-.bk-art.plain { display: grid; place-items: center; font-size: 96px; color: rgba(255, 255, 255, .95); }
+.bk-art.plain { display: grid; place-items: center; font-size: 72px; font-weight: 800; color: rgba(255, 255, 255, .95); text-shadow: 0 4px 0 rgba(0, 0, 0, .10); }
 .bk-prog { position: absolute; left: 16px; right: 0; bottom: 38%; height: 7px; background: rgba(255, 255, 255, .7); z-index: 2; }
 .bk-prog > i { display: block; height: 100%; background: var(--ok); border-radius: 0 4px 4px 0; }
 /* 書名區（下 38%） */
@@ -1039,8 +1010,6 @@ video.media-el { object-fit: contain; background: #1A1410; }
   border-radius: var(--r-pill);
   background: var(--sky);
   color: var(--ink-on-color);
-  font-family: var(--font-ui);
-  -webkit-text-stroke: 0;
   font-size: 12px;
   font-weight: 800;
   display: flex;
@@ -1292,7 +1261,6 @@ video.media-el { object-fit: contain; background: #1A1410; }
 .fc-zi:active { transform: scale(0.97); }
 .fc-zi.g { background: var(--ok-bg); color: var(--ok); box-shadow: 0 0.035em 0 var(--ok-deep); }
 .fc-zi.r { background: var(--no-bg); color: var(--no); box-shadow: 0 0.035em 0 var(--no-deep); }
-.fc-zi.g::after, .fc-zi.r::after { top: 0.04em; right: 0.04em; width: 0.16em; height: 0.16em; max-width: 40px; max-height: 40px; }
 .fc-zi.pop { animation: fcpop 0.3s var(--ease-out); }
 /* 回彈放大但不旋轉 */
 @keyframes fcpop {
@@ -1441,7 +1409,7 @@ video.media-el { object-fit: contain; background: #1A1410; }
   transition: transform 80ms var(--ease-out);
 }
 .word-chip:active { transform: scale(0.94); }
-.word-chip .w { font-size: 48px; line-height: 1; color: var(--ink); }
+.word-chip .w { font-size: 42px; line-height: 1; color: var(--ink); }
 .word-chip .u { font-size: 12px; font-weight: 700; color: var(--ink-2); }
 .word-chip.fresh { border: 3px solid var(--sun); }
 .word-chip.mk-g { background: var(--ok-bg); box-shadow: 0 5px 0 var(--ok-deep); }

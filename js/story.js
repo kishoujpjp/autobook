@@ -5,7 +5,7 @@
 // 一本書可以放多組圖片／影片，讀完一遍換下一組（讀完最後一組之後固定用最後一組）
 // 顯示時故事文字依語系做繁簡轉換（儲存保持生成當下的字形）
 import { t, getLang } from './i18n.js';
-import { el, toast, openModal, confirmDialog, infoDialog, confetti, switchEl } from './ui.js';
+import { el, toast, openModal, confirmDialog, infoDialog, confetti, switchEl, TIMING } from './ui.js';
 import { icon } from './icons.js';
 import { showPage } from './nav.js';
 import { waitScene } from './wait.js';
@@ -346,7 +346,7 @@ export function render() {
     let lpTimer = 0, lpFired = false;
     btn.addEventListener('pointerdown', () => {
       lpFired = false;
-      lpTimer = setTimeout(() => { lpFired = true; speak(); }, 500);
+      lpTimer = setTimeout(() => { lpFired = true; speak(); }, TIMING.longPress);
     });
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) {
       btn.addEventListener(ev, () => clearTimeout(lpTimer));
@@ -644,7 +644,7 @@ function createMediaView(m) {
       kind,
       start() { sound.hidden = false; v.play().catch(() => {}); },
       stop() { sound.hidden = true; try { v.pause(); } catch { /* 還沒載好 */ } },
-      destroy() { try { v.pause(); } catch { /* 還沒載好 */ } v.removeAttribute('src'); },
+      destroy() { try { v.pause(); } catch { /* 還沒載好 */ } v.removeAttribute('src'); try { v.load(); } catch { /* ignore */ } }, // load() 才會真的釋放解碼器
     };
   }
 
@@ -1245,9 +1245,8 @@ function openMediaModal(story, onChanged) {
   const aiBtn = el('button', { class: 'btn berry small' }, icon('sparkle'), t('media_ai'));
   aiBtn.addEventListener('click', async () => {
     sfx.tap();
-    const label = aiBtn.textContent;
     aiBtn.disabled = true;
-    aiBtn.textContent = `⏳ ${t('media_ai_doing')}`;
+    aiBtn.replaceChildren(icon('clock'), t('media_ai_doing'));
     try {
       const scene = story.imagePrompt || s2t(story.text).slice(0, 200);
       const blob = await generateImage(scene, pickImageStyle());
@@ -1255,12 +1254,14 @@ function openMediaModal(story, onChanged) {
       await idbSet('images', id, blob);
       commit([...storyMedia(story), { id, kind: 'image' }]);
       toast(t('media_added'));
+      // 出圖要幾十秒，家長可能已經關掉面板：面板不在了就直接重繪故事頁，不然看不到新圖會再按一次重複燒額度
+      if (!document.body.contains(aiBtn) && currentId === story.id) render();
     } catch (e) {
       console.warn('ai image failed', e);
       toast(`${t('media_ai_fail')}：${e.message}`, true);
     }
     aiBtn.disabled = false;
-    aiBtn.textContent = label;
+    aiBtn.replaceChildren(icon('sparkle'), t('media_ai'));
   });
 
   m.body.append(

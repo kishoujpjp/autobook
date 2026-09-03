@@ -3,7 +3,7 @@
 import { setLang, t } from './i18n.js';
 import { settings, isKid } from './store.js';
 import { sfx } from './sfx.js';
-import { toast } from './ui.js';
+import { toast, TIMING } from './ui.js';
 import { icon } from './icons.js';
 import { setNavHandler } from './nav.js';
 import { initStory, refreshStoryPage, initShelf, refreshShelfPage } from './story.js';
@@ -107,7 +107,7 @@ document.addEventListener('contextmenu', (e) => {
 let lastTouch = 0;
 document.addEventListener('touchend', (e) => {
   const now = Date.now();
-  if (now - lastTouch < 350 && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+  if (now - lastTouch < TIMING.dblTap && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
     e.preventDefault();
     e.target.click && e.target.click();
   }

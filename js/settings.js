@@ -193,7 +193,6 @@ function render() {
   root.append(el('div', { class: 'card' },
     el('div', { class: 'field-label', style: 'margin-top:0;' }, icon('lock'), t('privacy_title')),
     ...privacyParagraphs(),
-    el('p', { class: 'settings-note', style: 'font-size:15px;margin-top:12px;', text: t('kai_credit') }),
   ));
 
   // ---- 版本 ----
