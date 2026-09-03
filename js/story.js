@@ -7,6 +7,8 @@
 import { t, getLang } from './i18n.js';
 import { el, toast, openModal, confirmDialog, infoDialog, confetti, switchEl } from './ui.js';
 import { icon } from './icons.js';
+import { showPage } from './nav.js';
+import { waitScene } from './wait.js';
 import { sfx, playBlob, speakNative } from './sfx.js';
 import {
   settings, saveSettings, words, isHan, addWords, bumpUsed, bumpRead, setMark, getCard, currentAccount,
@@ -83,7 +85,7 @@ export function render() {
           ? el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); openReadSettings(story); } }, icon('sliders'), t('read_settings'))
           : null,
         stories.length
-          ? el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); openShelfModal(); } }, icon('folder'), t('shelf_title'))
+          ? el('button', { class: kid ? 'btn sky' : 'btn ghost', onclick: () => { sfx.tap(); showPage('shelf'); } }, icon('folder'), t('shelf_title'))
           : null,
         kid
           ? null
@@ -146,9 +148,11 @@ export function render() {
   // 進度條、本篇新字、動作鈕：兩種版面共用。
   // 提示文字直接印在進度條上（省一整行），而且進度條不能點——
   // 讓「緊鄰翻頁鈕的東西永遠是不可點的進度條」，小孩戳翻頁鈕不會誤觸功能鈕。
-  const progressText = el('span', { class: 'progress-text' });
+  const progressText = el('span', { class: 'progress-text' }); // 家長看得到的計數；小孩只看星星
   const progressFill = el('div', { class: 'progress-fill' });
-  const progressTrack = el('div', { class: 'progress-track' }, progressFill, progressText);
+  const progressStars = Array.from({ length: 5 }, () => icon('star'));
+  const progressTrack = el('div', { class: 'progress-track', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': '0' },
+    progressFill, el('span', { class: 'progress-stars', 'aria-hidden': 'true' }, ...progressStars), progressText);
   const newRow = dispNew.length
     ? el('div', { class: 'new-chars' },
       el('span', { class: 'nc-label', text: `${t('new_chars')}：` }),
@@ -468,15 +472,15 @@ export function render() {
   function updateProgress() {
     const ratio = doneCount() / hanTotal;
     progressFill.style.width = `${Math.round(ratio * 100)}%`;
-    if (ratio >= 0.999) {
-      progressText.textContent = t(`${hintKey}_done`);
-      if (!celebrated) {
-        celebrated = true;
-        bumpStoryReads(story); // 讀完一遍：下次重開這本就換下一組圖片／影片
-        celebrate();
-      }
-    } else {
-      progressText.textContent = `${t(`${hintKey}_locked`)} ${doneCount()}/${hanTotal}`;
+    progressTrack.setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
+    // 星星格：五顆，讀完才全亮（小孩看圖形；家長另有右側數字）
+    const lit = ratio >= 0.999 ? 5 : Math.floor(ratio * 5);
+    progressStars.forEach((st, k) => st.classList.toggle('on', k < lit));
+    progressText.textContent = kid ? '' : (ratio >= 0.999 ? t(`${hintKey}_done`) : `${doneCount()}/${hanTotal}`);
+    if (ratio >= 0.999 && !celebrated) {
+      celebrated = true;
+      bumpStoryReads(story); // 讀完一遍：下次重開這本就換下一組圖片／影片
+      celebrate();
     }
     refreshActs();
   }
@@ -692,6 +696,12 @@ function spawnMagicStars(host) {
 }
 
 // ---------- 閱讀設定（集中故事頁的工具鈕） ----------
+export function openReadSettingsCurrent() {
+  const s = currentId ? getStory(currentId) : null;
+  if (s) openReadSettings(s);
+}
+export function currentStoryId() { return currentId; }
+
 function openReadSettings(story) {
   const m = openModal(t('read_settings'), { icon: 'sliders' });
   const mode = settings.storyMode === 'mark' ? 'mark' : 'hl';
@@ -877,9 +887,17 @@ function shelfStats(story) {
   }
   return { ratio, done: ratio >= 0.999, fresh };
 }
-function openShelfModal() {
-  const urls = []; // 封面 blob URL，關閉時釋放
-  const m = openModal(t('shelf_title'), { icon: 'folder', onClose: () => urls.forEach((u) => URL.revokeObjectURL(u)) });
+let shelfRoot = null;
+let shelfUrls = []; // 封面 blob URL，重繪時釋放
+export function initShelf(rootEl) { shelfRoot = rootEl; }
+export function refreshShelfPage() { renderShelf(); }
+/** 書架整頁（v1.26.0）：橫向 5 欄、直向 3 欄；封面楷體大字＋書脊星星進度 */
+function renderShelf() {
+  shelfUrls.forEach((u) => URL.revokeObjectURL(u));
+  shelfUrls = [];
+  const urls = shelfUrls;
+  const root = shelfRoot;
+  root.innerHTML = '';
   const kid = currentAccount().role === 'kid';
   const sort = ['new', 'fresh', 'unread'].includes(settings.shelfSort) ? settings.shelfSort : 'new';
   const items = stories.map((s) => ({ s, st: shelfStats(s) }));
@@ -896,11 +914,19 @@ function openShelfModal() {
     b.addEventListener('click', () => {
       sfx.tap();
       if (settings.shelfSort !== key) { settings.shelfSort = key; saveSettings(); }
-      m.close(); openShelfModal();
+      renderShelf();
     });
     seg.append(b);
   }
-  m.body.append(el('div', { class: 'shelf-sub' },
+  root.append(
+    el('div', { class: 'spread', style: 'margin-bottom:12px;' },
+      el('div', { class: 'row' },
+        el('button', { class: 'icon-btn', 'aria-label': t('shelf_back'), onclick: () => { sfx.tap(); showPage('story'); } }, icon('back')),
+        el('div', { class: 'h1', style: 'margin:0;' }, icon('folder'), t('shelf_title')),
+      ),
+    ),
+  );
+  root.append(el('div', { class: 'shelf-sub' },
     el('span', { class: 'shelf-count', text: t('shelf_count', { n: stories.length, done: doneN }) }),
     seg,
   ));
@@ -930,7 +956,8 @@ function openShelfModal() {
       const first = [...displayText(s, s.title)].find(isHan) || '書';
       art.append(el('span', { text: first }));
     }
-    const prog = el('div', { class: 'bk-prog' }, el('i', { style: `width:${Math.round(st.ratio * 100)}%` }));
+    const starN = st.done ? 5 : Math.floor(st.ratio * 5);
+    const prog = el('div', { class: 'bk-stars', 'aria-hidden': 'true' }, ...Array.from({ length: 5 }, (_, k) => icon('star', k < starN ? 'on' : '')));
     const pills = el('div', { class: 'bk-pills' });
     if (st.fresh) pills.append(el('span', { class: 'chip new', text: t('shelf_pill_fresh', { n: st.fresh }) }));
     if (st.done) pills.append(el('span', { class: 'chip done', text: t('shelf_pill_done') }));
@@ -943,7 +970,7 @@ function openShelfModal() {
       ),
     );
     const coverBtn = el('button', { class: 'bk-cover', 'aria-label': displayText(s, s.title) }, art, prog, label);
-    const open = () => { sfx.tap(); currentId = s.id; m.close(); render(); };
+    const open = () => { sfx.tap(); currentId = s.id; showPage('story'); };
     coverBtn.addEventListener('click', open);
 
     const acts = el('div', { class: 'bk-acts' });
@@ -953,7 +980,7 @@ function openShelfModal() {
       const editBtn = el('button', { class: 'book-del book-edit', 'aria-label': t('story_edit') }, icon('edit'));
       editBtn.addEventListener('click', () => {
         sfx.tap();
-        openEditStoryModal(s, () => { m.close(); if (currentId === s.id) render(); openShelfModal(); });
+        openEditStoryModal(s, () => renderShelf());
       });
       const delBtn = el('button', { class: 'book-del', 'aria-label': t('del_label') }, icon('trash'));
       delBtn.addEventListener('click', async () => {
@@ -962,8 +989,7 @@ function openShelfModal() {
         if (yes) {
           await removeStory(s.id);
           if (currentId === s.id) currentId = stories.length ? stories[0].id : null;
-          m.close();
-          render();
+          renderShelf();
         }
       });
       acts.append(editBtn, delBtn);
@@ -974,10 +1000,10 @@ function openShelfModal() {
   if (!kid) {
     const addCover = el('button', { class: 'bk-cover add' },
       el('span', { class: 'bk-plus' }, el('b', { text: '＋' }), t('make_story')));
-    addCover.addEventListener('click', () => { sfx.tap(); m.close(); openGenModal(); });
+    addCover.addEventListener('click', () => { sfx.tap(); openGenModal(); });
     grid.append(el('div', { class: 'bk' }, addCover));
   }
-  m.body.append(grid);
+  root.append(grid);
 }
 
 // ---------- 編輯故事（書架的 ✏️） ----------
@@ -1417,7 +1443,7 @@ async function ensureShelfRoom() {
 }
 
 // ---------- 生成面板 ----------
-function openGenModal() {
+export function openGenModal() {
   let mic = null; // 語音輸入：面板關掉（含按下生成）時一定要停，不然麥克風會一直收音
   const m = openModal(t('gen_title'), { icon: 'sparkle', onClose: () => { if (mic) mic.stop(); } });
   const selected = new Set();
@@ -1623,23 +1649,11 @@ function setupMic(btn, input) {
 // ---------- 生成流程 ----------
 async function runGeneration(mustInclude, extraPrompt) {
   const ac = new AbortController(); // 「停止」鈕：中止 API 呼叫（含重試），什麼都不存
-  const m = openModal('', { closable: false });
-  const emoji = el('span', { class: 'big-emoji' }, icon('fairy'));
-  const msg = el('p', { text: t('gen_writing') });
-  const stopBtn = el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); stopBtn.disabled = true; ac.abort(); } }, icon('stop'), t('gen_stop'));
-  m.foot.append(stopBtn);
-  // 進度 log：顯示目前生成到哪個階段；出錯時原因直接留在視窗裡好除錯
-  const logBox = el('div', { class: 'gen-log' });
-  const addLog = (line) => {
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2, '0');
-    const mm = String(now.getMinutes()).padStart(2, '0');
-    const ss = String(now.getSeconds()).padStart(2, '0');
-    logBox.append(el('div', { class: 'gen-log-line', text: `${hh}:${mm}:${ss} ${line}` }));
-    logBox.scrollTop = logBox.scrollHeight;
-  };
+  // 共用等待場景：角色＋三段進度（寫故事 ▸ 畫圖 ▸ 好了）＋停止；技術 log 摺疊在下面（家長才看得到）
+  const w = waitScene({ steps: [t('wait_write'), t('wait_draw'), t('wait_done')], hint: t('wait_hint_minute'), onStop: () => ac.abort() });
+  w.setStep(0, t('gen_writing'));
+  const addLog = w.log;
   setLogListener(addLog);
-  m.body.append(el('div', { class: 'loading-scene' }, emoji, msg), logBox);
 
   // AI 生成一律用繁體（簡體顯示交給 app 轉換，避免混淆）；示範模式沿用語系版本
   const lang = settings.apiKey ? 'zh-Hant' : getLang();
@@ -1665,7 +1679,7 @@ async function runGeneration(mustInclude, extraPrompt) {
         extraPrompt,
         mix: settings.storyMix,
         wantImage: settings.genImage,
-        onStatus: () => { msg.textContent = t('gen_writing'); },
+        onStatus: () => { w.setStep(0, t('gen_writing')); },
         signal: ac.signal,
       });
       ({ title, text, newChars } = result);
@@ -1689,8 +1703,7 @@ async function runGeneration(mustInclude, extraPrompt) {
 
     // 產插圖
     if (settings.apiKey && settings.genImage && imagePrompt) {
-      emoji.replaceChildren(icon('palette'));
-      msg.textContent = t('gen_drawing');
+      w.setStep(1, t('gen_drawing'));
       const style = pickImageStyle(); // 風格池隨機選一種，畫風多樣化
       addLog(`🎨 ${t('gen_log_img')}（${settings.imageModel}｜${style.name}）…`);
       try {
@@ -1719,33 +1732,50 @@ async function runGeneration(mustInclude, extraPrompt) {
       .map((w) => w.ch);
     bumpUsed(usedOriginals);
 
+    w.setStep(2);
     await addStory(story);
     currentId = id;
     setLogListener(null);
-    m.close();
+    w.close();
     sfx.sparkle();
-    render();
+    showPage('story');
   } catch (e) {
     console.error(e);
     setLogListener(null);
-    if (e.message === 'NO_KEY') { m.close(); toast(t('api_missing'), true); return; }
-    if (e.message === 'CANCELLED') { m.close(); toast(t('gen_cancelled')); return; }
+    if (e.message === 'NO_KEY') { w.close(); toast(t('api_missing'), true); return; }
+    if (e.message === 'CANCELLED') { w.close(); toast(t('gen_cancelled')); return; }
     // 失敗時視窗留著，log 保留完整過程好除錯；按「好」才關
-    stopBtn.remove();
-    emoji.replaceChildren(icon('sad'));
     if (e.message === 'GEN_FAIL') {
-      msg.textContent = t('gen_fail');
       addLog(`❌ ${t('gen_fail')}`);
+      w.fail(t('gen_fail'));
     } else {
-      msg.textContent = t('err_title');
       addLog(`❌ ${e.message}`);
       const hint = errHintKey(e.message);
       if (hint) addLog(`👉 ${t(hint)}`);
+      w.fail(t('err_title'));
     }
-    m.foot.append(el('button', { class: 'btn', text: t('ok'), onclick: () => { sfx.tap(); m.close(); } }));
   } finally {
     setLogListener(null);
   }
+}
+
+/** 示範書（onboarding 與示範模式共用）：內建故事＋內建插圖，直接進書架並打開 */
+export async function createDemoStory() {
+  const lang = getLang();
+  const demo = lang === 'zh-Hans' ? DEMO_STORY_HANS : DEMO_STORY_HANT;
+  const bankConv = new Set(words.map((w) => convertTo(w.ch, lang)));
+  const id = `s${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
+  const story = {
+    id, title: demo.title, text: demo.text, lang,
+    createdAt: Date.now(),
+    newChars: findNewChars(demo.text, bankConv),
+    highlights: [], hasImage: true,
+    media: [{ id: `${id}|demo`, kind: 'image', url: 'icons/demo-cat.svg' }],
+    imagePrompt: '', demo: true,
+  };
+  await addStory(story);
+  currentId = id;
+  return story;
 }
 
 // ---------- 發音 ----------
@@ -1803,21 +1833,13 @@ async function prepStoryVoice(story) {
   if (!settings.apiKey) { toast(t('game_need_key'), true); return; }
 
   const ac = new AbortController(); // 「停止」鈕：一篇 100 多個字、TTS 成功率又不高時，不能讓人乾等 10 分鐘
-  const m = openModal('', { closable: false });
-  const msg = el('p', { text: t('game_prep') });
-  const fill = el('div', { class: 'prep-fill' });
-  m.body.append(el('div', { class: 'loading-scene' },
-    el('span', { class: 'big-emoji' }, icon('speaker')), msg,
-    el('div', { class: 'prep-bar' }, fill),
-  ));
-  const stopBtn = el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); stopBtn.disabled = true; ac.abort(); } }, icon('stop'), t('gen_stop'));
-  m.foot.append(stopBtn);
-  const cancelled = () => { m.close(); toast(t('gen_cancelled')); };
+  const w = waitScene({ steps: [t('wait_poly'), t('wait_voice'), t('wait_done')], iconName: 'speaker', hint: t('wait_hint_minute'), progress: true, onStop: () => ac.abort() });
+  const cancelled = () => { w.close(); toast(t('gen_cancelled')); };
 
   // 多音字偵測（每本只做一次，存在 story.polys）＋所屬詞整詞發音
   try {
     if (!story.polys) {
-      msg.textContent = t('prep_poly');
+      w.setStep(0, t('prep_poly'));
       const polys = await detectPolys(story.text, ac.signal);
       // 偵測失敗（回空陣列）不永久存，下次還會再試；有結果才存
       if (polys.length) { story.polys = polys; saveStories(); }
@@ -1839,8 +1861,9 @@ async function prepStoryVoice(story) {
     const hit = await idbGet('audio', key).catch(() => null);
     if (!hit && !jobs.some((j) => j.key === key)) jobs.push({ key, text: p.word });
   }
-  if (!jobs.length) { m.close(); toast(t('prep_voice_done')); return; }
+  if (!jobs.length) { w.close(); toast(t('prep_voice_done')); return; }
 
+  w.setStep(1, `${t('game_prep')} 0/${jobs.length}`);
   let done = 0, fail = 0, lastErr = null;
   const failed = [];
   for (const j of jobs) {
@@ -1853,11 +1876,11 @@ async function prepStoryVoice(story) {
       fail++; lastErr = e; failed.push(j.text); console.warn('tts failed', j.key, e);
     }
     done++;
-    msg.textContent = `${t('game_prep')} ${done}/${jobs.length}`;
-    fill.style.width = `${Math.round((done / jobs.length) * 100)}%`;
+    w.setMsg(`${t('game_prep')} ${done}/${jobs.length}`);
+    w.setProgress(done / jobs.length);
   }
   if (ac.signal.aborted) { cancelled(); return; }
-  m.close();
+  w.close();
   if (fail) {
     // 部分或全部失敗：顯示失敗數量、失敗的字與具體錯誤＋對策
     const hint = lastErr && errHintKey(lastErr.message);

@@ -7,20 +7,39 @@ import { icon } from './icons.js';
 import { sfx } from './sfx.js';
 import {
   accounts, saveAccounts, currentAccount, setCurrentAccount,
-  removeAccount, parentCount, idbSet, idbDel, settings, saveSettings,
+  removeAccount, parentCount, idbSet, idbDel, settings, saveSettings, isKid,
 } from './store.js';
 import { PRESETS, avatarEl } from './avatars.js';
+import { showPage } from './nav.js';
 
 let avatarBtn = null;
+let parentBtn = null;
 let onAccountChange = null; // main.js 提供：套用權限＋刷新頁面
 
 export function initAccountUI(changeCb) {
   onAccountChange = changeCb;
   avatarBtn = el('button', { id: 'avatar-btn', 'aria-label': t('acc_switch') });
   avatarBtn.addEventListener('click', () => { sfx.tap(); openSwitchModal(); });
-  document.body.append(avatarBtn);
+  // 家長入口（v1.26.0）：小孩帳號按了要過家長門，通過後切到家長帳號再進家長頁
+  parentBtn = el('button', { id: 'parent-btn', 'aria-label': t('parent_title') }, icon('lock'));
+  parentBtn.addEventListener('click', openParentHub);
+  document.body.append(parentBtn, avatarBtn);
   refreshAvatarBtn();
   applyRole();
+}
+
+async function openParentHub() {
+  sfx.tap();
+  if (isKid()) {
+    const ok = await parentGate();
+    if (!ok) return;
+    const parent = accounts.find((a) => a.role === 'parent');
+    if (!parent) return;
+    setCurrentAccount(parent.id);
+    refreshAvatarBtn();
+    if (onAccountChange) onAccountChange();
+  }
+  showPage('parent');
 }
 
 export function refreshAvatarBtn() {
@@ -31,16 +50,11 @@ export function refreshAvatarBtn() {
 
 /** 依目前帳號套用分頁權限（字表小孩也能看，words.js 內自行鎖定） */
 export function applyRole() {
-  const kid = currentAccount().role === 'kid';
-  for (const name of ['settings']) {
-    const tab = document.querySelector(`#tabbar .tab[data-page="${name}"]`);
-    if (tab) tab.style.display = kid ? 'none' : '';
-    if (kid) {
-      const page = document.getElementById(`page-${name}`);
-      if (page && page.classList.contains('active')) {
-        document.querySelector('#tabbar .tab[data-page="story"]').click();
-      }
-    }
+  if (!isKid()) return;
+  // 小孩帳號：站在家長層的任何一頁都送回故事頁（分頁列本來就沒有這些頁）
+  for (const name of ['parent', 'words', 'settings']) {
+    const page = document.getElementById(`page-${name}`);
+    if (page && page.classList.contains('active')) showPage('story');
   }
 }
 

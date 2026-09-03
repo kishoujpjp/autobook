@@ -2192,3 +2192,123 @@ details.adv[open] summary::before { content: "▾ "; }
 }
 .pin-key.soft { background: var(--bg-2); font-size: 24px; }
 .pin-key:active { transform: translateY(4px); box-shadow: var(--shadow-soft-press); }
+
+/* ============ Phase 3（v1.26.0）：小孩層／家長層 ============ */
+/* 家長入口：頭像左邊的鎖頭鈕 */
+#parent-btn {
+  position: fixed;
+  top: calc(var(--safe-t) + 22px);
+  right: 116px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--ink-2);
+  box-shadow: 0 var(--lift-1) 0 var(--line-2), 0 6px 16px rgba(0, 0, 0, 0.12);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 60;
+  transition: transform var(--t-press);
+}
+#parent-btn .ic { width: 32px; height: 32px; }
+#parent-btn:active { transform: scale(0.9); }
+.page > .h1:first-child,
+.page > .spread:first-child,
+.fc-stage > .spread:first-child,
+.rep-stage > .spread:first-child { margin-right: 200px; }
+
+/* 家長頁：大方塊入口 */
+.ptiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 18px;
+  max-width: 1100px;
+}
+.ptile {
+  background: var(--card);
+  border-radius: var(--r-3);
+  box-shadow: var(--shadow-soft);
+  border-bottom: 8px solid var(--tile);
+  padding: 28px 18px 24px;
+  min-height: 190px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  color: var(--ink);
+  transition: transform var(--t-press) var(--ease-out);
+}
+.ptile:active { transform: scale(0.96); }
+.ptile-icon .ic { width: 64px; height: 64px; color: var(--tile); }
+.ptile-label { font-size: 24px; font-weight: 800; }
+.ptile-desc { font-size: 14px; font-weight: 600; color: var(--ink-2); line-height: 1.4; }
+.ptile.p-berry { --tile: var(--berry); }
+.ptile.p-mint { --tile: var(--mint); }
+.ptile.p-sky { --tile: var(--sky); }
+.ptile.p-orange { --tile: var(--primary); }
+.ptile.p-ink { --tile: var(--ink-2); }
+
+/* 書架整頁：橫向 5 欄、直向 3 欄；封面楷體大字、書脊星星 */
+.shelf-page .shelf-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 34px 26px; padding: 8px 10px 30px 6px; }
+@media (max-width: 900px), (orientation: portrait) {
+  .shelf-page .shelf-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.bk-stars {
+  position: absolute; left: 16px; right: 0; bottom: 38%; height: 24px; z-index: 2;
+  background: rgba(255, 255, 255, 0.78);
+  display: flex; align-items: center; justify-content: center; gap: 3px;
+}
+.bk-stars .ic { width: 18px; height: 18px; color: var(--line-2); }
+.bk-stars .ic.on { color: var(--sun-deep); }
+
+/* 進度條改星星格：五顆，讀完才全亮；家長另有右側數字 */
+.progress-stars {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  pointer-events: none;
+}
+.progress-stars .ic { width: 22px; height: 22px; color: var(--line-2); transition: color var(--t-switch), transform var(--t-switch) var(--ease-bounce); }
+.progress-stars .ic.on { color: #fff; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35)); transform: scale(1.15); }
+.progress-text { justify-content: flex-end; padding-right: 12px; }
+
+/* 共用等待場景 */
+.wait-scene {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  text-align: center; padding: 22px 20px 8px;
+  min-width: min(520px, 74vw);
+}
+.wait-figure { font-size: 120px; line-height: 1; color: var(--primary-soft); animation: bob 1.4s ease-in-out infinite; }
+.wait-figure .ic { width: 1em; height: 1em; }
+.wait-figure.done { animation: none; color: var(--ok); }
+.wait-figure.fail { animation: none; color: var(--danger); }
+.wait-msg { font-size: 24px; font-weight: 800; color: var(--ink-2); }
+.wait-steps { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.wait-step {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 16px; border-radius: var(--r-pill);
+  background: var(--bg-2); color: var(--ink-3); font-size: 16px; font-weight: 800;
+}
+.wait-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--line-2); }
+.wait-step.active { background: var(--sun-bg); color: var(--sun-ink); }
+.wait-step.active .wait-dot { background: var(--sun); animation: micpulse 1s ease infinite; }
+.wait-step.done { background: var(--ok-bg); color: var(--ok); }
+.wait-step.done .wait-dot { background: var(--ok); }
+.wait-hint { font-size: 15px; color: var(--ink-3); font-weight: 600; }
+.wait-scene .prep-bar { margin: 2px auto 0; }
+.wait-log { margin: 6px 4px 0; }
+.wait-log .gen-log { margin: 6px 0 0; min-width: 0; }
+
+/* kid 級 toast：大圖示＋大字 */
+.toast.kid { font-size: 26px; padding: 16px 30px; gap: 14px; }
+.toast.kid .ic { width: 40px; height: 40px; color: var(--ok); }
+.toast.kid.warn .ic { color: #fff; }
+
+/* 首啟 onboarding */
+.ob-steps { display: flex; justify-content: center; gap: 8px; margin: 4px 0 14px; }
+.ob-step { width: 12px; height: 12px; border-radius: 6px; background: var(--line-2); transition: width var(--t-switch), background var(--t-switch); }
+.ob-step.on { width: 30px; background: var(--primary); }
+.ob-title { font-size: 26px; font-weight: 800; text-align: center; margin: 4px 0 10px; }
+.ob-text { font-size: 18px; color: var(--ink-2); text-align: center; max-width: 32em; margin: 0 auto 14px; line-height: 1.6; }
+.ob-avatars { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+.ob-hero { text-align: center; font-size: 96px; line-height: 1; color: var(--primary-soft); margin-bottom: 8px; }
+.ob-hero .ic { width: 1em; height: 1em; }

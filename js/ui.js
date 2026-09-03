@@ -2,6 +2,7 @@
 import { t } from './i18n.js';
 import { sfx } from './sfx.js';
 import { icon } from './icons.js';
+import { isKid } from './store.js';
 
 export function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
@@ -18,9 +19,13 @@ export function el(tag, attrs = {}, ...children) {
   return node;
 }
 
+/** toast：家長＝文字；小孩帳號＝大圖示＋短音效＋大字（kid 級） */
 export function toast(msg, warn = false) {
   const root = document.getElementById('toast-root');
-  const node = el('div', { class: `toast${warn ? ' warn' : ''}` }, warn ? icon('warn') : null, msg);
+  const kid = isKid();
+  const node = el('div', { class: `toast${warn ? ' warn' : ''}${kid ? ' kid' : ''}` },
+    (warn || kid) ? icon(warn ? 'warn' : 'check') : null, msg);
+  if (kid) { try { if (warn) sfx.tock(); else sfx.tick(); } catch { /* 音效失敗不影響提示 */ } }
   root.append(node);
   setTimeout(() => {
     node.style.transition = 'opacity 0.4s, transform 0.4s';

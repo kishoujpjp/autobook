@@ -1,6 +1,6 @@
 # 自動繪本 Autobook
 
-給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.25.0**。
+給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.26.0**。
 
 - 線上版（GitHub Pages，push `main` 自動部署）：https://kishoujpjp.github.io/autobook/
 - 純前端 ES modules、無 build step；AI 走使用者自備的 Gemini API Key（存本機）。
@@ -120,6 +120,13 @@
 - **夜間模式（v1.25.0）**：設定頁「夜間模式（睡前共讀）」開關（`settings.theme`），`js/theme.js` 在 CSS 之前把 `data-theme="dark"` 寫到 `<html>`（不閃亮底），`:root[data-theme="dark"]` 整套 token 換色，`theme-color` meta 同步。
 - **翻頁鈕方向（v1.25.0）**：改為左 ◀ 上一頁／右 ▶ 下一頁，橫直向一致（推翻 v1.1 的「下一頁在左」；防誤觸靠進度條隔離）。
 - **a11y 基礎（v1.25.0）**：分頁列 `role=tablist/tab`＋`aria-selected`、modal `role=dialog aria-modal`、開關 `role=switch aria-checked`（`switchEl()`）、toast `aria-live`、圖示鈕全部 `aria-label`、`:focus-visible` 焦點環、`prefers-reduced-motion` 關動畫。`.page` 上緣避開瀏海、內容最寬 1280px 置中、插圖寬度有 160px 下限。
+- **小孩層／家長層分家（v1.26.0，Phase 3）**：分頁列只剩 故事／遊戲／跟讀；字表與設定沒有分頁，從右上角頭像旁的 **鎖頭鈕**（`#parent-btn`）進「家長頁」（`js/parent.js`：新故事、認字表、閱讀設定（有打開的書才顯示，否則是書架）、題庫、設定 五個大方塊）。小孩帳號按鎖頭會先過家長門（PIN 或算術），通過後切到第一個家長帳號再進家長頁；`applyRole()` 把站在家長層的小孩送回故事頁。頁面切換統一走 `js/nav.js` 的 `showPage(name)`（main.js 註冊實際函式，避免模組循環相依）。
+- **書架整頁（v1.26.0）**：`#page-shelf`（`story.js` 的 `initShelf/renderShelf`），橫向 5 欄、直向 3 欄，封面楷體大字＋書脊 5 顆星進度（`.bk-stars`），左上返回鈕回故事頁；小孩只有「打開」，家長有編輯／刪除／新增。
+- **進度改星星格（v1.26.0）**：`.progress-track` 內 5 顆星，讀完才全亮；小孩只看星星，家長右側另有「已讀/總數」。原本的提示文字（點讀文字，把迷霧吹走吧）拿掉。
+- **共用等待場景（v1.26.0）**：`js/wait.js` 的 `waitScene({ steps, iconName, hint, onStop, progress })`——角色＋三段進度（例：寫故事 ▸ 畫圖 ▸ 好了）＋「通常要 1 分鐘左右」＋停止鈕；技術 log 收在摺疊區只給家長。生成故事、準備發音、備份匯出／匯入、下載發音、跟讀 AI 出題／補足全部改用。
+- **kid 級 toast（v1.26.0）**：小孩帳號的 toast 一律大圖示（✓／⚠）＋短音效＋大字（`.toast.kid`）。
+- **首啟 onboarding（v1.26.0）**：`js/onboarding.js`——完全沒資料時三步：選頭像（建立小孩帳號）→ 放進示範字表與示範書（`createDemoStory()`）→ 家長入口說明（可直接去設定 PIN／API Key）。`settings.onboarded` 記住；有資料的舊用戶啟動時直接標成已完成。
+- **標籤精簡（v1.26.0）**：`rs_mode`、`set_tap_speak`、`weak_mode`、`set_lang`、`set_tts_key`、`set_dl_syl`、`gen_today`、`gen_mix` 去掉括號說明，說明改成獨立 `settings-note`。
 - **聽音認字的干擾項改 `pickWrong()`**：從「其他未入庫字」過濾後隨機取，只剩一個字時回 null 並略過該題（舊寫法 `while (wrong === ch)` 在只剩一個未入庫字時會無限迴圈凍住 iPad）；開始前檢查的是「未入庫字數 ≥ 4」而非字表總數。
 
 ## 發音架構（重要）

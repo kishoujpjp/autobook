@@ -3,6 +3,7 @@
 import { t, getLang } from './i18n.js';
 import { el, toast, confirmDialog } from './ui.js';
 import { icon } from './icons.js';
+import { showPage } from './nav.js';
 import { sfx } from './sfx.js';
 import {
   settings, saveSettings, words, addWords, removeWords, setArchived,
@@ -51,7 +52,10 @@ function sortedWords(acc) {
 
 function render() {
   root.innerHTML = '';
-  root.append(el('div', { class: 'h1' }, icon('cards'), t('words_title')));
+  root.append(el('div', { class: 'row', style: 'margin-bottom:18px;' },
+    el('button', { class: 'icon-btn', 'aria-label': t('parent_back_hub'), onclick: () => { sfx.tap(); showPage('parent'); } }, icon('back')),
+    el('div', { class: 'h1', style: 'margin:0;' }, icon('cards'), t('words_title')),
+  ));
 
   // 小孩模式：可以看字表，但固定鎖定——沒有新增/整理/補齊發音，點字只發音
   const kidMode = currentAccount().role === 'kid';

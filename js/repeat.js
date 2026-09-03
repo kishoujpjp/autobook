@@ -4,6 +4,7 @@
 import { t } from './i18n.js';
 import { el, toast, openModal, confirmDialog, infoDialog, confetti } from './ui.js';
 import { icon } from './icons.js';
+import { waitScene } from './wait.js';
 import { sfx, playBlob, speakNative } from './sfx.js';
 import {
   settings, saveSettings, phrases, addPhrases, savePhrases,
@@ -53,14 +54,6 @@ const SVG_TROPHY_BIG =
   '<circle cx="49" cy="45" r="4.5" fill="#FF9DB5" opacity="0.7"/><circle cx="91" cy="45" r="4.5" fill="#FF9DB5" opacity="0.7"/>' +
   '<path d="M70 4 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3 Z" fill="#FF6B9D"/>' +
   '</svg>';
-// AI 生成動畫（旋轉光環＋跳動星星）
-const SVG_AI_ANIM =
-  '<svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">' +
-  '<circle class="ai-ring" cx="80" cy="80" r="62" fill="none" stroke="#FFD23E" stroke-width="5" stroke-dasharray="10 16" stroke-linecap="round"/>' +
-  '<path class="ai-s1" d="M80 36 L89 71 L124 80 L89 89 L80 124 L71 89 L36 80 L71 71 Z" fill="#FFB53E"/>' +
-  '<path class="ai-s2" d="M126 30 l4 11 11 4 -11 4 -4 11 -4 -11 -11 -4 11 -4 Z" fill="#5AA9F9"/>' +
-  '<path class="ai-s3" d="M34 112 l3 9 9 3 -9 3 -3 9 -3 -9 -9 -3 9 -3 Z" fill="#FF6B9D"/>' +
-  '</svg>';
 
 export function initRepeat(rootEl) {
   root = rootEl;
@@ -79,19 +72,8 @@ function scoreCls(s) {
 
 // ---------- AI 阻斷式生成動畫 ----------
 function aiOverlay(text, onStop = null) {
-  const m = openModal('', { closable: false });
-  const anim = el('div', { class: 'ai-anim' });
-  anim.innerHTML = SVG_AI_ANIM;
-  const msg = el('p', { text });
-  m.body.append(el('div', { class: 'loading-scene' }, anim, msg));
-  if (onStop) {
-    const stopBtn = el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); stopBtn.disabled = true; onStop(); } }, '⏹ ', t('gen_stop'));
-    m.foot.append(stopBtn);
-  }
-  return {
-    close: m.close,
-    setText: (s) => { msg.textContent = s; },
-  };
+  const w = waitScene({ steps: [text, t('wait_done')], iconName: 'wand', hint: t('wait_hint_short'), onStop });
+  return { close: w.close, setText: (v) => w.setMsg(v) };
 }
 
 // 畫面世代：離開練習／重繪首頁就 +1，背景還在跑的出圖、發音回來時發現世代不同就放棄，
@@ -269,7 +251,7 @@ function filterBar(st, onChange, { orphan = true } = {}) {
   return wrap;
 }
 
-function openBankModal(initialTab = 'groups') {
+export function openBankModal(initialTab = 'groups') {
   const m = openModal(t('rep_bank'), { icon: 'folder', onClose: renderHome });
   let tab = initialTab;
   const content = el('div', {});

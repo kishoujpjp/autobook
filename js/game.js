@@ -70,9 +70,10 @@ function renderIntro() {
     ),
     // 不熟模式是家長調的出題範圍，小孩帳號不顯示
     isKid() ? null : el('div', { class: 'card', style: 'max-width:1100px;margin:20px auto 0;' },
-      el('div', { class: 'settings-line' },
+      el('div', { class: 'settings-line', style: 'border-bottom:0;padding-bottom:4px;' },
         el('span', {}, icon('fire'), t('weak_mode')), weakSwitch,
       ),
+      el('p', { class: 'settings-note', style: 'margin:0;', text: t('weak_mode_note') }),
     ),
   );
 }

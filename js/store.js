@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.25.0';
+export const VERSION = '1.26.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -34,6 +34,7 @@ const DEFAULT_SETTINGS = {
   storyMix: { warm: 8, fun: 8, conflict: 2, sad: 0, mistake: 2 },
   repStrict: 'std',       // 跟讀評分嚴格度：'easy' | 'std' | 'hard'
   theme: 'light',         // 'light' | 'dark'（夜間模式，睡前共讀）；js/theme.js 在 CSS 前先套用
+  onboarded: false,       // 首啟三步 onboarding 跑過了（有資料的舊用戶啟動時直接標成 true）
 
   textModel: 'gemini-3-flash-preview',
   imageModel: 'gemini-2.5-flash-image',

@@ -2,6 +2,8 @@
 import { t, setLang, getLang } from './i18n.js';
 import { el, toast, confirmDialog, infoDialog, openModal, switchEl } from './ui.js';
 import { icon } from './icons.js';
+import { showPage } from './nav.js';
+import { waitScene } from './wait.js';
 import { sfx, b64ToBytes, speakNative } from './sfx.js';
 import { testModels, errHintKey, readErrLog, clearErrLog } from './gemini.js';
 import {
@@ -32,7 +34,10 @@ export function refreshSettingsPage() { render(); }
 
 function render() {
   root.innerHTML = '';
-  root.append(el('div', { class: 'h1' }, icon('gear'), t('settings_title')));
+  root.append(el('div', { class: 'row', style: 'margin-bottom:18px;' },
+    el('button', { class: 'icon-btn', 'aria-label': t('parent_back_hub'), onclick: () => { sfx.tap(); showPage('parent'); } }, icon('back')),
+    el('div', { class: 'h1', style: 'margin:0;' }, icon('gear'), t('settings_title')),
+  ));
 
   // ---- 帳號 ----
   const accList = el('div', {});
@@ -273,7 +278,7 @@ async function downloadAllSyllables() {
   if (!missing.length) { toast(t('syl_dl_done')); return; }
 
   let stopped = false;
-  const pm = progressModal('⬇️', t('syl_dl_ing'), () => { stopped = true; });
+  const pm = progressModal('download', t('syl_dl_ing'), () => { stopped = true; });
   let done = 0, fail = 0;
   const BATCH = 10;
   for (let i = 0; i < missing.length; i += BATCH) {
@@ -304,23 +309,14 @@ function blobToB64(blob) {
   });
 }
 
+/** 進度視窗：走共用等待場景（角色＋進度條＋停止） */
 function progressModal(iconName, label, onStop = null) {
-  const m = openModal('', { closable: false });
-  const msg = el('p', { text: label });
-  const fill = el('div', { class: 'prep-fill' });
-  m.body.append(el('div', { class: 'loading-scene' },
-    el('span', { class: 'big-emoji' }, icon(iconName)), msg,
-    el('div', { class: 'prep-bar' }, fill),
-  ));
-  if (onStop) {
-    const stopBtn = el('button', { class: 'btn ghost', onclick: () => { sfx.tap(); stopBtn.disabled = true; onStop(); } }, icon('stop'), t('gen_stop'));
-    m.foot.append(stopBtn);
-  }
+  const w = waitScene({ steps: [label, t('wait_done')], iconName, progress: true, onStop });
   return {
-    close: m.close,
+    close: w.close,
     step: (done, total) => {
-      msg.textContent = `${label} ${done}/${total}`;
-      fill.style.width = total ? `${Math.round((done / total) * 100)}%` : '100%';
+      w.setMsg(`${label} ${done}/${total}`);
+      w.setProgress(total ? done / total : 1);
     },
   };
 }
@@ -557,8 +553,11 @@ function tapSpeakLine() {
     settings.tapSpeak = on;
     saveSettings();
   }, t('set_tap_speak'));
-  return el('div', { class: 'settings-line' },
-    el('span', {}, icon('speaker'), t('set_tap_speak')), sw,
+  return el('div', {},
+    el('div', { class: 'settings-line', style: 'border-bottom:0;padding-bottom:4px;' },
+      el('span', {}, icon('speaker'), t('set_tap_speak')), sw,
+    ),
+    el('p', { class: 'settings-note', style: 'margin:0 0 10px;', text: t('set_tap_speak_note') }),
   );
 }
 
