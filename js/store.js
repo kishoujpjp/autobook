@@ -665,6 +665,8 @@ function db() {
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
+    // 開啟失敗（Safari 私密模式、暫時性錯誤）不永久快取：下次呼叫再試一次
+    dbPromise.catch(() => { dbPromise = null; });
   }
   return dbPromise;
 }
