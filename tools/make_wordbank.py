@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """生成 js/wordbank.js：jieba 詞頻(簡) × CEDICT(繁簡對照、濾專有名詞) → 常用 2~3 字詞
-不做黑名單過濾：詞庫內容由家長自己審（2026-09-03 決定）。
+只擋髒話，其餘不過濾：詞庫內容由家長自己審（2026-09-03 決定）。
 
 用法：python3 tools/make_wordbank.py <資料目錄>
 資料目錄需有 jieba_dict.txt 與 cedict.u8
@@ -11,9 +11,16 @@ import sys
 
 HAN = re.compile(r'^[㐀-鿿]+$')
 
-# 不做黑名單過濾（2026-09-03 用戶決定：詞庫內容由家長自己審，不預先拿掉「死」「離婚」這類正常詞）。
-def blocked(word_t, word_s):  # noqa: ARG001
-    return False
+# 只擋髒話與罵人的話（2026-09-03 用戶決定）：其他詞一律不過濾（死亡、離婚、戰爭…都是正常詞），內容由家長自己審。
+PROFANITY = [
+    '媽的', '妈的', '他媽', '他妈', '尼瑪', '尼玛', '肏', '屄', '屌', '雞巴', '鸡巴',
+    '王八', '混蛋', '渾蛋', '浑蛋', '混帳', '混账', '傻逼', '煞笔', '婊', '賤人', '贱人',
+    '幹你', '干你', '操你', '靠北', '機掰', '鸡掰', '白痴', '智障',
+]
+
+
+def blocked(word_t, word_s):
+    return any(b in word_t or b in word_s for b in PROFANITY)
 
 
 def main(data_dir):
@@ -61,7 +68,7 @@ def main(data_dir):
         lines.append(trad if trad == simp else f'{trad}|{simp}')
 
     payload = '\n'.join(lines)
-    out = f"""// 常用詞庫（jieba 詞頻 × CC-CEDICT 繁簡對照，2~3 字、無專有名詞、不過濾黑名單，取前 {TOP}）
+    out = f"""// 常用詞庫（jieba 詞頻 × CC-CEDICT 繁簡對照，2~3 字、無專有名詞、只擋髒話，取前 {TOP}）
 // 由 tools/make_wordbank.py 生成，勿手改。格式：每行「繁|簡」，繁簡相同時只有一個。
 const RAW = `{payload}`;
 

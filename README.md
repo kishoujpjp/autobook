@@ -1,6 +1,6 @@
 # 自動繪本 Autobook
 
-給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.29.0**。
+給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.30.0**。
 
 - 線上版（GitHub Pages，push `main` 自動部署）：https://kishoujpjp.github.io/autobook/
 - 純前端 ES modules、無 build step；AI 走使用者自備的 Gemini API Key（存本機）。
@@ -128,8 +128,9 @@
 - **標籤精簡（v1.26.0）**：`rs_mode`、`set_tap_speak`、`weak_mode`、`set_lang`、`set_tts_key`、`set_dl_syl`、`gen_today`、`gen_mix` 去掉括號說明，說明改成獨立 `settings-note`。
 - **字表全家共用、紅綠依小孩分開（v1.28.0）**：兩個小孩一起讀同一本書、學同一批字，所以字表只有一份（`autobook.words`，新字加一次所有帳號都有）；紅綠、字卡次數等熟悉度存在每個字的 `cards['帳號id|語系']`，各帳號各自繼承。`store.activeAccId` 是「紅綠紀錄的對象」：小孩登入＝自己；家長＝正在管理的小孩（`settings.manageAcc`，家長頁與字表頁頂端的「正在管理」頭像列切換，`setManageAcc()`），`cardKey()` 以它為準，家長幫小孩標紅綠寫的是那個小孩的紀錄；本篇新字、遊戲出題、故事標註的紅綠也都看這個小孩。字表是分頁列的第四個分頁，小孩也能進去點字聽發音、直接標紅綠（家長可用「鎖定」讓點字只發音）。v1.27.0 曾短暫做成每帳號一份字表（`autobook.wordsBy`），v1.28.0 啟動時自動合併回共用（字取聯集、各帳號 cards 合併、入庫取聯集），鍵留在備份白名單讓 v1.27 的備份也能匯入。
 - **重讀不清掉認字表標註（v1.28.0）**：標註模式的字塊先照認字表上的紅綠顯示（`seedMark`），這一輪點過的才以 `story.marksBy` 為準；**點第一下＝讀過了、維持原標註**（tick 音），再點一下才輪換（綠→紅→白）並寫回字表。「再讀一遍」「狀態重置」只清這一輪的進度，每個小孩重讀同一本時自己還不會的字一直看得到。「直接完成」對標紅的字維持紅。
-- **詞庫不做黑名單（v1.29.0）**：`tools/make_wordbank.py` 的 `blocked()` 恆回 false，詞庫內容由家長自己審（資料源快取在 `tools/.cache/wordbank/`：jieba `dict.txt`、CC-CEDICT）。
+- **詞庫只擋髒話（v1.30.0）**：`tools/make_wordbank.py` 的 `PROFANITY` 只列髒話與罵人的話（約 30 個子字串），死亡、離婚、戰爭等正常詞不過濾，內容由家長自己審（資料源快取在 `tools/.cache/wordbank/`：jieba `dict.txt`、CC-CEDICT；改名單要重跑腳本）。
 - **穩定性第一批（v1.29.0）**：SW 只快取型別對得上的回應（captive portal 的 HTML 不會被存成 js）且 `cache.put` 包 catch；故事輸出上限 1500 字、書名 40 字（超過視同失敗重試）；插圖只收 `image/png|jpeg|webp|gif`；thinkingConfig 遇 400 只關該模型 10 分鐘（不再全域永久關）；「AI 再畫一張」在面板關掉後完成會直接重繪故事頁；影片 destroy 加 `load()` 釋放解碼器；雙擊 350／防連點 450／長按 500 毫秒收進 `ui.js` 的 `TIMING`。
+- **第二批（v1.30.0）**：遊戲頁「準備聲音」改用共用等待場景（有停止鈕，切走或停止都不會回來蓋畫面）；小孩會點的排序鈕、圖示圓鈕、揭曉關閉鈕放大到 64pt（`.seg.small` 56、`.tagchip` 48）；閱讀進度、備份、PIN、圖片輪播、編輯故事的說明各精簡到 40 字內。Pages 版給非 Apple 裝置的介面字型子集刻意不做（只用 iPad，且會多 3 MB）。
 - **聽音認字的干擾項改 `pickWrong()`**：從「其他未入庫字」過濾後隨機取，只剩一個字時回 null 並略過該題（舊寫法 `while (wrong === ch)` 在只剩一個未入庫字時會無限迴圈凍住 iPad）；開始前檢查的是「未入庫字數 ≥ 4」而非字表總數。
 
 ## 發音架構（重要）

@@ -3,6 +3,7 @@ import { t, getLang } from './i18n.js';
 import { convertTo, t2s, s2t } from './zhconv.js';
 import { el, toast, confetti, infoDialog, openModal, switchEl } from './ui.js';
 import { icon } from './icons.js';
+import { waitScene } from './wait.js';
 import { sfx, playBlob, speakNative } from './sfx.js';
 import { settings, saveSettings, words, bumpGame, getCard, idbGet, idbSet, hasAudioCached, isKid } from './store.js';
 import { ttsChar } from './gemini.js';
@@ -332,30 +333,28 @@ async function startPrep() {
   if (gone()) return;
   if (!missing.length) { beginGame(questions); return; }
 
-  // 顯示準備畫面並下載
-  root.innerHTML = '';
-  const msg = el('p', { text: `${t('game_prep')} 0/${missing.length}` });
-  const fill = el('div', { class: 'prep-fill' });
-  root.append(
-    el('div', { class: 'h1' }, icon('balloon'), t('game_title')),
-    el('div', { class: 'card game-stage loading-scene' },
-      el('span', { class: 'big-emoji' }, icon('speaker')), msg,
-      el('div', { class: 'prep-bar' }, fill),
-    ),
-  );
+  // 共用等待場景（角色＋進度＋停止）：使用者切走或按停止就不再下載、更不能回來蓋畫面
+  const ac = new AbortController();
+  const w = waitScene({ steps: [t('game_prep'), t('wait_done')], iconName: 'speaker', hint: t('wait_hint_minute'), progress: true, onStop: () => ac.abort() });
+  w.setMsg(`${t('game_prep')} 0/${missing.length}`);
 
   let done = 0, fail = [], lastErr = null;
   for (const ch of missing) {
-    if (gone()) return; // 使用者切走了：不再下載、更不能回來蓋畫面
+    if (gone() || ac.signal.aborted) break;
     try {
-      const blob = await ttsChar(ch);
+      const blob = await ttsChar(ch, ac.signal);
       await idbSet('audio', ch, blob);
-    } catch (e) { fail.push(ch); lastErr = e; console.warn('tts failed', ch, e); }
+    } catch (e) {
+      if (e.message === 'CANCELLED') break;
+      fail.push(ch); lastErr = e; console.warn('tts failed', ch, e);
+    }
     done++;
-    msg.textContent = `${t('game_prep')} ${done}/${missing.length}`;
-    fill.style.width = `${Math.round((done / missing.length) * 100)}%`;
+    w.setMsg(`${t('game_prep')} ${done}/${missing.length}`);
+    w.setProgress(done / missing.length);
   }
+  w.close();
   if (gone()) return;
+  if (ac.signal.aborted) { toast(t('gen_cancelled')); return; }
 
   let qs = questions;
   if (fail.length) {
