@@ -93,15 +93,21 @@ function render() {
   }
 
   // ---- 統計（熟悉度依檢視帳號×語系） ----
+  // 統計數字點字改紅綠時要即時增減（以前只在整頁重畫時算一次，要換頁再回來才會更新）
   const total = words.length;
   const unused = words.filter((w) => w.usedCount === 0).length;
-  const learned = words.filter((w) => getCard(w, acc).mark === 'green').length;
-  const weak = words.filter((w) => getCard(w, acc).mark === 'red').length;
+  const learnedChip = statChip(0, t('words_learned'));
+  const weakChip = statChip(0, t('words_weak'));
+  function refreshStats() {
+    learnedChip.querySelector('.num').textContent = String(words.filter((w) => getCard(w, acc).mark === 'green').length);
+    weakChip.querySelector('.num').textContent = String(words.filter((w) => getCard(w, acc).mark === 'red').length);
+  }
+  refreshStats();
 
   root.append(el('div', { class: 'stats-row' },
     statChip(total, `${t('words_total')}${t('words_total_u')}`),
-    statChip(learned, t('words_learned')),
-    statChip(weak, t('words_weak')),
+    learnedChip,
+    weakChip,
     statChip(unused, t('words_unused')),
   ));
 
@@ -224,6 +230,7 @@ function render() {
           chip.classList.remove('pop');
         } else {
           const mark = cycleMark(w.ch, acc);
+          refreshStats();
           chip.classList.remove('mk-g', 'mk-r', 'pop');
           if (mark === 'green') { chip.classList.add('mk-g'); sfx.correct(); }
           else if (mark === 'red') { chip.classList.add('mk-r'); sfx.unpop(); }
