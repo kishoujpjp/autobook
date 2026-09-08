@@ -29,3 +29,8 @@ test('errHintKey：對應到白話對策', () => {
   assert.equal(errHintKey('NO_AUDIO：x'), 'hint_nodata');
   assert.equal(errHintKey('whatever'), null);
 });
+
+test('t()：變數值含 $& 之類的取代樣板不會被展開', async () => {
+  const { t } = await import('../js/i18n.js');
+  assert.equal(t('rep_tag_done', { n: '$& $1 $$' }), '已幫 $& $1 $$ 題打上標籤');
+});

@@ -1,8 +1,8 @@
 // UI 小工具：DOM 建構、toast、modal、confirm、彩帶
 import { t } from './i18n.js';
-import { sfx } from './sfx.js';
+import { sfx, speakNative } from './sfx.js';
 import { icon } from './icons.js';
-import { isKid } from './store.js';
+import { isKid, settings } from './store.js';
 
 /** 全站互動時間常數（毫秒）：雙擊合成、防連點、長按——以前三處各自寫死 */
 export const TIMING = Object.freeze({ dblTap: 350, tapGuard: 450, longPress: 500 });
@@ -28,7 +28,11 @@ export function toast(msg, warn = false) {
   const kid = isKid();
   const node = el('div', { class: `toast${warn ? ' warn' : ''}${kid ? ' kid' : ''}` },
     (warn || kid) ? icon(warn ? 'warn' : 'check') : null, msg);
-  if (kid) { try { if (warn) sfx.tock(); else sfx.tick(); } catch { /* 音效失敗不影響提示 */ } }
+  if (kid) {
+    try { if (warn) sfx.tock(); else sfx.tick(); } catch { /* 音效失敗不影響提示 */ }
+    // 小孩還看不懂字：把提示唸出來（設定頁可關）
+    if (settings.toastVoice) { try { speakNative(String(msg)); } catch { /* 沒有語音就只看圖示 */ } }
+  }
   root.append(node);
   setTimeout(() => {
     node.style.transition = 'opacity 0.4s, transform 0.4s';
@@ -100,7 +104,7 @@ export function switchEl(on, onToggle, label = '') {
 
 // ---------- 彩帶 ----------
 const COLORS = ['#E9631A', '#199E94', '#E64B82', '#2F82D6', '#FFD93D', '#7DC855'];
-let confettiRunning = false;
+let confettiRun = 0; // 每次呼叫一個世代：新的一場開始，舊的迴圈自己退場（以前共用一個旗標會互相殺）
 
 export function confetti(durationMs = 2200, count = 120) {
   const canvas = document.getElementById('confetti-canvas');
@@ -123,10 +127,10 @@ export function confetti(durationMs = 2200, count = 120) {
   }));
 
   const start = performance.now();
-  confettiRunning = true;
+  const myRun = ++confettiRun;
 
   function frame(now) {
-    if (!confettiRunning) return;
+    if (myRun !== confettiRun) return;
     const elapsed = now - start;
     ctx2d.clearRect(0, 0, innerWidth, innerHeight);
     let alive = false;
@@ -141,7 +145,7 @@ export function confetti(durationMs = 2200, count = 120) {
       ctx2d.restore();
     }
     if (alive && elapsed < durationMs + 3000) requestAnimationFrame(frame);
-    else { ctx2d.clearRect(0, 0, innerWidth, innerHeight); confettiRunning = false; }
+    else ctx2d.clearRect(0, 0, innerWidth, innerHeight);
   }
   requestAnimationFrame(frame);
 }

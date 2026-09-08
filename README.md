@@ -1,6 +1,6 @@
 # 自動繪本 Autobook
 
-給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.30.0**。
+給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.30.1**。
 
 - 線上版（GitHub Pages，push `main` 自動部署）：https://kishoujpjp.github.io/autobook/
 - 純前端 ES modules、無 build step；AI 走使用者自備的 Gemini API Key（存本機）。
@@ -131,6 +131,7 @@
 - **詞庫只擋髒話（v1.30.0）**：`tools/make_wordbank.py` 的 `PROFANITY` 只列髒話與罵人的話（約 30 個子字串），死亡、離婚、戰爭等正常詞不過濾，內容由家長自己審（資料源快取在 `tools/.cache/wordbank/`：jieba `dict.txt`、CC-CEDICT；改名單要重跑腳本）。
 - **穩定性第一批（v1.29.0）**：SW 只快取型別對得上的回應（captive portal 的 HTML 不會被存成 js）且 `cache.put` 包 catch；故事輸出上限 1500 字、書名 40 字（超過視同失敗重試）；插圖只收 `image/png|jpeg|webp|gif`；thinkingConfig 遇 400 只關該模型 10 分鐘（不再全域永久關）；「AI 再畫一張」在面板關掉後完成會直接重繪故事頁；影片 destroy 加 `load()` 釋放解碼器；雙擊 350／防連點 450／長按 500 毫秒收進 `ui.js` 的 `TIMING`。
 - **第二批（v1.30.0）**：遊戲頁「準備聲音」改用共用等待場景（有停止鈕，切走或停止都不會回來蓋畫面）；小孩會點的排序鈕、圖示圓鈕、揭曉關閉鈕放大到 64pt（`.seg.small` 56、`.tagchip` 48）；閱讀進度、備份、PIN、圖片輪播、編輯故事的說明各精簡到 40 字內。Pages 版給非 Apple 裝置的介面字型子集刻意不做（只用 iPad，且會多 3 MB）。
+- **第三批（v1.30.1）**：小孩帳號的提示會用裝置語音唸出來（設定頁「提示唸出來」可關，`settings.toastVoice`）；書架滿了優先淘汰 AI 生成的舊書，手動輸入、有上傳照片影片或貼連結的書（`isKeepsake`，上傳的媒體標 `up:true`）留到最後、真的輪到才用另一句確認；confetti 改世代計數不再互相殺；`t()` 改 split/join（變數含 `$&` 不會被展開）；TTS 全部提示都沒聲音時每字只記一筆錯誤紀錄（以前一字三筆，10 個字就塞滿 30 筆）；跟讀題庫的「tag」全改成「標籤」；IndexedDB 寫入改等 `transaction.oncomplete` 才算完成（匯入備份後立刻 reload 不會掉最後一筆）。
 - **聽音認字的干擾項改 `pickWrong()`**：從「其他未入庫字」過濾後隨機取，只剩一個字時回 null 並略過該題（舊寫法 `while (wrong === ch)` 在只剩一個未入庫字時會無限迴圈凍住 iPad）；開始前檢查的是「未入庫字數 ≥ 4」而非字表總數。
 
 ## 發音架構（重要）

@@ -47,3 +47,22 @@ test('shelfVictim：未滿回 null，滿了回最舊（陣列最後）一本', a
   assert.ok(v);
   assert.equal(v.id, store.stories[store.stories.length - 1].id);
 });
+
+test('shelfVictim：家長親手加的書（手動、上傳媒體、貼連結）留到最後才淘汰', async () => {
+  // 上一個測試已放滿 MAX_STORIES 本 AI 書（t0..t23，最舊在最後）
+  const oldest = store.stories[store.stories.length - 1];
+  oldest.manual = true; // 最舊那本變成手動加的
+  const v = store.shelfVictim();
+  assert.notEqual(v.id, oldest.id, '手動加的書不該先被淘汰');
+  assert.equal(v.id, store.stories[store.stories.length - 2].id, '應輪到次舊的 AI 書');
+  // 上傳媒體（up:true）與貼連結也算；示範書的內建圖不算
+  assert.equal(store.isKeepsake({ media: [{ id: 'x|m1', kind: 'image', up: true }] }), true);
+  assert.equal(store.isKeepsake({ media: [{ id: 'x|m1', kind: 'video', url: 'https://a/b.mp4' }] }), true);
+  assert.equal(store.isKeepsake({ media: [{ id: 'x|demo', kind: 'image', url: 'icons/demo-cat.svg' }] }), false);
+  assert.equal(store.isKeepsake({ media: [{ id: 'x', kind: 'image' }] }), false);
+  // addStory 淘汰時也要照同一規則：新書進來後，手動那本還在
+  await store.addStory({ id: 'tNew', title: 'new', text: '一', createdAt: 999 });
+  assert.equal(store.stories.length, store.MAX_STORIES);
+  assert.ok(store.stories.some((x) => x.id === oldest.id), '手動加的書應保留');
+  assert.ok(!store.stories.some((x) => x.id === v.id), '被淘汰的應是次舊的 AI 書');
+});

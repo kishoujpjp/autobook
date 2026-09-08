@@ -79,6 +79,7 @@ function render() {
       el('span', {}, icon('globe'), t('set_lang')), langSeg,
     ),
     tapSpeakLine(),
+    toastVoiceLine(),
     themeLine(),
   ));
 
@@ -557,6 +558,21 @@ function tapSpeakLine() {
       el('span', {}, icon('speaker'), t('set_tap_speak')), sw,
     ),
     el('p', { class: 'settings-note', style: 'margin:0 0 10px;', text: t('set_tap_speak_note') }),
+  );
+}
+
+/** 小孩帳號的提示除了圖示與音效，也用裝置語音唸出來（小孩還看不懂字） */
+function toastVoiceLine() {
+  const sw = switchEl(settings.toastVoice, (on) => {
+    sfx.tap();
+    settings.toastVoice = on;
+    saveSettings();
+  }, t('set_toast_voice'));
+  return el('div', {},
+    el('div', { class: 'settings-line', style: 'border-bottom:0;padding-bottom:4px;' },
+      el('span', {}, icon('speaker'), t('set_toast_voice')), sw,
+    ),
+    el('p', { class: 'settings-note', style: 'margin:0 0 10px;', text: t('set_toast_voice_note') }),
   );
 }
 

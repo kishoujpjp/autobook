@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.30.0';
+export const VERSION = '1.30.1';
 
 const LS = {
   settings: 'autobook.settings',
@@ -37,6 +37,7 @@ const DEFAULT_SETTINGS = {
   theme: 'light',         // 'light' | 'dark'（夜間模式，睡前共讀）；js/theme.js 在 CSS 前先套用
   onboarded: false,       // 首啟三步 onboarding 跑過了（有資料的舊用戶啟動時直接標成 true）
   manageAcc: '',          // 家長正在管理（看、標）哪個小孩的紅綠（帳號 id；空＝第一個小孩）
+  toastVoice: true,       // 小孩帳號的提示除了圖示與音效，也用裝置語音唸出來
 
   textModel: 'gemini-3-flash-preview',
   imageModel: 'gemini-2.5-flash-image',
@@ -316,15 +317,27 @@ export function saveStories() { scheduleSave(LS.stories, () => stories); }
 
 export const MAX_STORIES = 24;
 
-/** 書架滿了會被淘汰的那本（最舊的一本），沒滿回 null。做新書前先問過使用者，不要靜默丟掉。 */
-export function shelfVictim() {
-  return stories.length >= MAX_STORIES ? stories[stories.length - 1] : null;
+/**
+ * 家長親手加的書：手動輸入的、或有上傳照片／影片、貼了連結的（示範書的內建圖不算）。
+ * 書架滿了優先淘汰 AI 生成的書，這些留到最後。
+ */
+export function isKeepsake(story) {
+  if (story.manual) return true;
+  return storyMedia(story).some((m) => m.up || (m.url && !/\|demo$/.test(String(m.id))));
+}
+
+/** 書架滿了會被淘汰的那本：最舊的 AI 書；全部都是家長親手加的才輪到最舊那本。沒滿回 null。 */
+export function shelfVictim(list = stories) {
+  if (list.length < MAX_STORIES) return null;
+  for (let i = list.length - 1; i >= 0; i--) if (!isKeepsake(list[i])) return list[i];
+  return list[list.length - 1];
 }
 
 export async function addStory(story) {
   stories.unshift(story);
   while (stories.length > MAX_STORIES) {
-    const old = stories.pop();
+    const old = shelfVictim(stories.filter((s) => s !== story)) || stories[stories.length - 1];
+    stories = stories.filter((s) => s !== old);
     await dropStoryBlobs(old);
   }
   saveStories();
@@ -675,8 +688,13 @@ function tx(store, mode, fn) {
   return db().then((d) => new Promise((resolve, reject) => {
     const t = d.transaction(store, mode);
     const req = fn(t.objectStore(store));
-    req.onsuccess = () => resolve(req.result);
+    let result;
+    req.onsuccess = () => { result = req.result; if (mode === 'readonly') resolve(result); };
     req.onerror = () => reject(req.error);
+    // 寫入要等交易真的落地才算完成：以前用 request.onsuccess，匯入備份最後一筆後立刻 reload 可能遺失
+    t.oncomplete = () => resolve(result);
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error || new Error('idb aborted'));
   }));
 }
 

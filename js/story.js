@@ -14,7 +14,7 @@ import {
   settings, saveSettings, words, isHan, addWords, bumpUsed, bumpRead, setMark, getCard, currentAccount,
   stories, addStory, removeStory, getStory, saveStories, currentAccountId,
   storyMedia, setStoryMedia, newMediaId, deleteMediaBlob, storyReads, bumpStoryReads,
-  idbGet, idbSet, hasAudioCached, isKid, shelfVictim, MAX_STORIES,
+  idbGet, idbSet, hasAudioCached, isKid, shelfVictim, isKeepsake, MAX_STORIES,
   DEMO_STORY_HANT, DEMO_STORY_HANS,
 } from './store.js';
 import { generateStory, generateImage, pickImageStyle, ttsChar, findNewChars, detectPolys, errHintKey, setLogListener } from './gemini.js';
@@ -1176,7 +1176,7 @@ function openMediaModal(story, onChanged) {
         const blob = await downscaleImage(f, 1280);
         const id = newMediaId(story);
         await idbSet('images', id, blob);
-        next.push({ id, kind: 'image' });
+        next.push({ id, kind: 'image', up: true }); // up＝家長上傳的，書架滿了不會先被淘汰
         ok++;
       } catch (e) {
         console.warn('add image failed', e);
@@ -1200,7 +1200,7 @@ function openMediaModal(story, onChanged) {
       const id = newMediaId(story);
       try {
         await idbSet('images', id, f); // 影片原檔直接存（'images' 就是個 blob KV）
-        next.push({ id, kind: 'video' });
+        next.push({ id, kind: 'video', up: true });
         ok++;
       } catch (e) {
         console.warn('add video failed', e);
@@ -1460,7 +1460,9 @@ function openAddNewChars(story) {
 async function ensureShelfRoom() {
   const victim = shelfVictim();
   if (!victim) return true;
-  return confirmDialog(t('shelf_full_confirm', { n: MAX_STORIES, title: displayText(victim, victim.title) }));
+  // 先丟 AI 生成的舊書；只有整架都是家長親手加的（手動輸入、上傳照片影片）才會問到這種書
+  const key = isKeepsake(victim) ? 'shelf_full_confirm_keep' : 'shelf_full_confirm';
+  return confirmDialog(t(key, { n: MAX_STORIES, title: displayText(victim, victim.title) }));
 }
 
 // ---------- 生成面板 ----------

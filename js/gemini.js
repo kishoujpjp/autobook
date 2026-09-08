@@ -666,6 +666,7 @@ export async function ttsChar(text, signal = null) {
   ];
 
   let detail = '';
+  const tries = []; // 每種提示的結果，最後只記一筆錯誤（以前每種提示各記一筆，10 個字就把 30 筆紀錄塞滿）
   for (let i = 0; i < prompts.length; i++) {
     if (i > 0) await new Promise((r) => setTimeout(r, 600)); // 暫時性失敗的退避間隔
     let resp;
@@ -683,6 +684,7 @@ export async function ttsChar(text, signal = null) {
       // 模型想回文字被 API 擋（400）：換下一種提示再試；其他錯誤直接丟出
       if (i < prompts.length - 1 && /generate text/i.test(e.message)) {
         detail = e.message;
+        tries.push(`提示 ${i + 1}：${detail}`);
         continue;
       }
       throw e;
@@ -699,7 +701,8 @@ export async function ttsChar(text, signal = null) {
     const cand = (resp && resp.candidates && resp.candidates[0]) || null;
     const txt = firstText(resp).slice(0, 60);
     detail = `finishReason=${(cand && cand.finishReason) || '?'}${txt ? `，模型回了文字：「${txt}」` : ''}`;
-    logErr('tts', settings.ttsModel, `NO_AUDIO（提示 ${i + 1}/${prompts.length}）：${detail}`);
+    tries.push(`提示 ${i + 1}：${detail}`);
   }
+  logErr('tts', settings.ttsModel, `NO_AUDIO「${text}」（${tries.length} 種提示都沒聲音）：${tries.join('；')}`);
   throw new Error(`NO_AUDIO：${detail}`);
 }
