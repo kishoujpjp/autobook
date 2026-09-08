@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.30.1';
+export const VERSION = '1.31.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -315,7 +315,8 @@ for (const s of stories) {
 }
 export function saveStories() { scheduleSave(LS.stories, () => stories); }
 
-export const MAX_STORIES = 24;
+/** 書架安全上限（每頁 24 本 × 10 頁）：不是版面限制，是避免 IndexedDB 裡的插圖、照片、影片無上限長大 */
+export const MAX_STORIES = 240;
 
 /**
  * 家長親手加的書：手動輸入的、或有上傳照片／影片、貼了連結的（示範書的內建圖不算）。

@@ -1,6 +1,6 @@
 # 自動繪本 Autobook
 
-給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.30.1**。
+給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.31.0**。
 
 - 線上版（GitHub Pages，push `main` 自動部署）：https://kishoujpjp.github.io/autobook/
 - 純前端 ES modules、無 build step；AI 走使用者自備的 Gemini API Key（存本機）。
@@ -101,7 +101,7 @@
 - **小孩帳號的權限邊界（v1.23.0）**：`store.isKid()` 是全站唯一判斷點。小孩帳號只能翻頁、點字、開書、再讀一遍、玩遊戲、跟讀；故事頁的「新故事」「閱讀設定」（含編輯／重置／媒體管理）、跟讀頁的「AI 補足」「題庫」「評分嚴格度」、遊戲頁的「不熟模式」、設定分頁一律不顯示，`main.js` 的分頁切換也在程式面擋設定分頁。
 - **救援層 `js/rescue.js`（v1.23.0）**：非 module 的傳統 script，在 `main.js` 之前載入。啟動完成前（`window.__autobookReady` 尚未為 true）的任何錯誤——含 module 語法錯、壞資料讓 store.js 求值失敗——會顯示最小救援畫面（重新載入／匯出資料／重設全部資料／先繼續使用）；啟動完成後的錯誤只寫進 `autobook.errlog`，不打擾小孩。`main.js` 各分頁 init 各自 try/catch，一個分頁壞掉不拖垮其他分頁。
 - **資料層防護（v1.23.0）**：`store.load()` 對壞 JSON、`"null"`、型別不對的資料一律回預設值，原始內容先留在 `<key>.bad`（救援層匯出會帶上）；陣列型資料逐筆驗證必要欄位。`save()` 包 try/catch，寫入失敗（配額滿、私密模式）不炸呼叫端，改發 `autobook:savefail` 事件由 UI toast 提醒備份；`flushSaves` 逐 key 隔離，失敗的留在佇列。
-- **書架上限（`MAX_STORIES` 24 本）不再靜默淘汰**：做新書（AI 或手動）前先用 `shelfVictim()` 檢查，滿了跳確認框說明會丟掉哪一本，不同意就不做、也不花 API。
+- **書架上限（`MAX_STORIES` 240 本；v1.31.0 前是 24）不再靜默淘汰**：做新書（AI 或手動）前先用 `shelfVictim()` 檢查，滿了跳確認框說明會丟掉哪一本，不同意就不做、也不花 API。
 - **內嵌影片加固**：YouTube 走 `youtube-nocookie.com` 並關掉控制列／鍵盤／全螢幕／註解，Vimeo 關掉標題／作者／頭像並 `dnt=1`；iframe 加 `sandbox="allow-scripts allow-same-origin allow-presentation"`（不給跳頁與彈窗），上面再蓋一層透明 `.media-shield` 吃掉點擊，小孩點影片不會跳出 App。
 - **家長 PIN（v1.24.0）**：設定頁帳號區可設 4 位數 PIN（`settings.parentPin`）。「切回家長要確認」開關開著時：有 PIN 用 PIN 鍵盤，沒有就用個位數算術題（改 4 選 1）；通過後 5 分鐘內不再問；PIN 錯 3 次鎖 30 秒、之後每多錯一次加倍（鎖定寫在 `autobook.gateLock`，重開也還在）。關掉開關＝直接切換。
 - **隱私說明（v1.24.0）**：設定頁最下方有「隱私說明」卡（哪些內容送 Google／Apple、免費層可能被用來改善產品、資料只在本機、備份含照片）；**第一次填 API Key 會先跳同一份說明要求「我知道了」**（`settings.privacyAck`）才存 Key。備份匯出的「準備好了」視窗也提醒檔案含小孩照片。iOS 殼補 `NSCameraUsageDescription`／`NSPhotoLibraryUsageDescription`（`<input type=file>` 在 WKWebView 會出現拍照選項）與 `PrivacyInfo.xcprivacy`（不追蹤、不收集；宣告 UserDefaults／FileTimestamp）。
@@ -120,6 +120,7 @@
 - **翻頁鈕方向（v1.25.0）**：改為左 ◀ 上一頁／右 ▶ 下一頁，橫直向一致（推翻 v1.1 的「下一頁在左」；防誤觸靠進度條隔離）。
 - **a11y 基礎（v1.25.0）**：分頁列 `role=tablist/tab`＋`aria-selected`、modal `role=dialog aria-modal`、開關 `role=switch aria-checked`（`switchEl()`）、toast `aria-live`、圖示鈕全部 `aria-label`、`:focus-visible` 焦點環、`prefers-reduced-motion` 關動畫。`.page` 上緣避開瀏海、內容最寬 1280px 置中、插圖寬度有 160px 下限。
 - **小孩層／家長層分家（v1.26.0，Phase 3）**：分頁列只剩 故事／遊戲／跟讀；字表與設定沒有分頁，從右上角頭像旁的 **鎖頭鈕**（`#parent-btn`）進「家長頁」（`js/parent.js`：新故事、認字表、閱讀設定（有打開的書才顯示，否則是書架）、題庫、設定 五個大方塊）。小孩帳號按鎖頭會先過家長門（PIN 或算術），通過後切到第一個家長帳號再進家長頁；`applyRole()` 把站在家長層的小孩送回故事頁。頁面切換統一走 `js/nav.js` 的 `showPage(name)`（main.js 註冊實際函式，避免模組循環相依）。
+- **書架分頁（v1.31.0）**：一頁 24 本（`story.js` 的 `SHELF_PAGE`），底部分頁列＝左右鈕（kid 尺寸）＋圓點（≤8 頁，可點）或數字；進書架時自動跳到目前這本所在的頁，換排序回第 1 頁；「做一本新繪本」卡片每頁都在最後。上限 `MAX_STORIES` 同步從 24 放寬到 240（純安全上限，避免 IndexedDB 無限長大；備份整包 400 MB 的上限不變）。
 - **書架整頁（v1.26.0）**：`#page-shelf`（`story.js` 的 `initShelf/renderShelf`），橫向 5 欄、直向 3 欄，封面楷體大字＋書脊 5 顆星進度（`.bk-stars`），左上返回鈕回故事頁；小孩只有「打開」，家長有編輯／刪除／新增。
 - **進度改星星格（v1.26.0）**：`.progress-track` 內 5 顆星，讀完才全亮；小孩只看星星，家長右側另有「已讀/總數」。原本的提示文字（點讀文字，把迷霧吹走吧）拿掉。
 - **共用等待場景（v1.26.0）**：`js/wait.js` 的 `waitScene({ steps, iconName, hint, onStop, progress })`——角色＋三段進度（例：寫故事 ▸ 畫圖 ▸ 好了）＋「通常要 1 分鐘左右」＋停止鈕；技術 log 收在摺疊區只給家長。生成故事、準備發音、備份匯出／匯入、下載發音、跟讀 AI 出題／補足全部改用。

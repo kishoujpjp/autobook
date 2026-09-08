@@ -910,8 +910,11 @@ function shelfStats(story) {
 let shelfRoot = null;
 let shelfUrls = []; // 封面 blob URL，重繪時釋放
 export function initShelf(rootEl) { shelfRoot = rootEl; }
-export function refreshShelfPage() { renderShelf(); }
-/** 書架整頁（v1.26.0）：橫向 5 欄、直向 3 欄；封面楷體大字＋書脊星星進度 */
+/** 進書架時跳到目前這本所在的那一頁；之後換頁、刪書、改排序都留在使用者選的頁 */
+export function refreshShelfPage() { shelfPage = -1; renderShelf(); }
+const SHELF_PAGE = 24; // 一頁 24 本（橫向 5 欄約 5 列）
+let shelfPage = 0;
+/** 書架整頁（v1.26.0）：橫向 5 欄、直向 3 欄；封面楷體大字＋書脊星星進度。v1.31 起一頁 24 本分頁。 */
 function renderShelf() {
   shelfUrls.forEach((u) => URL.revokeObjectURL(u));
   shelfUrls = [];
@@ -926,6 +929,13 @@ function renderShelf() {
   else if (sort === 'unread') items.sort((a, b) => (Number(a.st.done) - Number(b.st.done)) || byTime(a, b));
   else items.sort(byTime);
   const doneN = items.filter((x) => x.st.done).length;
+  const pageN = Math.max(1, Math.ceil(items.length / SHELF_PAGE));
+  if (shelfPage < 0) { // 剛進書架：找目前這本在哪一頁
+    const at = items.findIndex((x) => x.s.id === currentId);
+    shelfPage = at >= 0 ? Math.floor(at / SHELF_PAGE) : 0;
+  }
+  shelfPage = Math.min(Math.max(0, shelfPage), pageN - 1);
+  const pageItems = items.slice(shelfPage * SHELF_PAGE, (shelfPage + 1) * SHELF_PAGE);
 
   // 排序列
   const seg = el('div', { class: 'seg small' });
@@ -933,7 +943,7 @@ function renderShelf() {
     const b = el('button', { class: sort === key ? 'on' : '', text: label });
     b.addEventListener('click', () => {
       sfx.tap();
-      if (settings.shelfSort !== key) { settings.shelfSort = key; saveSettings(); }
+      if (settings.shelfSort !== key) { settings.shelfSort = key; saveSettings(); shelfPage = 0; }
       renderShelf();
     });
     seg.append(b);
@@ -952,7 +962,7 @@ function renderShelf() {
   ));
 
   const grid = el('div', { class: 'shelf-grid' });
-  for (const { s, st } of items) {
+  for (const { s, st } of pageItems) {
     const art = el('div', { class: 'bk-art' });
     const cover = storyMedia(s).find((mi) => mi.kind === 'image'); // 影片沒有縮圖，用色底封面
     if (st.done && cover) {
@@ -1024,6 +1034,22 @@ function renderShelf() {
     grid.append(el('div', { class: 'bk' }, addCover));
   }
   root.append(grid);
+
+  // 分頁列：一頁 24 本；小孩會按，左右鈕用 kid 尺寸；頁數少用圓點、多用數字
+  if (pageN > 1) {
+    const go = (p) => { sfx.tap(); shelfPage = p; renderShelf(); root.scrollTo({ top: 0 }); };
+    const prevBtn = el('button', { class: 'btn sky pager-btn', 'aria-label': t('shelf_page_prev'), disabled: shelfPage === 0 ? '' : null, onclick: () => go(shelfPage - 1) }, icon('prev'));
+    const nextBtn = el('button', { class: 'btn sky pager-btn', 'aria-label': t('shelf_page_next'), disabled: shelfPage === pageN - 1 ? '' : null, onclick: () => go(shelfPage + 1) }, icon('next'));
+    const mid = el('div', { class: 'pager-mid', role: 'status', 'aria-label': t('shelf_page_label', { p: shelfPage + 1, n: pageN }) });
+    if (pageN <= 8) {
+      for (let p = 0; p < pageN; p++) {
+        mid.append(el('button', { class: `pager-dot${p === shelfPage ? ' on' : ''}`, 'aria-label': t('shelf_page_label', { p: p + 1, n: pageN }), onclick: () => { if (p !== shelfPage) go(p); } }));
+      }
+    } else {
+      mid.append(el('span', { class: 'pager-num', text: `${shelfPage + 1} / ${pageN}` }));
+    }
+    root.append(el('div', { class: 'shelf-pager' }, prevBtn, mid, nextBtn));
+  }
 }
 
 // ---------- 編輯故事（書架的 ✏️） ----------

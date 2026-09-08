@@ -49,7 +49,7 @@ test('shelfVictim：未滿回 null，滿了回最舊（陣列最後）一本', a
 });
 
 test('shelfVictim：家長親手加的書（手動、上傳媒體、貼連結）留到最後才淘汰', async () => {
-  // 上一個測試已放滿 MAX_STORIES 本 AI 書（t0..t23，最舊在最後）
+  // 上一個測試已放滿 MAX_STORIES 本 AI 書（t0..，最舊在最後）
   const oldest = store.stories[store.stories.length - 1];
   oldest.manual = true; // 最舊那本變成手動加的
   const v = store.shelfVictim();
