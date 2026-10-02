@@ -4,7 +4,6 @@ import { settings, saveSettings, stories, words, MAX_STORIES, getStory, commitIn
 import { inboxUrl, parsePairing, InboxError, INBOX_LIMITS } from './inbox-format.js';
 import { receiveInboxStory } from './inbox-transfer.js';
 import { findNewChars } from './gemini.js';
-import { s2t } from './zhconv.js';
 
 const listeners = new Set();
 let state = { kind: 'idle', count: 0, error: '', at: 0 };
@@ -186,7 +185,7 @@ async function sync(signal) {
           await receiveInboxStory(packet, cfg.url, {
             receipt: inboxReceipt, saveReceipt: (source, remoteId, pending) => saveInboxReceipt(source, remoteId, pending, device), findStory: getStory,
             hasRoom: () => stories.length < MAX_STORIES,
-            newChars: (text) => findNewChars(text, new Set(words.map((w) => s2t(w.ch)))),
+            newChars: (text) => findNewChars(text, new Set(words.map((w) => w.ch))),
             download: (remoteId, index) => request(cfg, `/v1/stories/${remoteId}/images/${index}`, { signal }),
             prepare: prepareImage, put: (key, blob) => idbSet('images', key, blob), remove: (key) => idbDel('images', key),
             checkActive: () => { if (signal.aborted || settings.inboxUrl !== cfg.url || settings.inboxReadToken !== cfg.token) throw new InboxError('cancelled'); },

@@ -1,6 +1,8 @@
 // 介面文字：繁 / 簡 兩套
 const DICT = {
   'zh-Hant': {
+    input_script: '輸入字形', input_script_auto: '自動判斷（不確定時保留原文）',
+    input_script_hant: '繁體中文（保留原文）', input_script_hans: '簡體中文（轉成繁體）',
     inbox_title: '故事收件匣', inbox_note: '收到後可離線閱讀。雲端副本會在第一台裝置收到 7 天後清理。',
     inbox_unpaired: '先配對你的私人收件匣。', inbox_ready: '已配對，等候新故事。',
     inbox_pair: '配對收件匣', inbox_repair: '更換配對', inbox_pair_ph: '貼上配對碼',
@@ -431,6 +433,8 @@ const DICT = {
     hint_network: '連不上伺服器：請檢查網路連線',
   },
   'zh-Hans': {
+    input_script: '输入字形', input_script_auto: '自动判断（不确定时保留原文）',
+    input_script_hant: '繁体中文（保留原文）', input_script_hans: '简体中文（转成繁体）',
     inbox_title: '故事收件箱', inbox_note: '收到后可离线阅读。云端副本会在第一台设备收到 7 天后清理。',
     inbox_unpaired: '先配对你的私人收件箱。', inbox_ready: '已配对，等候新故事。',
     inbox_pair: '配对收件箱', inbox_repair: '更换配对', inbox_pair_ph: '粘贴配对码',

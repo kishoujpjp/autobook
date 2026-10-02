@@ -1,7 +1,8 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
-import { t2s, s2t } from './zhconv.js';
+import { t2s, s2t, toStoredTraditional, unambiguousTraditional } from './zhconv.js';
+import { prepareStoredStory, prepareStoredWords } from './text-policy.js';
 
-export const VERSION = '1.32.2';
+export const VERSION = '1.33.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -13,6 +14,7 @@ const LS = {
   phrases: 'autobook.phrases',
   repGroups: 'autobook.repGroups',
   inbox: 'autobook.inbox', // 接收紀錄保留於備份：刪除已匯入的書，不會在下次檢查又出現
+  textBackup: 'autobook.textBackup', // 字形遷移前的完整字表（故事原文備份隨各故事保存）
 };
 
 const DEFAULT_SETTINGS = {
@@ -235,13 +237,14 @@ function equivalents(ch) {
   const out = [ch];
   if (SELF_HANT.has(ch)) return out;
   const s = t2s(ch);
-  if (s !== ch && s2t(s) === ch) out.push(s);
-  const tr = s2t(ch);
-  if (tr !== ch && t2s(tr) === ch) out.push(tr);
+  if (s !== ch && unambiguousTraditional(s) === ch) out.push(s);
+  const tr = unambiguousTraditional(ch);
+  if (tr !== ch) out.push(tr);
   return out;
 }
 
 export function addWords(text) {
+  text = toStoredTraditional(text);
   // 跨繁簡去重：只略過「雙向一對一」等價的字；絕不刪改既有的字
   const equiv = new Set();
   for (const w of words) for (const e of equivalents(w.ch)) equiv.add(e);
@@ -339,6 +342,7 @@ export function shelfVictim(list = stories) {
 }
 
 export async function addStory(story) {
+  Object.assign(story, prepareStoredStory(story, wordSet()));
   stories.unshift(story);
   while (stories.length > MAX_STORIES) {
     const old = shelfVictim(stories.filter((s) => s !== story)) || stories[stories.length - 1];
@@ -383,6 +387,7 @@ export function commitInboxStory(story) {
     return false;
   }
   if (stories.length >= MAX_STORIES) throw new Error('shelf_full');
+  story = prepareStoredStory(story, wordSet());
   const next = [story, ...stories];
   if (!save(LS.stories, next)) throw new Error('storage');
   stories = next;
@@ -700,6 +705,21 @@ export async function removeAccount(id) {
     }
   }
   if (dirty) saveWords();
+})();
+
+// v1.33：先備份，再一次完成字形遷移。儲存失敗時保留舊資料，下次啟動重試。
+(function migrateTextPolicy() {
+  const nextWords = prepareStoredWords(words);
+  const changedWords = JSON.stringify(nextWords) !== JSON.stringify(words);
+  if (changedWords) {
+    const backup = load(LS.textBackup, {}, isObj);
+    if (!backup.words && !save(LS.textBackup, { ...backup, words, version: VERSION })) return;
+    if (!save(LS.words, nextWords)) return;
+    words = nextWords;
+  }
+  const known = wordSet();
+  const nextStories = stories.map((story) => prepareStoredStory(story, known, { legacy: true }));
+  if (JSON.stringify(nextStories) !== JSON.stringify(stories) && save(LS.stories, nextStories)) stories = nextStories;
 })();
 
 // ---------- IndexedDB（blob 快取） ----------

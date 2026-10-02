@@ -1,6 +1,6 @@
 // 接收一本書的流程。注入儲存／下載函式，方便驗證斷線、配額滿、回條失敗等情況。
 import { validateManifest, imageMime, sha256, InboxError } from './inbox-format.js';
-import { s2t } from './zhconv.js';
+import { prepareStoredStory, TEXT_POLICY_VERSION } from './text-policy.js';
 
 export async function receiveInboxStory(raw, source, io) {
   const packet = validateManifest(raw);
@@ -24,12 +24,12 @@ export async function receiveInboxStory(raw, source, io) {
   if (!io.hasRoom()) throw new InboxError('shelf_full');
   const stored = [];
   let committed = false;
-  const text = s2t(packet.text);
-  const story = {
-    id, title: s2t(packet.title), text, lang: 'zh-Hant', createdAt: packet.createdAt,
-    newChars: io.newChars(text), hasImage: true, imagePrompt: packet.imagePrompt,
+  const story = prepareStoredStory({
+    id, title: packet.title, text: packet.text, lang: packet.lang, createdAt: packet.createdAt,
+    hasImage: true, imagePrompt: packet.imagePrompt,
     manual: true, media: [], inbox: { source, id: packet.id },
-  };
+  }, new Set(), { legacy: packet.textPolicy !== TEXT_POLICY_VERSION });
+  story.newChars = io.newChars(story.text);
   try {
     for (const im of packet.images) {
       const blob = await io.download(packet.id, im.index);

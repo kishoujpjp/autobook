@@ -1,6 +1,7 @@
 // Gemini API 封裝：故事（JSON＋字表驗證重試）、插圖、TTS
 import { settings, isHan } from './store.js';
 import { pcmToWav, b64ToBytes } from './sfx.js';
+import { toStoredTraditional } from './zhconv.js';
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -430,10 +431,11 @@ export async function generateStory({ knownChars, mustInclude, extraPrompt, mix,
       continue;
     }
 
-    const newChars = findNewChars(data.story, knownSet);
+    const text = toStoredTraditional(data.story.trim());
+    const newChars = findNewChars(text, knownSet);
     const result = {
-      title: data.title.trim(),
-      text: data.story.trim(),
+      title: toStoredTraditional(data.title.trim()),
+      text,
       imagePrompt: wantImage ? (data.image_prompt || '') : '',
       newChars,
     };

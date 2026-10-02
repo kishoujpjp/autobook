@@ -3,7 +3,7 @@
 //   side  圖文並排（舊版）：插圖蓋著迷霧放在旁邊，讀完迷霧散開
 //   focus 專注閱讀：讀的時候整頁都是字，讀完才用特效打開一個童話外框的大圖片框
 // 一本書可以放多組圖片／影片，讀完一遍換下一組（讀完最後一組之後固定用最後一組）
-// 顯示時故事文字依語系做繁簡轉換（儲存保持生成當下的字形）
+// 底層一律繁體；顯示簡體時才產生轉換副本。
 import { t, getLang } from './i18n.js';
 import { el, toast, openModal, confirmDialog, infoDialog, confetti, switchEl, TIMING } from './ui.js';
 import { icon } from './icons.js';
@@ -15,10 +15,10 @@ import {
   stories, addStory, removeStory, getStory, saveStories, currentAccountId,
   storyMedia, setStoryMedia, newMediaId, deleteMediaBlob, storyReads, bumpStoryReads,
   idbGet, idbSet, hasAudioCached, isKid, shelfVictim, isKeepsake, MAX_STORIES,
-  DEMO_STORY_HANT, DEMO_STORY_HANS,
+  DEMO_STORY_HANT,
 } from './store.js';
 import { generateStory, generateImage, pickImageStyle, ttsChar, findNewChars, detectPolys, errHintKey, setLogListener } from './gemini.js';
-import { convertTo, t2s, s2t } from './zhconv.js';
+import { convertTo, toStoredTraditional, audioKeysFor } from './zhconv.js';
 import { playSyllable } from './voice.js';
 import { Fog } from './fog.js';
 import { storyLines } from './story-layout.js';
@@ -42,23 +42,18 @@ export function initStory(rootEl) {
   window.addEventListener('resize', () => { if (fog) fog.resize(); });
 }
 
-/** 顯示用文字：語系與生成時不同才轉換（避免同語系重複轉換的誤傷） */
+/** 顯示副本不回寫；入庫邊界已保證繁體。 */
 function displayText(story, text) {
-  const lang = getLang();
-  if (story.lang === lang) return text;
-  return convertTo(text, lang);
+  return convertTo(text, getLang());
 }
 
-/** 顯示字 → 字表原字 的查表（一次建好，點擊時 O(1)；原字形優先於繁簡另一形） */
-function buildBankMap() {
-  const lang = getLang();
-  const map = new Map();
-  for (const w of words) map.set(w.ch, w.ch);
-  for (const w of words) {
-    const d = convertTo(w.ch, lang);
-    if (!map.has(d)) map.set(d, w.ch);
-  }
-  return map;
+// 共用字形無法可靠猜語系（如「面包／后天」）；家長可明確指定貼入文字的字形。
+function inputScriptSelect() {
+  return el('select', { class: 'text-input', 'aria-label': t('input_script') },
+    el('option', { value: 'auto', text: t('input_script_auto') }),
+    el('option', { value: 'zh-Hant', text: t('input_script_hant') }),
+    el('option', { value: 'zh-Hans', text: t('input_script_hans') }),
+  );
 }
 
 export function render() {
@@ -330,11 +325,11 @@ export function render() {
 
   // ---- 文字按鈕 ----
   const hanIndices = [];
-  const bankMap = buildBankMap();
+  const bank = new Map(words.map((w) => [w.ch, w]));
+  const storedChars = [...story.text];
   /** 認字表上的紅綠（作用中小孩的紀錄）：重讀時字塊先照它顯示；這一輪點過的才以 marks 為準 */
   function seedMark(ch) {
-    const b = bankMap.get(ch);
-    const w = b ? words.find((x) => x.ch === b) : null;
+    const w = bank.get(ch);
     return w ? getCard(w).mark : null;
   }
   function shownMark(idx, ch) { return marks.has(idx) ? marks.get(idx) : seedMark(ch); }
@@ -348,9 +343,9 @@ export function render() {
    * 內文用 0..n（就是字在內文的位置），書名用 -1, -2…（不計進度）。
    * speak 是這個字要怎麼唸（內文會查多音字，書名唸單字）。
    */
-  function makeZi(ch, idx, speak) {
+  function makeZi(ch, idx, speak, stored) {
     const btn = el('button', {
-      class: `zi${mode === 'hl' && highlights.has(idx) ? ' hl' : ''}${mode === 'mark' ? markCls(shownMark(idx, ch)) : ''}`,
+      class: `zi${mode === 'hl' && highlights.has(idx) ? ' hl' : ''}${mode === 'mark' ? markCls(shownMark(idx, stored)) : ''}`,
       text: ch,
     });
 
@@ -369,7 +364,7 @@ export function render() {
       btn.classList.remove('pop');
       void btn.offsetWidth; // 重新觸發動畫
       btn.classList.add('pop');
-      const bankCh = bankMap.get(ch) || null;
+      const bankCh = bank.has(stored) ? stored : null;
 
       if (mode === 'hl') {
         const on = !btn.classList.contains('hl');
@@ -390,7 +385,7 @@ export function render() {
         // 重讀時字塊先照認字表上的紅綠顯示：第一下＝讀過了、維持原標註（再點一下才改），
         // 每個小孩重複讀同一本，自己還不會的字一直看得到，不會被讀一遍就清掉。
         const tapped = marks.has(idx);
-        const cur = tapped ? (marks.get(idx) || null) : seedMark(ch);
+        const cur = tapped ? (marks.get(idx) || null) : seedMark(stored);
         const keep = !tapped && cur !== null;
         const next = keep ? cur : cur === null ? 'green' : cur === 'green' ? 'red' : null;
         if (next) marks.set(idx, next); else marks.delete(idx);
@@ -425,7 +420,7 @@ export function render() {
           continue;
         }
         const stored = storedTitle[k] || ch;
-        const btn = makeZi(ch, -(k + 1), () => speakOne(stored, ch));
+        const btn = makeZi(ch, -(k + 1), () => speakOne(stored, ch), stored);
         grp.append(btn);
         titleTiles.push(btn);
       }
@@ -445,7 +440,7 @@ export function render() {
           continue;
         }
         hanIndices.push(i);
-        const btn = makeZi(ch, i, () => speakAt(story, ch, i));
+        const btn = makeZi(ch, i, () => speakAt(story, ch, i), storedChars[i] || ch);
         group.append(btn);
         ziBtns.push({ btn, i });
       }
@@ -920,7 +915,7 @@ function shelfStats(story) {
   const { ratio } = readProgress(story);
   const byHant = new Map(words.map((w) => [convertTo(w.ch, 'zh-Hant'), w]));
   let fresh = 0;
-  for (const ch of new Set([...s2t(story.text || '')].filter(isHan))) {
+  for (const ch of new Set([...(story.text || '')].filter(isHan))) {
     const w = byHant.get(ch);
     if (!w || getCard(w).mark === 'red') fresh++;
   }
@@ -1079,16 +1074,20 @@ function openEditStoryModal(story, onSaved) {
   const m = openModal(t('story_edit'), { icon: 'edit',
     onClose: () => { if (imgUrl) URL.revokeObjectURL(imgUrl); },
   });
-  const titleInput = el('input', { class: 'text-input', value: s2t(story.title) });
+  const titleInput = el('input', { class: 'text-input', value: story.title });
   const textArea = el('textarea', { class: 'text-area', style: 'min-height:220px;margin-top:4px;' });
-  textArea.value = s2t(story.text);
+  textArea.value = story.text;
+  const inputScript = inputScriptSelect();
 
   const saveBtn = el('button', { class: 'btn mint' }, icon('save'), t('acc_save'));
   saveBtn.addEventListener('click', () => {
     sfx.tap();
-    const text = textArea.value.trim();
+    const rawText = textArea.value.trim();
+    const text = rawText === story.text ? rawText : toStoredTraditional(rawText, inputScript.value);
     if (!text || ![...text].some(isHan)) { toast(t('manual_need_text'), true); return; }
-    story.title = titleInput.value.trim() || [...text].slice(0, 8).join('');
+    const rawTitle = titleInput.value.trim();
+    story.title = (rawTitle === story.title ? rawTitle : toStoredTraditional(rawTitle, inputScript.value))
+      || [...text].slice(0, 8).join('');
     story.text = text;
     story.lang = 'zh-Hant';
     story.hlBy = {};
@@ -1103,6 +1102,7 @@ function openEditStoryModal(story, onSaved) {
   });
 
   m.body.append(
+    el('div', { class: 'field-label', text: t('input_script') }), inputScript,
     el('div', { class: 'field-label', style: 'margin-top:0;', text: t('manual_title_label') }),
     titleInput,
     el('div', { class: 'field-label', text: t('story_edit_text') }),
@@ -1293,7 +1293,7 @@ function openMediaModal(story, onChanged) {
     aiBtn.disabled = true;
     aiBtn.replaceChildren(icon('clock'), t('media_ai_doing'));
     try {
-      const scene = story.imagePrompt || s2t(story.text).slice(0, 200);
+      const scene = story.imagePrompt || story.text.slice(0, 200);
       const blob = await generateImage(scene, pickImageStyle());
       const id = newMediaId(story);
       await idbSet('images', id, blob);
@@ -1439,7 +1439,7 @@ function mixRadar() {
 // 不沿用 story.newChars（字表變動後會過期），每次重新計算。
 function storyNewHant(story) {
   const bankHant = new Set(words.map((w) => convertTo(w.ch, 'zh-Hant')));
-  return findNewChars(s2t(story.text || ''), bankHant);
+  return findNewChars(story.text || '', bankHant);
 }
 function openAddNewChars(story) {
   const cands = storyNewHant(story);
@@ -1597,6 +1597,7 @@ function openManualModal() {
   const textInput = el('textarea', {
     class: 'text-area', placeholder: t('manual_text_ph'), style: 'min-height:180px;',
   });
+  const inputScript = inputScriptSelect();
 
   let imgBlob = null;
   const fileInput = el('input', { type: 'file', accept: 'image/*', style: 'display:none;' });
@@ -1620,6 +1621,7 @@ function openManualModal() {
   });
 
   m.body.append(
+    el('div', { class: 'field-label', text: t('input_script') }), inputScript,
     el('div', { class: 'field-label', text: t('manual_title_label') }), titleInput,
     el('div', { class: 'field-label', text: t('manual_text_label') }), textInput,
     el('div', { class: 'field-label', text: t('manual_img_label') }),
@@ -1627,12 +1629,12 @@ function openManualModal() {
   );
 
   m.foot.append(el('button', { class: 'btn big mint', onclick: async () => {
-    const text = textInput.value.trim();
+    const text = toStoredTraditional(textInput.value.trim(), inputScript.value);
     if (!text || ![...text].some(isHan)) { toast(t('manual_need_text'), true); return; }
     if (!(await ensureShelfRoom())) return;
     sfx.tap();
-    const lang = getLang();
-    const title = titleInput.value.trim() || [...text].slice(0, 8).join('');
+    const lang = 'zh-Hant';
+    const title = toStoredTraditional(titleInput.value.trim(), inputScript.value) || [...text].slice(0, 8).join('');
     const bankSet = new Set(words.map((w) => convertTo(w.ch, lang)));
     const id = `s${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
     const story = {
@@ -1723,8 +1725,8 @@ async function runGeneration(mustInclude, extraPrompt) {
   const addLog = w.log;
   setLogListener(addLog);
 
-  // AI 生成一律用繁體（簡體顯示交給 app 轉換，避免混淆）；示範模式沿用語系版本
-  const lang = settings.apiKey ? 'zh-Hant' : getLang();
+  // 生成與示範一律存繁體（簡體顯示交給 app 轉換）。
+  const lang = 'zh-Hant';
   // 字表換成生成語系的字形給模型（與驗證一致）
   const bankConv = [...new Set(words.map((w) => convertTo(w.ch, lang)))];
 
@@ -1735,7 +1737,7 @@ async function runGeneration(mustInclude, extraPrompt) {
     if (!settings.apiKey) {
       // 示範模式
       await new Promise((r) => setTimeout(r, 1200));
-      const demo = lang === 'zh-Hans' ? DEMO_STORY_HANS : DEMO_STORY_HANT;
+      const demo = DEMO_STORY_HANT;
       title = demo.title;
       text = demo.text;
       imagePrompt = '';
@@ -1829,8 +1831,8 @@ async function runGeneration(mustInclude, extraPrompt) {
 
 /** 示範書（onboarding 與示範模式共用）：內建故事＋內建插圖，直接進書架並打開 */
 export async function createDemoStory() {
-  const lang = getLang();
-  const demo = lang === 'zh-Hans' ? DEMO_STORY_HANS : DEMO_STORY_HANT;
+  const lang = 'zh-Hant';
+  const demo = DEMO_STORY_HANT;
   const bankConv = new Set(words.map((w) => convertTo(w.ch, lang)));
   const id = `s${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
   const story = {
@@ -1888,7 +1890,7 @@ async function speakAt(story, dispCh, i) {
 
 /** 唸一個字：AI 快取（原字形 → 顯示字形 → 繁簡另一邊）→ 音節庫 → 內建語音 */
 async function speakOne(stored, dispCh) {
-  const key = [stored, dispCh, s2t(stored), t2s(stored)].find(hasAudioCached);
+  const key = audioKeysFor(stored).find(hasAudioCached);
   if (key) {
     const blob = await idbGet('audio', key).catch(() => null);
     if (blob) { playBlob(blob); return; }

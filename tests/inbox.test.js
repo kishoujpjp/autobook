@@ -50,9 +50,9 @@ async function call(e, path, token, options = {}) {
   return worker.fetch(new Request(base + path, { ...options, headers: { ...options.headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) } }), e);
 }
 
-function uploadBody({ id = 'story_001', title = '小猫', text = '小猫有好朋友。' } = {}, bytes = PNG) {
+function uploadBody({ id = 'story_001', title = '小猫', text = '小猫有好朋友。', lang } = {}, bytes = PNG) {
   const body = new FormData();
-  body.set('story', JSON.stringify({ id, title, text }));
+  body.set('story', JSON.stringify({ id, title, text, ...(lang ? { lang } : {}) }));
   body.append('images', new Blob([bytes], { type: 'image/png' }), 'cat.png');
   return body;
 }
@@ -151,6 +151,53 @@ function receiver() {
   };
   return { io, saved, receipts, images, events };
 }
+
+test('收件匣繁體原文從上傳到接收均不改寫，苧麻不會被重複簡轉繁', async () => {
+  const e = env();
+  const title = '皇后吃飯';
+  const text = '于先生和云先生吃飯，游泳一公里。苧麻。';
+  assert.equal((await call(e, '/v1/stories', writeToken, { method: 'POST', body: uploadBody({ title, text, lang: 'zh-Hant' }) })).status, 201);
+  const manifest = await (await call(e, '/v1/stories/story_001', readToken)).json();
+  assert.equal(manifest.lang, 'zh-Hant');
+  assert.equal(manifest.textPolicy, 1);
+  assert.equal(manifest.title, title);
+  assert.equal(manifest.text, text);
+  const r = receiver();
+  await receiveInboxStory(manifest, base, r.io);
+  const imported = [...r.saved.values()][0];
+  assert.equal(imported.title, title);
+  assert.equal(imported.text, text);
+  assert.equal(imported.textBackup, undefined);
+});
+
+test('收件匣簡體只在上傳時轉換一次；接收後保持繁體詞義與字形', async () => {
+  const e = env();
+  assert.equal((await call(e, '/v1/stories', writeToken, { method: 'POST',
+    body: uploadBody({ title: '皇后吃饭', text: '头发干净，岳父游泳一公里。苎麻。', lang: 'zh-Hans' }) })).status, 201);
+  const manifest = await (await call(e, '/v1/stories/story_001', readToken)).json();
+  assert.equal(manifest.text, '頭髮乾淨，岳父游泳一公里。苧麻。');
+  const r = receiver();
+  await receiveInboxStory(manifest, base, r.io);
+  assert.equal([...r.saved.values()][0].text, manifest.text);
+  assert.equal([...r.saved.values()][0].lang, 'zh-Hant');
+});
+
+test('舊版 manifest 接收時修復已誤轉的詞，原文字與來源留作備份', async () => {
+  const r = receiver();
+  const old = { ...await packet(), title: '皇後喫飯', text: '皇後起牀喫飯，遊泳一公裏。' };
+  await receiveInboxStory(old, base, r.io);
+  const imported = [...r.saved.values()][0];
+  assert.equal(imported.text, '皇后起床吃飯，游泳一公里。');
+  assert.equal(imported.textBackup.text, old.text);
+  assert.deepEqual(imported.textBackup.inbox, { source: base, id: old.id });
+});
+
+test('收件匣拒絕不支援的來源語系與矛盾的儲存字形標記', async () => {
+  const e = env();
+  assert.equal((await call(e, '/v1/stories', writeToken, { method: 'POST', body: uploadBody({ lang: 'xx' }) })).status, 400);
+  const manifest = await packet();
+  assert.throws(() => validateManifest({ ...manifest, lang: 'zh-Hans', textPolicy: 1 }), /format/);
+});
 
 test('圖片與故事落盤後才回條；刪除已收到故事不會重新下載／新增', async () => {
   const r = receiver();

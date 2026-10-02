@@ -1,6 +1,6 @@
 // 遊戲頁：聽音認字。開始前先把 10 題語音緩存好，之後重複利用。
 import { t, getLang } from './i18n.js';
-import { convertTo, t2s, s2t } from './zhconv.js';
+import { convertTo, audioKeysFor } from './zhconv.js';
 import { el, toast, confetti, infoDialog, openModal, switchEl } from './ui.js';
 import { icon } from './icons.js';
 import { waitScene } from './wait.js';
@@ -403,8 +403,7 @@ function renderQuestion() {
   async function play() {
     speaker.classList.add('playing');
     // AI 快取 → 音節庫 → 內建語音（手勢內同步決策）
-    const alt = getLang() === 'zh-Hans' ? t2s(q.ch) : s2t(q.ch);
-    const key = [q.ch, alt].find(hasAudioCached);
+    const key = audioKeysFor(q.ch).find(hasAudioCached);
     if (key) {
       const blob = await idbGet('audio', key).catch(() => null);
       if (blob) await playBlob(blob);

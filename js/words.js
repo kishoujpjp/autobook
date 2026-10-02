@@ -11,7 +11,7 @@ import {
 } from './store.js';
 import { manageKidRow } from './account.js';
 import { speakChar } from './voice.js';
-import { convertTo, t2s, s2t } from './zhconv.js';
+import { convertTo, audioKeysFor } from './zhconv.js';
 
 let root = null;
 let editMode = false;
@@ -239,8 +239,7 @@ function render() {
         void chip.offsetWidth;
         chip.classList.add('pop');
         // AI 快取 → 音節庫 → 內建語音（手勢內同步決策）
-        const alt = getLang() === 'zh-Hans' ? t2s(w.ch) : s2t(w.ch);
-        speakChar(w.ch, [alt]);
+        speakChar(w.ch, audioKeysFor(w.ch).slice(1));
       });
     } else {
       // 編輯模式：點按或滑過複選（在字卡上起手的拖曳不會捲動頁面）

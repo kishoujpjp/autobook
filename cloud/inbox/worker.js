@@ -1,6 +1,7 @@
 // 私人故事收件匣。R2 bucket 不公開；所有內容只能經帶憑證的 Worker 讀取。
 import { INBOX_VERSION, INBOX_LIMITS, INBOX_ID, InboxError, validateStoryInput, imageMime, sha256 } from '../../js/inbox-format.js';
-import { s2t } from '../../js/zhconv.js';
+import { toStoredTraditional } from '../../js/zhconv.js';
+import { TEXT_POLICY_VERSION } from '../../js/text-policy.js';
 
 const manifestKey = (id) => `manifests/${id}.json`;
 const completedKey = (id) => `completed/${id}.json`;
@@ -56,8 +57,10 @@ async function upload(request, bucket) {
   let raw;
   try { raw = JSON.parse(form.get('story')); } catch { throw new InboxError('format'); }
   const story = validateStoryInput(raw);
-  story.title = s2t(story.title);
-  story.text = s2t(story.text);
+  story.title = toStoredTraditional(story.title, story.lang);
+  story.text = toStoredTraditional(story.text, story.lang);
+  story.lang = 'zh-Hant';
+  story.textPolicy = TEXT_POLICY_VERSION;
   const files = form.getAll('images');
   if (!files.length || files.length > INBOX_LIMITS.images) throw new InboxError('image');
   const images = [];

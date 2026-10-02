@@ -26,7 +26,9 @@ export function validateStoryInput(raw) {
   if (!title || [...title].length > INBOX_LIMITS.title || !/[\u3400-\u9fff]/u.test(text)
       || [...text].length > INBOX_LIMITS.text) throw new InboxError('format');
   const imagePrompt = typeof raw.imagePrompt === 'string' ? raw.imagePrompt.trim().slice(0, 4000) : '';
-  return { id: raw.id, title, text, imagePrompt };
+  const lang = raw.lang ?? 'auto';
+  if (!['zh-Hant', 'zh-Hans', 'auto'].includes(lang)) throw new InboxError('format');
+  return { id: raw.id, title, text, imagePrompt, lang };
 }
 
 export function validateManifest(raw) {
@@ -41,7 +43,10 @@ export function validateManifest(raw) {
     return { index: i, mime: im.mime, size: im.size, sha256: im.sha256 };
   });
   if (images.reduce((n, im) => n + im.size, 0) > INBOX_LIMITS.uploadBytes) throw new InboxError('too_large', 413);
-  return { ...story, version: INBOX_VERSION, createdAt: raw.createdAt, digest: raw.digest, images };
+  if (raw.textPolicy != null && raw.textPolicy !== 1) throw new InboxError('format');
+  if (raw.textPolicy === 1 && story.lang !== 'zh-Hant') throw new InboxError('format');
+  return { ...story, version: INBOX_VERSION, createdAt: raw.createdAt, digest: raw.digest, images,
+    ...(raw.textPolicy === 1 ? { textPolicy: 1 } : {}) };
 }
 
 export function imageMime(bytes) {

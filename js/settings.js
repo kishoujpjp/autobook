@@ -483,6 +483,7 @@ async function importBackupFile(file) {
   const local = {};
   const keyOk = {
     'autobook.settings': isObj, 'autobook.accounts': Array.isArray, 'autobook.words': Array.isArray, 'autobook.wordsBy': isObj,
+    'autobook.textBackup': isObj,
     'autobook.stories': Array.isArray, 'autobook.phrases': Array.isArray, 'autobook.repGroups': Array.isArray,
     'autobook.currentAccount': (v) => typeof v === 'string',
     'autobook.inbox': Array.isArray,

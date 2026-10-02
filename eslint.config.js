@@ -6,7 +6,7 @@ import globals from 'globals';
 export default [
   {
     ignores: [
-      'node_modules/**', 'dist/**', 'ios/**', 'syl/**',
+      'node_modules/**', 'dist/**', 'ios/**', 'syl/**', 'js/vendor/**',
       '**/.wrangler/**',
       'js/wordbank.js', 'js/phonemes.js', 'js/readings.js', 'js/zhconv.js',
     ],
