@@ -21,6 +21,7 @@ import { generateStory, generateImage, pickImageStyle, ttsChar, findNewChars, de
 import { convertTo, t2s, s2t } from './zhconv.js';
 import { playSyllable } from './voice.js';
 import { Fog } from './fog.js';
+import { storyLines } from './story-layout.js';
 
 let root = null;
 let currentId = null;
@@ -210,17 +211,22 @@ export function render() {
   function tileH() { return settings.storyFont === 'big' ? 108 : 72; }
   let pageRows = 1, rowGap = 10;
   function sizeText() {
+    const page = pageIndex();
     const TILE = tileH();
     const inner = textCard.clientHeight - 24 - 20; // text-card 內距 12×2、story-scroll 內距 10×2
     pageRows = Math.max(1, Math.floor((inner + 10) / (TILE + 10)));
     const spare = inner - (pageRows * TILE + (pageRows - 1) * 10);
     rowGap = pageRows > 1 ? 10 + Math.min(24, Math.max(0, Math.floor(spare / (pageRows - 1)))) : 10;
     textWrap.style.rowGap = `${rowGap}px`;
+    textWrap.style.setProperty('--story-row-gap', `${rowGap}px`);
+    textWrap.style.setProperty('--story-tile-height', `${TILE}px`);
     scroll.style.height = `${pageRows * (TILE + rowGap) - rowGap + 20}px`;
     if (titleLine) {
       titleLine.style.height = `${TILE}px`;
       sizeTitle(TILE);
     }
+    // 旋轉裝置或卡片高度改變後，重新對齊整行。
+    scroll.scrollTop = page * pageStep();
   }
   /** 書名字塊：最大跟內文一樣大，太長就等比縮到排得下（不換行、不裁字） */
   function sizeTitle(TILE) {
@@ -237,11 +243,17 @@ export function render() {
     }
   }
   function pageStep() { return pageRows * (tileH() + rowGap); }
+  function pageIndex() {
+    const max = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
+    return max > 0 && scroll.scrollTop >= max - 1
+      ? Math.ceil(max / pageStep())
+      : Math.round(scroll.scrollTop / pageStep());
+  }
   function updatePager() {
     const step = pageStep();
     const maxScroll = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
     const total = Math.max(1, Math.ceil(maxScroll / step) + (maxScroll > 0 ? 1 : 0)) || 1;
-    const cur = Math.min(total, Math.round(scroll.scrollTop / step) + 1);
+    const cur = Math.min(total, pageIndex() + 1);
     pageInd.textContent = `${cur} / ${total}`;
     upBtn.disabled = scroll.scrollTop <= 4;
     downBtn.disabled = scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 4;
@@ -249,7 +261,7 @@ export function render() {
   function flip(dir) {
     clearTimeout(autoTimer);
     const step = pageStep();
-    const target = Math.max(0, (Math.round(scroll.scrollTop / step) + dir) * step);
+    const target = Math.max(0, (pageIndex() + dir) * step);
     scroll.scrollTo({ top: target, behavior: 'smooth' });
   }
   upBtn.addEventListener('click', () => { sfx.tap(); flip(-1); });
@@ -403,37 +415,44 @@ export function render() {
   // 書名：一排跟內文同款的字塊（點了會唸），不進 ziBtns 所以不影響「這一頁讀完了沒」
   if (titleLine) {
     const storedTitle = [...(story.title || '')];
-    let grp = null;
-    [...dispTitle].forEach((ch, k) => {
-      if (!isHan(ch)) {
-        const sp = el('span', { class: 'punct', text: ch });
-        if (grp) grp.append(sp); else titleLine.append(sp);
-        titleTiles.push(sp);
-        return;
+    for (const items of storyLines(dispTitle, isHan).flat()) {
+      const grp = el('span', { class: 'zg' });
+      for (const { ch, i: k, han } of items) {
+        if (!han) {
+          const sp = el('span', { class: 'punct', text: ch });
+          grp.append(sp);
+          titleTiles.push(sp);
+          continue;
+        }
+        const stored = storedTitle[k] || ch;
+        const btn = makeZi(ch, -(k + 1), () => speakOne(stored, ch));
+        grp.append(btn);
+        titleTiles.push(btn);
       }
-      const stored = storedTitle[k] || ch;
-      const btn = makeZi(ch, -(k + 1), () => speakOne(stored, ch));
-      grp = el('span', { class: 'zg' }, btn);
       titleLine.append(grp);
-      titleTiles.push(btn);
-    });
+    }
   }
 
-  // 每個字塊包一層 .zg；後面的標點塞進同一個群組，flex 換行時標點永遠跟著前一個字（杜絕行首標點）
-  let lastGrp = null;
-  chars.forEach((ch, i) => {
-    if (ch === '\n') { textWrap.append(el('div', { class: 'linebreak' })); lastGrp = null; return; }
-    if (!isHan(ch)) {
-      const sp = el('span', { class: 'punct', text: ch });
-      if (lastGrp) lastGrp.append(sp); else textWrap.append(sp);
-      return;
+  // 空白行也佔完整一行，所有行都落在翻頁用的同一個高度格上。
+  // 開引號跟後字、句尾標點跟前字，原始索引不變。
+  for (const groups of storyLines(dispText, isHan)) {
+    const line = el('div', { class: 'story-line' });
+    for (const items of groups) {
+      const group = el('span', { class: 'zg' });
+      for (const { ch, i, han } of items) {
+        if (!han) {
+          group.append(el('span', { class: 'punct', text: ch }));
+          continue;
+        }
+        hanIndices.push(i);
+        const btn = makeZi(ch, i, () => speakAt(story, ch, i));
+        group.append(btn);
+        ziBtns.push({ btn, i });
+      }
+      line.append(group);
     }
-    hanIndices.push(i);
-    const btn = makeZi(ch, i, () => speakAt(story, ch, i));
-    lastGrp = el('span', { class: 'zg' }, btn);
-    textWrap.append(lastGrp);
-    ziBtns.push({ btn, i });
-  });
+    textWrap.append(line);
+  }
 
   // ---- 進度與揭曉（高亮模式數高亮；標註模式紅綠都算） ----
   // 閱讀中只推進度條，圖片不打開；全部讀完才一次揭曉：
