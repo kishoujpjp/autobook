@@ -1,9 +1,12 @@
 # 自動繪本 Autobook
 
-給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.32.2**。
+給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.33.0**。
+
+- 維護交接：[交接文檔](docs/HANDOFF.md)（架構、字形規則、資料遷移、部署與驗證）。
+- 開發與上線記錄：[開發記錄](docs/DEVELOPMENT_LOG.md)（本次修正、測試與部署證據）；較早版本沿用本頁功能與技術備註。
 
 - 線上版（GitHub Pages，push `main` 自動部署）：https://kishoujpjp.github.io/autobook/
-- 純前端 ES modules、無 build step；AI 走使用者自備的 Gemini API Key（存本機）。
+- 純前端 ES modules；build 產生固定版本 OpenCC vendor 並複製靜態資源到 `dist/`。AI 走使用者自備的 Gemini API Key（存本機）。
 - **iOS 原生殼（Capacitor，v1.19.0 起）**：`com.kishou.autobook`，免費開發者帳號簽名直接裝在 iPad 上。
   - 為什麼：PWA 在 iPadOS 上用 `speechSynthesis` 後，系統音訊 session 常卡在「被壓低」狀態（聲音突然變很小，要開 YouTube 才恢復）。原生殼在 `ios/App/App/AppDelegate.swift` 把 `AVAudioSession` 固定為 `.playback` 並在回前景／中斷結束／路由改變時重設，根治此問題；`js/sfx.js` 另有 JS 端緩解（語音結束即重建 AudioContext），PWA 版也受益。
   - 手動建置：`npm run ios:device`（= `scripts/ios-device-install.sh force`：`node --check` → `npm run build`（純複製到 `dist/`）→ `cap sync` → 逐台 `xcodebuild` → `devicectl install`）。
@@ -29,6 +32,13 @@
 - 段落與空白行使用完整字塊高度，行距與翻頁步距一致，避免跨頁裁字。
 - 開引號／開括號跟著後面的字換行，句尾標點跟著前字；保留原始點讀與標註索引。
 - 旋轉裝置或文字區尺寸改變時重新對齊整行。
+
+## 字形策略修正（v1.33.0）
+
+- 底層一律繁體，繁體顯示與編輯保留原文；簡體顯示只轉換副本，避免「吃 → 喫」「皇后 → 皇後」「公里 → 公裏」等逐字誤轉。
+- 簡體入庫使用固定版本 OpenCC 的詞組與臺灣字形規則；手動新增／編輯提供「輸入字形」。自動判斷保護繁簡共用字，`面包／工厂／后天` 這類全共用字形的簡體需選「簡體中文」。
+- 舊故事與字表啟動時遷移，修復前保留原文與紀錄備份；同字數修復保留閱讀索引，媒體與已讀次數保留。簡體模式的 `發／髮` 仍分別以底層原字記錄標色與發音。
+- 收件匣 Worker 標記 `lang: 'zh-Hant', textPolicy: 1`，App 接收不再重複轉換。2026-10-03 已部署網頁、Worker 與 iPad v1.33.0（build 73），詳見開發記錄。
 
 ## 分頁總覽
 
@@ -198,8 +208,9 @@ push `main` → GitHub Actions 自動部署 Pages（`.github/workflows/pages.yml
 ## 資料結構
 
 - localStorage：`autobook.settings` / `words` / `stories` / `accounts` / `currentAccount` / `phrases` / `repGroups` / `errlog`（API 錯誤紀錄，最多 30 筆）。
-- `word`：`{ ch, addedAt, usedCount, readCount, archived, cards }`；熟悉度在 `cards['帳號id|語系']`。
-- `story`：`{ id, title, text, lang, createdAt, newChars, hasImage, imagePrompt, demo, hlBy, marksBy, readsBy, media, polys }`
+- `word`：`{ ch, addedAt, usedCount, readCount, archived, cards, sourceChars? }`；熟悉度在 `cards['帳號id|語系']`，`sourceChars` 保留遷移前簡體字形別名。
+- `story`：`{ id, title, text, lang, textPolicy, textBackup?, createdAt, newChars, hasImage, imagePrompt, demo, hlBy, marksBy, readsBy, media, polys }`
+  - `lang` 固定 `zh-Hant`，表示儲存字形；`textPolicy: 1` 表示已套用現行規則，與介面語系分開。改動的舊故事以 `textBackup` 保存完整原紀錄；字表原紀錄另存 `autobook.textBackup`，兩者都納入完整備份。
   - `hlBy['帳號id'] = [索引]`（高亮模式）、`marksBy['帳號id'] = { 索引: 'green'|'red' }`（標註模式）——**都依帳號分開**；舊版全域 `highlights` 會自動遷移給第一個開啟的帳號。
   - `readsBy['帳號id'] = 讀完整本的次數`（高亮／標註都算），決定這一遍要打開哪一組媒體。
   - `media = [{ id, kind: 'image'|'video', url? }]`：`url` 有值＝外部連結，沒有＝blob 存在 IndexedDB `images`（key＝`m.id`）。**沒有 `media` 欄位的舊資料**由 `storyMedia()` 相容轉換成 `hasImage ? [{ id: 故事id, kind:'image' }] : []`，不做寫入式遷移；`hasImage` 仍同步維護（書架封面在看）。
@@ -222,9 +233,11 @@ push `main` → GitHub Actions 自動部署 Pages（`.github/workflows/pages.yml
 
 1. 改 `js/store.js` 的 `VERSION` ＋ `sw.js` 的 `CACHE`（兩者必須同步，否則客戶端不換快取）＋ `package.json` 的 `version` ＋ `ios/App/App.xcodeproj/project.pbxproj` 的 `MARKETING_VERSION`（兩處）。
 2. 新增 JS 檔要加進 `sw.js` 的 `SHELL` 清單。
-3. push 前先跑 `npm run lint && npm test`（CI 沒過就不會部署）。
-3. commit → push `main` → 等 Actions 綠燈 → iPad 重開 PWA（SW network-first，線上自動拿新版）。
-4. 動到音節庫檔案內容才需要改 `SYL_CACHE` 版本（會讓使用者重抓 25MB，非必要別動）。
+3. push 前先跑 `npm run lint`、`npm test`、`npm run build`（CI 沒過就不會部署）；OpenCC vendor 由 build 固定版本重產，授權檔一起保留。
+4. 動到收件匣 Worker 時，先 dry-run 與部署 Worker，再發布 App；既有部署不必重新產生秘密或配對碼。
+5. commit → push `main` → 等本次 SHA 的 Actions 綠燈 → 核對正式網址檔案。iPad 原生版用自動部署或 `npm run ios:device`，必須核對實際安裝版本，不能只看腳本結束碼；PWA 重開取得新版。
+6. 更新 [交接文檔](docs/HANDOFF.md) 與 [開發記錄](docs/DEVELOPMENT_LOG.md)，記下版本、程式提交、驗證與部署結果。純文檔更新不升 App 版本。
+7. 動到音節庫檔案內容才需要改 `SYL_CACHE` 版本（會讓使用者重抓 25MB，非必要別動）。
 
 ## 其他技術備註
 
