@@ -16,6 +16,7 @@ import {
 import { openAccountEditor, openPinSetup, clearPin } from './account.js';
 import { avatarEl } from './avatars.js';
 import { allSyllables } from './readings.js';
+import { hasInbox, inboxStatus, watchInbox, pairInbox, disconnectInbox, syncInbox, pauseInbox } from './inbox.js';
 
 const SYL_CACHE = 'autobook-syl-1'; // 與 sw.js 一致：音節音檔的持久快取
 /** Capacitor 原生殼：沒有 Service Worker，音節庫直接讀 app 內的檔案，「下載全部發音」沒有意義 */
@@ -23,6 +24,7 @@ const isNativeApp = () => !!(window.Capacitor && window.Capacitor.isNativePlatfo
 
 let root = null;
 let onLangChange = null;
+let unwatchInbox = null;
 
 export function initSettings(rootEl, langChangeCb) {
   root = rootEl;
@@ -33,6 +35,7 @@ export function initSettings(rootEl, langChangeCb) {
 export function refreshSettingsPage() { render(); }
 
 function render() {
+  unwatchInbox?.();
   root.innerHTML = '';
   root.append(el('div', { class: 'row', style: 'margin-bottom:18px;' },
     el('button', { class: 'icon-btn', 'aria-label': t('parent_back_hub'), onclick: () => { sfx.tap(); showPage('parent'); } }, icon('back')),
@@ -82,6 +85,9 @@ function render() {
     toastVoiceLine(),
     themeLine(),
   ));
+
+  // ---- 網路故事收件匣 ----
+  root.append(inboxCard());
 
   // ---- API Key ----
   const keyInput = el('input', {
@@ -164,6 +170,7 @@ function render() {
         sfx.tap();
         const yes = await confirmDialog(t('set_clear_all_confirm'));
         if (yes) {
+          await pauseInbox();
           await clearAll();
           location.reload();
         }
@@ -203,6 +210,65 @@ function render() {
       el('span', { style: 'color:var(--ink-2);', text: `v${VERSION}` }),
     ),
   ));
+}
+
+function inboxCard() {
+  const paired = hasInbox();
+  const note = el('p', { class: 'settings-note', 'aria-live': 'polite' });
+  const receiveBtn = el('button', { class: 'btn mint small', disabled: !paired, onclick: () => {
+    sfx.tap(); syncInbox();
+  } }, icon('download'), t('inbox_receive'));
+  const update = (state) => {
+    receiveBtn.disabled = !hasInbox() || state.kind === 'checking';
+    if (!hasInbox()) note.textContent = t('inbox_unpaired');
+    else if (state.kind === 'checking') note.textContent = t('inbox_checking', { n: state.count });
+    else if (state.kind === 'error') note.textContent = t(`inbox_error_${state.error}`) === `inbox_error_${state.error}`
+      ? t('inbox_error_network') : t(`inbox_error_${state.error}`);
+    else if (state.kind === 'done') note.textContent = t('inbox_checked', { n: state.count, time: new Date(state.at).toLocaleTimeString() });
+    else note.textContent = t('inbox_ready');
+  };
+  unwatchInbox = watchInbox(update);
+  update(inboxStatus());
+  const auto = switchEl(settings.inboxAuto, (on) => {
+    const previous = settings.inboxAuto;
+    settings.inboxAuto = on;
+    if (!saveSettings()) { settings.inboxAuto = previous; return false; }
+    if (on && hasInbox()) syncInbox();
+  }, t('inbox_auto'));
+  return el('div', { class: 'card' },
+    el('div', { class: 'field-label', style: 'margin-top:0;' }, icon('download'), t('inbox_title')),
+    el('p', { class: 'settings-note', text: t('inbox_note') }),
+    paired ? el('p', { class: 'settings-note', text: settings.inboxUrl }) : null,
+    el('div', { class: 'row' },
+      el('button', { class: 'btn ghost small', onclick: openInboxPairing }, icon('key'), t(paired ? 'inbox_repair' : 'inbox_pair')),
+      receiveBtn,
+    ),
+    el('div', { class: 'settings-line', style: 'margin-top:12px;' }, el('span', { text: t('inbox_auto') }), auto),
+    note,
+    paired ? el('div', { class: 'danger-row' }, el('button', { class: 'btn danger small', onclick: async () => {
+      if (!(await confirmDialog(t('inbox_disconnect_confirm')))) return;
+      try { disconnectInbox(); render(); } catch { toast(t('inbox_error_storage'), true); }
+    } }, icon('lock'), t('inbox_disconnect'))) : null,
+  );
+}
+
+function openInboxPairing() {
+  const m = openModal(t('inbox_pair'), { icon: 'key' });
+  const input = el('input', { class: 'text-input', type: 'password', autocomplete: 'off', autocapitalize: 'off',
+    spellcheck: 'false', placeholder: t('inbox_pair_ph'), 'aria-label': t('inbox_pair_ph') });
+  m.body.append(el('p', { class: 'settings-note', text: t('inbox_pair_note') }), input);
+  const button = el('button', { class: 'btn mint small', onclick: async () => {
+    button.disabled = true;
+    try {
+      await pairInbox(input.value);
+      m.close(); render(); toast(t('inbox_paired'));
+      if (settings.inboxAuto) syncInbox();
+    } catch (e) {
+      const code = ['config', 'auth', 'storage'].includes(e.code) ? e.code : 'network';
+      toast(t(`inbox_error_${code}`), true);
+    } finally { button.disabled = false; }
+  } }, icon('check'), t('inbox_pair'));
+  m.foot.append(button);
 }
 
 // ============ 連線診斷與錯誤紀錄 ============
@@ -338,6 +404,7 @@ async function exportBackup() {
         const s = JSON.parse(raw);
         delete s.apiKey;
         delete s.ttsApiKey;
+        delete s.inboxReadToken;
         raw = JSON.stringify(s);
       }
       data.local[key] = raw;
@@ -418,6 +485,7 @@ async function importBackupFile(file) {
     'autobook.settings': isObj, 'autobook.accounts': Array.isArray, 'autobook.words': Array.isArray, 'autobook.wordsBy': isObj,
     'autobook.stories': Array.isArray, 'autobook.phrases': Array.isArray, 'autobook.repGroups': Array.isArray,
     'autobook.currentAccount': (v) => typeof v === 'string',
+    'autobook.inbox': Array.isArray,
   };
   for (const key of BACKUP_KEYS) {
     const raw = data.local[key];
@@ -431,6 +499,9 @@ async function importBackupFile(file) {
       // 保留這台裝置已填的金鑰（備份檔本來就不含）
       parsed.apiKey = settings.apiKey || '';
       parsed.ttsApiKey = settings.ttsApiKey || '';
+      // 備份不攜帶收件憑證，保留這台裝置已配對的收件匣。
+      parsed.inboxUrl = settings.inboxUrl || '';
+      parsed.inboxReadToken = settings.inboxReadToken || '';
       local[key] = JSON.stringify(parsed);
     } else {
       local[key] = raw;
@@ -460,6 +531,7 @@ async function importBackupFile(file) {
 
   // ---- 3. 寫入：先記下舊值以便回復 ----
   const pm = progressModal('download', t('backup_importing'));
+  const resumeInbox = await pauseInbox();
   const prev = {};
   for (const key of BACKUP_KEYS) prev[key] = localStorage.getItem(key);
   const rollback = () => {
@@ -485,6 +557,7 @@ async function importBackupFile(file) {
     location.reload();
   } catch (e) {
     rollback();
+    resumeInbox();
     pm.close();
     console.error(e);
     infoDialog(t('err_title'), t('backup_import_fail', { msg: String((e && e.message) || e) }), true);

@@ -1,0 +1,11 @@
+{
+  "name": "autobook-inbox",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "triggers": { "crons": ["17 * * * *"] },
+  "r2_buckets": [{ "binding": "INBOX", "bucket_name": "autobook-inbox" }],
+  "vars": {
+    "ALLOWED_ORIGINS": "https://kishoujpjp.github.io,https://localhost,capacitor://localhost,http://localhost:8123,http://127.0.0.1:8123"
+  }
+}

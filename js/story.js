@@ -1945,4 +1945,7 @@ async function prepStoryVoice(story) {
   toast(t('prep_voice_done'));
 }
 
-export function refreshStoryPage() { render(); }
+export function refreshStoryPage() {
+  if (!currentId && stories.length) currentId = stories[0].id;
+  render();
+}

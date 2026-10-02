@@ -1,7 +1,7 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t } from './zhconv.js';
 
-export const VERSION = '1.31.0';
+export const VERSION = '1.32.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -12,6 +12,7 @@ const LS = {
   currentAccount: 'autobook.currentAccount',
   phrases: 'autobook.phrases',
   repGroups: 'autobook.repGroups',
+  inbox: 'autobook.inbox', // 接收紀錄保留於備份：刪除已匯入的書，不會在下次檢查又出現
 };
 
 const DEFAULT_SETTINGS = {
@@ -38,6 +39,9 @@ const DEFAULT_SETTINGS = {
   onboarded: false,       // 首啟三步 onboarding 跑過了（有資料的舊用戶啟動時直接標成 true）
   manageAcc: '',          // 家長正在管理（看、標）哪個小孩的紅綠（帳號 id；空＝第一個小孩）
   toastVoice: true,       // 小孩帳號的提示除了圖示與音效，也用裝置語音唸出來
+  inboxUrl: '',
+  inboxReadToken: '',
+  inboxAuto: true,
 
   textModel: 'gemini-3-flash-preview',
   imageModel: 'gemini-2.5-flash-image',
@@ -131,7 +135,7 @@ if (typeof window !== 'undefined') {
 
 // ---------- settings ----------
 export const settings = Object.assign({}, DEFAULT_SETTINGS, load(LS.settings, {}, isObj));
-export function saveSettings() { save(LS.settings, settings); }
+export function saveSettings() { return save(LS.settings, settings); }
 
 // 舊預設文字模型自動升級
 if (settings.textModel === 'gemini-2.5-flash') {
@@ -346,12 +350,46 @@ export async function addStory(story) {
 
 export async function removeStory(id) {
   const gone = stories.find((s) => s.id === id);
+  // 補齊曾因空間不足而沒寫成功的接收紀錄，避免刪除後又收回同一本。
+  if (gone?.inbox && !inboxReceipt(gone.inbox.source, gone.inbox.id)) saveInboxReceipt(gone.inbox.source, gone.inbox.id);
   stories = stories.filter((s) => s.id !== id);
   saveStories();
   if (gone) await dropStoryBlobs(gone);
 }
 
 export function getStory(id) { return stories.find((s) => s.id === id); }
+
+// ---------- 網路故事收件匣 ----------
+// 接收回條與故事分開：刪掉書仍保留 received 紀錄；備份到另一個 origin 也不會重複收書。
+export let inboxReceipts = loadList(LS.inbox, (r) => typeof r.source === 'string' && typeof r.id === 'string');
+
+export function inboxReceipt(source, id) {
+  return inboxReceipts.find((r) => r.source === source && r.id === id);
+}
+
+export function saveInboxReceipt(source, id, ackPending = true, deviceId = '') {
+  const prev = inboxReceipt(source, id);
+  const next = inboxReceipts.filter((r) => r !== prev);
+  next.push({ source, id, receivedAt: prev?.receivedAt || Date.now(), ackPending, deviceId: deviceId || prev?.deviceId || '' });
+  if (!save(LS.inbox, next)) throw new Error('storage');
+  inboxReceipts = next;
+}
+
+/** 網路匯入不得靜默淘汰舊書；故事同步落盤成功才回傳，然後才可送雲端回條。 */
+export function commitInboxStory(story) {
+  const existing = getStory(story.id);
+  if (existing) {
+    saveInboxReceipt(story.inbox.source, story.inbox.id);
+    return false;
+  }
+  if (stories.length >= MAX_STORIES) throw new Error('shelf_full');
+  const next = [story, ...stories];
+  if (!save(LS.stories, next)) throw new Error('storage');
+  stories = next;
+  // 若這筆存檔失敗，故事已經成功存好；下次透過 deterministic id 補回條，不重寫圖片。
+  saveInboxReceipt(story.inbox.source, story.inbox.id);
+  return true;
+}
 
 /** 刪掉一本書所有存在 IndexedDB 的媒體 blob（外部連結沒有 blob） */
 async function dropStoryBlobs(story) {
@@ -722,7 +760,7 @@ refreshAudioKeys();
 export async function clearAll() {
   cancelPendingSaves(); // 不讓延遲寫入把清掉的資料寫回去
   // 全部資料鍵（含題庫、練習組、錯誤紀錄、壞資料副本、家長門鎖定）——以前漏了題庫與成績
-  const keys = [...BACKUP_KEYS, ...BACKUP_KEYS.map((k) => `${k}.bad`), 'autobook.errlog', 'autobook.gateLock'];
+  const keys = [...BACKUP_KEYS, ...BACKUP_KEYS.map((k) => `${k}.bad`), 'autobook.errlog', 'autobook.gateLock', 'autobook.inboxDevice'];
   for (const k of keys) { try { localStorage.removeItem(k); } catch { /* ignore */ } }
   await idbClear('images').catch(() => {});
   await idbClear('audio').catch(() => {});

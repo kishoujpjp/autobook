@@ -7,12 +7,13 @@ export default [
   {
     ignores: [
       'node_modules/**', 'dist/**', 'ios/**', 'syl/**',
+      '**/.wrangler/**',
       'js/wordbank.js', 'js/phonemes.js', 'js/readings.js', 'js/zhconv.js',
     ],
   },
   js.configs.recommended,
   {
-    files: ['js/**/*.js', 'tools/**/*.mjs', 'tests/**/*.js', 'eslint.config.js'],
+    files: ['js/**/*.js', 'cloud/**/*.js', 'tools/**/*.mjs', 'tests/**/*.js', 'eslint.config.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',

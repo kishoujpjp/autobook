@@ -6,7 +6,7 @@ import { sfx } from './sfx.js';
 import { toast, TIMING } from './ui.js';
 import { icon } from './icons.js';
 import { setNavHandler } from './nav.js';
-import { initStory, refreshStoryPage, initShelf, refreshShelfPage } from './story.js';
+import { initStory, refreshStoryPage, initShelf, refreshShelfPage, currentStoryId } from './story.js';
 import { initGame, refreshGamePage } from './game.js';
 import { initWords, refreshWordsPage } from './words.js';
 import { initSettings, refreshSettingsPage } from './settings.js';
@@ -14,6 +14,7 @@ import { initRepeat, refreshRepeatPage } from './repeat.js';
 import { initParent, refreshParentPage } from './parent.js';
 import { initAccountUI, applyRole } from './account.js';
 import { maybeOnboard } from './onboarding.js';
+import { startInbox, watchInbox } from './inbox.js';
 
 setLang(settings.lang);
 
@@ -94,6 +95,16 @@ window.__autobookReady = true; // 之後的錯誤只記錄、不彈救援畫面�
 
 // 第一次使用：三步 onboarding（選頭像 → 讀示範書 → 家長設定）
 try { maybeOnboard(); } catch (e) { console.error('onboarding failed', e); }
+
+// 收到新書只更新書架或原本空白的故事頁，不重繪正在讀的書。
+window.addEventListener('autobook:inbox-story', () => {
+  if (activePage === 'shelf') refreshShelfPage();
+  else if (activePage === 'story' && !currentStoryId()) refreshStoryPage();
+});
+watchInbox((state) => {
+  if ((state.kind === 'done' || state.kind === 'error') && state.count > 0) toast(t('inbox_received', { n: state.count }));
+});
+startInbox();
 
 // 存檔失敗（空間滿、私密模式）：提醒去備份，不中斷操作
 window.addEventListener('autobook:savefail', () => toast(t('save_fail'), true));
