@@ -17,10 +17,10 @@ npx wrangler@4 secret bulk .inbox/secrets.json --config cloud/inbox/wrangler.jso
 
 請確認 `wrangler whoami` 顯示的是要部署的帳號；多帳號時在部署命令設定 `CLOUDFLARE_ACCOUNT_ID`。bucket 保持私人，**不啟用 Public Access**。公開的是 Worker 網址；故事與圖片仍須 Authorization 憑證才能讀取。沒有秘密的 Worker 回 503，不會公開內容。
 
-把 deploy 回傳的正式 `https://autobook-inbox.<你的子網域>.workers.dev` 網址填入：
+正式網址使用 `https://autobook-inbox.daizukan.app`。Wrangler 部署會設定此獨立子網域的 Worker 路由與 HTTPS：
 
 ```sh
-node tools/inbox-upload.mjs set-url https://autobook-inbox.YOUR-SUBDOMAIN.workers.dev
+node tools/inbox-upload.mjs set-url https://autobook-inbox.daizukan.app
 node tools/inbox-upload.mjs pair
 ```
 
@@ -28,7 +28,7 @@ node tools/inbox-upload.mjs pair
 
 `.inbox/config.json` 保存 Mac 的讀取與寫入憑證，`.inbox/secrets.json` 供部署秘密使用，整個 `.inbox/` 不進 Git。App 僅取得讀取／回條憑證；寫入憑證只在 Mac。完整備份不含讀取憑證，換裝置後要重新配對。輪替憑證時修改本機 config、重跑 secrets / secret bulk / pair；既有書與接收紀錄不受影響。
 
-`ALLOWED_ORIGINS` 已涵蓋 GitHub Pages、Capacitor 與本機 8123 開發網址。若改 App origin，必須同步更新它。第一版只接受 workers.dev 正式網址；自訂網域需要同步調整 `inboxUrl()` 與 index.html CSP，不能只改設定。
+`ALLOWED_ORIGINS` 已涵蓋 GitHub Pages、Capacitor 與本機 8123 開發網址。若改 App origin，必須同步更新它。接受 `autobook-inbox.daizukan.app` 與 workers.dev 正式網址。其他自訂網域需要同步調整 `inboxUrl()` 與 index.html CSP，不能只改設定。
 
 ## 從對話送一本故事
 

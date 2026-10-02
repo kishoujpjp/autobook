@@ -1,6 +1,6 @@
 # 自動繪本 Autobook
 
-給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.32.0**。
+給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前版本 **v1.32.1**。
 
 - 線上版（GitHub Pages，push `main` 自動部署）：https://kishoujpjp.github.io/autobook/
 - 純前端 ES modules、無 build step；AI 走使用者自備的 Gemini API Key（存本機）。
@@ -12,11 +12,11 @@
   - 注意：app 的資料（API Key、字表、書架）與 Safari PWA 是**不同的 origin**，不共用；第一次用 app 請在 PWA「設定 → 備份」匯出再於 app 匯入。
 - **核心事實是繁體**：AI 一律生成繁體、資料存繁體、讀音以臺灣華語為準；簡體只是顯示時的換皮。
 
-## 網路故事收件匣（v1.32.0）
+## 網路故事收件匣（v1.32.1）
 
 可從 Codex 對話產生故事與圖片，經私人 Cloudflare Worker + R2 收件匣送進 App。Mac 與 iPad 不必同一網路、不必同時開機。雲端先保留內容，App 開啟／回前景／恢復連線時自動接收；前景每分鐘檢查，也可在「家長 → 設定 → 故事收件匣」立即接收。
 
-- 部署與上傳操作：[cloud/inbox/README.md](cloud/inbox/README.md)。首次需在自己的 Cloudflare 帳號啟用 R2、部署 Worker、將配對碼貼進 App。第一版使用 `workers.dev` HTTPS 網址。
+- 部署與上傳操作：[cloud/inbox/README.md](cloud/inbox/README.md)。首次需在自己的 Cloudflare 帳號啟用 R2、部署 Worker、將配對碼貼進 App。正式接口使用 `https://autobook-inbox.daizukan.app`，避免目前網路對 workers.dev 的 DNS 錯誤解析。
 - 圖片存進 IndexedDB，縮為最長邊 1280 JPEG，離線仍能看；多張圖片沿用「讀完第 N 遍看第 N 張」。文字轉繁體，會計算表外新字，不自動加入字表。
 - 故事與全部圖片確實落盤後，才送接收回條；上傳工具可區分「雲端已收到」與「App 已匯入」。Safari 與原生 App 各自配對，各有回條。
 - 第一台裝置接收成功七天後，每小時排程清理雲端故事與圖片；未收到的故事保留，App 內已收到的書不受影響。雲端只繼續保留小型回條與防重傳紀錄。

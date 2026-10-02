@@ -11,7 +11,8 @@ export class InboxError extends Error {
 export function inboxUrl(value) {
   let u;
   try { u = new URL(value); } catch { throw new InboxError('config'); }
-  if (u.protocol !== 'https:' || !/^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.workers\.dev$/.test(u.hostname)
+  const allowed = u.hostname === 'autobook-inbox.daizukan.app' || /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.workers\.dev$/.test(u.hostname);
+  if (u.protocol !== 'https:' || !allowed
       || u.username || u.password || u.port || u.search || u.hash || u.pathname !== '/') {
     throw new InboxError('config');
   }
