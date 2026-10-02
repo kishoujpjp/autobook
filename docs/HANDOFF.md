@@ -56,6 +56,25 @@ OpenCC 固定 `opencc-js@1.4.2`。`tools/vendor-opencc.mjs` 產生 `js/vendor/op
 
 沿用既有 Worker、R2、憑證與配對。更新 Worker 不需重跑 init、secret bulk 或配對；`.inbox/` 為本機私密資料，不可提交、貼入文檔或發布到 Pages。雲端收到與 App 收到是不同狀態，送書後須以接收回條確認 App 已落盤。
 
+## 日常線上推送故事到 iPad
+
+此功能於 v1.32.0 引入，v1.32.1 改用正式自訂網域；原始提交與功能歷程見 [開發記錄](DEVELOPMENT_LOG.md)。完整初次部署、配對與 API 規格見 [收件匣操作文檔](../cloud/inbox/README.md)。已有憑證與配對時，每次送書不必重部署 Worker 或重裝 App。
+
+1. 將對話產生的故事存為 JSON（`title`、`text`、明確 `lang`，可選 `imagePrompt`），準備 1～8 張圖片。故事書名最多 40 字、內文最多 1500 字；每圖最多 4 MB，圖片合計最多 20 MB。
+2. 在 Mac 執行上傳；id 省略時工具會產生並寫回原故事檔，重試須保留該 id。
+
+   ```sh
+   node tools/inbox-upload.mjs upload /absolute/path/story.json /absolute/path/image.png
+   node tools/inbox-upload.mjs status STORY_ID
+   ```
+
+3. 上傳成功先代表「雲端已收到」。iPad 打開 App、回前景或恢復連線時自動接收；前景每分鐘檢查，亦可在「家長 → 設定 → 故事收件匣」立即接收。Mac 可離線，兩台不必同網路。
+4. `status` 查到該裝置回條後，才回報「App 已匯入」。回條在故事與全部圖片落盤後才送出；裝置收好後可離線閱讀，圖片按閱讀次數依序解鎖。回條不保證故事日後未被使用者刪除。
+5. 相同 id／相同內容可重試且不多一本；相同 id 改內容回 409，修改或重新送已刪故事須換新 id。書架滿時 App 停止接收，先由家長整理書架；Safari 與原生 App 各自配對與回報。
+6. 第一台裝置接收七天後，每小時排程清理雲端故事與圖片；尚未收到的故事保留。App 中已落盤的故事不受雲端清理影響。
+
+「推送」使用雲端收件匣加 App 主動檢查；沒有 iOS 系統背景推播，App 關閉時不會被喚醒。沒有回條時先核對 App 是否在線／已配對、書架是否已滿與設定頁錯誤訊息，不可僅因 upload 成功就宣稱 iPad 收到了。
+
 ## 驗證與發布
 
 一般修正執行：
