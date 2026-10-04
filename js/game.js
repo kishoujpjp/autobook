@@ -3,6 +3,7 @@ import { t, getLang } from './i18n.js';
 import { convertTo, audioKeysFor } from './zhconv.js';
 import { el, toast, confetti, infoDialog, openModal, switchEl } from './ui.js';
 import { icon } from './icons.js';
+import { createWordSearch } from './word-search-ui.js';
 import { waitScene } from './wait.js';
 import { sfx, playBlob, speakNative } from './sfx.js';
 import { settings, saveSettings, words, bumpGame, getCard, idbGet, idbSet, hasAudioCached, isKid } from './store.js';
@@ -80,6 +81,7 @@ function renderIntro() {
 }
 
 // ---------- 認字卡：出題範圍選單與選字頁 ----------
+let pickQuery = '';
 let pickSort = 'weak';     // 選字清單排序：weak | new | least | most
 const pickSel = new Set(); // 已選的字（切換排序時保留）
 
@@ -99,6 +101,7 @@ function openFlashMenu() {
         sfx.tap();
         m.close();
         pickSel.clear();
+        pickQuery = '';
         renderFlashPicker();
       }),
     ),
@@ -146,8 +149,8 @@ function renderFlashPicker() {
   );
 
   const startBtn = el('button', { class: 'btn mint' });
-  const allBtn = el('button', { class: 'btn ghost small', text: t('flash_pick_all') });
-  const clearBtn = el('button', { class: 'btn ghost small', text: t('flash_pick_clear') });
+  const allBtn = el('button', { class: 'btn ghost small', text: t('word_search_all') });
+  const clearBtn = el('button', { class: 'btn ghost small', text: t('word_search_cancel') });
 
   function refreshStart() {
     startBtn.textContent = '';
@@ -162,19 +165,23 @@ function renderFlashPicker() {
 
   const grid = el('div', { class: 'word-grid' });
   const chipByCh = new Map();
+  let search;
+  let dragging = false;
 
   function setSel(ch, on) {
     if (on) pickSel.add(ch); else pickSel.delete(ch);
     const chip = chipByCh.get(ch);
     if (chip) chip.classList.toggle('sel', on);
     refreshStart();
+    search.refresh({ deferLayout: dragging });
   }
   function syncChips() {
     for (const [ch, chip] of chipByCh) chip.classList.toggle('sel', pickSel.has(ch));
     refreshStart();
+    search.refresh();
   }
-  allBtn.addEventListener('click', () => { sfx.tap(); for (const w of pickerPool()) pickSel.add(w.ch); syncChips(); });
-  clearBtn.addEventListener('click', () => { sfx.tap(); pickSel.clear(); syncChips(); });
+  allBtn.addEventListener('click', () => { sfx.tap(); for (const ch of search.matches()) pickSel.add(ch); syncChips(); });
+  clearBtn.addEventListener('click', () => { sfx.tap(); for (const ch of search.matches()) pickSel.delete(ch); syncChips(); });
 
   const markCls = (w) => {
     const m = getCard(w).mark;
@@ -195,8 +202,13 @@ function renderFlashPicker() {
   }
   refreshStart();
 
+  search = createWordSearch({
+    grid, entries: [...chipByCh].map(([ch, node]) => ({ ch, node })),
+    getSelected: () => pickSel, value: pickQuery,
+    onQueryChange: (value) => { pickQuery = value; },
+  });
+
   // 拖選（與字表整理模式同款）：起手那格決定是選取還是取消
-  let dragging = false;
   let dragOn = true;
   grid.addEventListener('pointerdown', (e) => {
     const chip = e.target.closest('.word-chip');
@@ -213,12 +225,12 @@ function renderFlashPicker() {
     if (!dragging) return;
     const under = document.elementFromPoint(e.clientX, e.clientY);
     const chip = under && under.closest('.word-chip');
-    if (chip && chip.dataset.ch) {
+    if (chip && grid.contains(chip) && chip.dataset.ch) {
       const ch = chip.dataset.ch;
       if (pickSel.has(ch) !== dragOn) { sfx.tap(); setSel(ch, dragOn); }
     }
   });
-  const stopDrag = () => { dragging = false; };
+  const stopDrag = () => { dragging = false; search.refresh(); };
   grid.addEventListener('pointerup', stopDrag);
   grid.addEventListener('pointercancel', stopDrag);
   grid.addEventListener('pointerleave', stopDrag);
@@ -228,6 +240,7 @@ function renderFlashPicker() {
       el('div', { class: 'row' }, backBtn, el('div', { class: 'h1', style: 'margin:0;' }, icon('target'), t('flash_pick'))),
       el('div', { class: 'row' }, allBtn, clearBtn, startBtn),
     ),
+    search.root,
     el('div', { class: 'spread', style: 'margin:10px 0;' }, seg),
     el('p', { class: 'settings-note', style: 'margin-bottom:12px;', text: t('flash_pick_hint') }),
     grid,

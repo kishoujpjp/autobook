@@ -2303,3 +2303,94 @@ details.adv[open] summary::before { content: "▾ "; }
 .ob-avatars { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
 .ob-hero { text-align: center; font-size: 96px; line-height: 1; color: var(--primary-soft); margin-bottom: 8px; }
 .ob-hero .ic { width: 1em; height: 1em; }
+
+/* 字表搜尋沿用原字卡；選框與紅綠底色可同時辨識。 */
+.word-chip.sel.mk-g { background: var(--ok-bg); box-shadow: 0 5px 0 var(--ok-deep); }
+.word-chip.sel.mk-r { background: var(--no-bg); box-shadow: 0 5px 0 var(--no-deep); }
+.word-search { margin: 0 0 14px; }
+.word-search-field { display: flex; align-items: center; gap: 10px; }
+.word-search-field > .ic { flex-shrink: 0; color: var(--ink-2); }
+.word-search-field .text-input { min-width: 0; flex: 1; }
+.word-search-field input::-webkit-search-cancel-button { display: none; }
+.word-search-field .btn { flex-shrink: 0; min-width: 44px; min-height: 44px; }
+.word-search-summary, .word-search-empty { margin: 8px 0 0; }
+.word-search-grid > [hidden], .word-search [hidden] { display: none; }
+
+/* 認字表：繪本配色與大點按區，保留熟悉度及選取的原有色意。 */
+.words-page { --words-blue-ink: var(--sky-deep); }
+:root[data-theme='dark'] .words-page { --words-blue-ink: var(--focus); }
+.words-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 20px; }
+.page.words-page > .words-heading { margin-right: 200px; }
+.words-title-row { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.words-title-copy { min-width: 0; }
+.words-heading .h1 { margin: 0; }
+.words-buddy { display: flex; align-items: center; justify-content: center; flex: 0 0 76px; width: 76px; height: 76px; background: var(--mint-bg); border-radius: 26px; transform: rotate(-7deg); }
+.words-buddy .ic { width: 66px; height: 66px; }
+.words-tagline { margin-top: 6px; font-size: 17px; font-weight: 700; color: var(--ink-2); }
+.words-heading > .btn { flex-shrink: 0; min-height: 64px; border-radius: 24px; font-size: 22px; padding: 12px 22px; }
+.words-heading .icon-btn { min-width: 64px; min-height: 64px; background: var(--sun-bg); color: var(--warn); }
+.words-account { display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; margin-bottom: 18px; }
+.words-account .settings-note { margin: 0; }
+.words-account .view-acct { min-height: 64px; padding: 6px 16px 6px 8px; font-size: 20px; background: var(--card); }
+.words-account .view-acct.on { border-color: var(--mint); background: var(--mint-bg); }
+.words-account .view-avatar { width: 44px; height: 44px; }
+.words-page .stats-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; padding: 0; border: 0; }
+.words-page .stat-chip { --stat-bg: var(--sky-bg); --stat-ink: var(--words-blue-ink); display: flex; align-items: center; justify-content: flex-start; gap: 12px; min-width: 0; padding: 12px 18px; background: var(--stat-bg); border: 2px solid var(--card); border-radius: 24px; box-shadow: 0 4px 0 var(--line); text-align: left; }
+.words-page .stat-chip + .stat-chip { border-left: 2px solid var(--card); }
+.words-page .stat-chip.learned { --stat-bg: var(--ok-bg); --stat-ink: var(--ok); }
+.words-page .stat-chip.weak { --stat-bg: var(--no-bg); --stat-ink: var(--no); }
+.words-page .stat-chip.unused { --stat-bg: var(--sun-bg); --stat-ink: var(--warn); }
+.words-stat-icon { display: flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 50%; background: var(--card); color: var(--stat-ink); }
+.words-stat-icon .ic { width: 28px; height: 28px; }
+.words-page .stat-chip .num { font-size: 28px; line-height: 1.05; color: var(--stat-ink); }
+.words-page .stat-chip .lab { font-size: 16px; margin-top: 4px; color: var(--ink); }
+.words-workspace { position: relative; padding: 24px; background: var(--card); border: 3px solid var(--line); border-radius: 36px; box-shadow: 0 8px 0 var(--line-2); }
+.words-workspace::before { content: ''; position: absolute; top: -3px; left: 28%; right: 28%; height: 7px; border-radius: 0 0 10px 10px; background: linear-gradient(90deg, var(--sky) 0% 25%, var(--mint) 25% 50%, var(--berry) 50% 75%, var(--sun) 75%); pointer-events: none; }
+.words-workspace .word-search { margin-bottom: 18px; }
+.words-workspace .word-search-field { gap: 12px; padding: 8px; background: var(--sky-bg); border: 3px solid transparent; border-radius: 28px; }
+.words-workspace .word-search-field:focus-within { border-color: var(--sky); }
+.words-workspace .word-search-field > .ic { width: 48px; height: 48px; padding: 10px; border-radius: 50%; background: var(--sun-bg); color: var(--warn); }
+.words-workspace .word-search-field .text-input { min-height: 64px; border: 0; border-radius: 20px; font-size: 22px; }
+.words-workspace .word-search-field .text-input::placeholder { color: var(--ink-2); opacity: 1; }
+.words-workspace .word-search-field .btn { min-width: 64px; min-height: 64px; padding: 12px; border-radius: 22px; background: var(--card); color: var(--words-blue-ink); box-shadow: 0 4px 0 var(--line); }
+.words-workspace .word-search-summary { font-size: 16px; margin: 10px 4px 0; }
+.words-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px 20px; padding-top: 16px; border-top: 2px dashed var(--line); }
+.words-sort { display: flex; align-items: center; gap: 12px; color: var(--ink-2); font-size: 20px; font-weight: 700; }
+.words-sort-select { min-height: 64px; padding: 12px 36px 12px 18px; border: 3px solid var(--line); border-radius: 22px; background: var(--sun-bg); color: var(--ink); font: inherit; font-size: 22px; }
+.words-sort-select:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+.words-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.words-actions .btn { min-height: 64px; padding: 12px 20px; border-radius: 24px; font-size: 22px; }
+.words-actions .words-lock-btn[aria-pressed='false'] { background: var(--sun-bg); color: var(--warn); box-shadow: 0 5px 0 var(--warn-deep); }
+.words-mode-hint { margin: 16px 0 18px; line-height: 1.5; font-size: 17px; }
+.words-workspace .word-grid { gap: 16px; padding: 8px 2px 8px; }
+.words-page .word-chip { width: 104px; height: 116px; border: 3px solid var(--line); border-radius: 28px; background: var(--card-2); box-shadow: 0 7px 0 var(--line-2); gap: 5px; }
+.words-page .word-chip .w { font-size: 52px; }
+.words-page .word-chip .u { font-size: 14px; }
+.words-page .word-chip.fresh { border-color: var(--sun); }
+.words-page .word-chip.mk-g { background: var(--ok-bg); box-shadow: 0 7px 0 var(--ok-deep); }
+.words-page .word-chip.mk-r { background: var(--no-bg); box-shadow: 0 7px 0 var(--no-deep); }
+.words-page .word-chip.sel { border-color: var(--sky); background: var(--sky-bg); }
+.words-page .word-chip.sel.mk-g { background: var(--ok-bg); }
+.words-page .word-chip.sel.mk-r { background: var(--no-bg); }
+.words-page .word-chip:active { transform: translateY(3px) scale(0.96); }
+.words-add-modal .btn { min-height: 64px; font-size: 22px; border-radius: 24px; }
+.words-add-modal .text-area { min-height: 160px; font-size: 24px; border-radius: 24px; }
+@media (max-width: 700px) {
+  .words-heading { flex-wrap: wrap; }
+  .words-title-row { gap: 10px; }
+  .words-buddy { flex-basis: 56px; width: 56px; height: 56px; border-radius: 20px; }
+  .words-buddy .ic { width: 48px; height: 48px; }
+  .words-tagline { font-size: 15px; }
+  .words-account { gap: 10px; }
+  .words-page .stats-row { gap: 8px; }
+  .words-page .stat-chip { flex-direction: column; justify-content: center; gap: 6px; padding: 10px 4px; text-align: center; }
+  .words-page .stat-chip .lab { font-size: 13px; }
+  .words-stat-icon { flex-basis: 32px; width: 32px; height: 32px; }
+  .words-stat-icon .ic { width: 24px; height: 24px; }
+  .words-workspace { padding: 16px; }
+  .words-toolbar { align-items: flex-start; }
+  .words-actions { width: 100%; }
+  .words-actions .btn { font-size: 20px; }
+  .words-workspace .word-search-field { gap: 6px; padding: 6px; }
+  .words-workspace .word-search-field > .ic { width: 32px; height: 32px; padding: 6px; }
+}

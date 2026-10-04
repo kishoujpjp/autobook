@@ -2,7 +2,7 @@
 import { t2s, s2t, toStoredTraditional, unambiguousTraditional } from './zhconv.js';
 import { prepareStoredStory, prepareStoredWords } from './text-policy.js';
 
-export const VERSION = '1.33.0';
+export const VERSION = '1.34.2';
 
 const LS = {
   settings: 'autobook.settings',

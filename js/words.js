@@ -1,21 +1,24 @@
 // 字表頁：新增/多選刪除/入庫、統計、排序、熟悉度（紅綠）、一鍵補齊讀音
 // 顯示字形跟隨語系（資料仍存輸入時的原字形）；熟悉度依帳號×語系分開
 import { t, getLang } from './i18n.js';
-import { el, toast, confirmDialog } from './ui.js';
+import { el, toast, confirmDialog, openModal } from './ui.js';
 import { icon } from './icons.js';
+import { createWordSearch } from './word-search-ui.js';
 import { sfx } from './sfx.js';
 import {
   settings, saveSettings, words, addWords, removeWords, setArchived,
   getCard, cycleMark,
-  currentAccount, activeAccount,
+  currentAccount, isHan,
 } from './store.js';
 import { manageKidRow } from './account.js';
 import { speakChar } from './voice.js';
+import { showPage } from './nav.js';
 import { convertTo, audioKeysFor } from './zhconv.js';
 
 let root = null;
 let editMode = false;
 let selected = new Set();
+let searchQuery = '';
 let sortMode = 'new'; // new | least | most | weak
 
 export function initWords(rootEl) {
@@ -24,6 +27,7 @@ export function initWords(rootEl) {
 }
 
 export function refreshWordsPage() {
+  searchQuery = '';
   editMode = false;
   selected.clear();
   render();
@@ -49,55 +53,40 @@ function sortedWords(acc) {
 
 function render() {
   root.innerHTML = '';
-  root.append(el('div', { class: 'h1' }, icon('cards'), t('words_title')));
-
-  // 小孩模式：沒有新增/整理/鎖定工具；點字會唸，鎖定沒開時也可以直接標紅綠（親子一起看字表用）
+  root.classList.add('words-page');
   const kidMode = currentAccount().role === 'kid';
-  const acc = null; // getCard/cycleMark 的帳號參數：null＝紅綠紀錄的對象（小孩自己或家長正在管理的小孩）
+  if (kidMode) editMode = false;
+  const acc = null;
   const locked = settings.wordsLocked;
+  const backBtn = el('button', {
+    class: 'icon-btn', 'aria-label': t(kidMode ? 'parent_back' : 'parent_back_hub'),
+    onclick: () => { sfx.tap(); showPage(kidMode ? 'story' : 'parent'); },
+  }, icon('back'));
+  root.append(el('div', { class: 'words-heading' },
+    el('div', { class: 'words-title-row' }, backBtn,
+      el('span', { class: 'words-buddy', 'aria-hidden': 'true' }, icon('word-friend')),
+      el('div', { class: 'words-title-copy' },
+        el('div', { class: 'h1', text: t('words_title') }),
+        el('p', { class: 'words-tagline', text: t('words_tagline') }),
+      ),
+    ),
+    kidMode || editMode ? null : el('button', {
+      class: 'btn berry words-add-btn', onclick: () => { sfx.tap(); openAddWords(); },
+    }, icon('plus'), t('words_add_open')),
+  ));
 
-  // ---- 新增區（小孩模式不顯示） ----
-  if (!kidMode) {
-    const input = el('textarea', { class: 'text-area', placeholder: t('words_add_ph') });
-    const addBtn = el('button', { class: 'btn mint' }, icon('plus'), t('words_add'));
-    addBtn.addEventListener('click', () => {
-      sfx.tap();
-      const { added, dup, collide } = addWords(input.value);
-      if (added) {
-        sfx.sparkle();
-        let msg = t('words_added', { n: added });
-        if (dup) msg += ' ' + t('words_dup', { n: dup });
-        toast(msg);
-        if (collide && collide.length) {
-          toast(t('words_collide', { list: collide.join('、') }), true);
-        }
-        input.value = '';
-        render();
-      } else if (dup) {
-        toast(t('words_dup', { n: dup }), true);
-      }
-    });
-    root.append(el('div', { class: 'card' },
-      input,
-      el('div', { class: 'row', style: 'margin-top:14px;justify-content:flex-end;' }, addBtn),
-    ));
-  }
-
-  // ---- 正在管理哪個小孩的紅綠（字表共用，紅綠依帳號） ----
+  // 帳號與統計是字表的背景資訊，保持精簡；主要操作集中在下面的字表區。
   const kidRow = manageKidRow(() => { selected.clear(); render(); });
-  if (kidRow) {
-    root.append(el('div', { class: 'card', style: 'padding:14px 16px;margin-bottom:14px;' },
-      kidRow,
-      el('p', { class: 'settings-note', style: 'margin-top:8px;', text: t('words_manage_hint', { n: activeAccount().name }) }),
-    ));
-  }
+  if (kidRow) root.append(el('div', { class: 'words-account' }, kidRow,
+    el('p', { class: 'settings-note', text: t('words_account_note') }),
+  ));
 
   // ---- 統計（熟悉度依檢視帳號×語系） ----
   // 統計數字點字改紅綠時要即時增減（以前只在整頁重畫時算一次，要換頁再回來才會更新）
   const total = words.length;
   const unused = words.filter((w) => w.usedCount === 0).length;
-  const learnedChip = statChip(0, t('words_learned'));
-  const weakChip = statChip(0, t('words_weak'));
+  const learnedChip = statChip(0, t('words_learned'), 'learned');
+  const weakChip = statChip(0, t('words_weak'), 'weak');
   function refreshStats() {
     learnedChip.querySelector('.num').textContent = String(words.filter((w) => getCard(w, acc).mark === 'green').length);
     weakChip.querySelector('.num').textContent = String(words.filter((w) => getCard(w, acc).mark === 'red').length);
@@ -105,10 +94,10 @@ function render() {
   refreshStats();
 
   root.append(el('div', { class: 'stats-row' },
-    statChip(total, `${t('words_total')}${t('words_total_u')}`),
+    statChip(total, t('words_all')),
     learnedChip,
     weakChip,
-    statChip(unused, t('words_unused')),
+    statChip(unused, t('words_unused'), 'unused'),
   ));
 
   if (!total) {
@@ -121,27 +110,29 @@ function render() {
 
   // ---- 排序 + 工具列（小孩模式只留排序） ----
   let toolRefresher = null; // 編輯模式工具鈕的刷新（選取數字），setSel 用
-  const seg = el('div', { class: 'seg' },
-    segBtn('new', t('words_sort_new')),
-    segBtn('weak', t('words_sort_weak')),
-    segBtn('least', t('words_sort_least')),
-    segBtn('most', t('words_sort_most')),
-  );
+  const workspace = el('div', { class: 'words-workspace' });
+  const toolbar = el('div', { class: 'words-toolbar' });
+  const sort = el('select', { class: 'words-sort-select', 'aria-label': t('words_sort_label') });
+  for (const [value, key] of [['new', 'words_sort_new'], ['weak', 'words_sort_weak'], ['least', 'words_sort_least'], ['most', 'words_sort_most']]) {
+    sort.append(el('option', { value, text: t(key) }));
+  }
+  sort.value = sortMode;
+  sort.addEventListener('change', () => { sfx.tap(); sortMode = sort.value; render(); });
+  toolbar.append(el('label', { class: 'words-sort' }, t('words_sort_label'), sort));
 
   if (kidMode) {
-    editMode = false;
-    root.append(el('div', { class: 'spread', style: 'margin-bottom:10px;' }, seg));
-    root.append(el('p', { class: 'settings-note', style: 'margin-bottom:12px;',
-      text: t('words_kid_hint') }));
+    workspace.append(toolbar);
   } else {
     // 鎖定：點字只發音，不改紅綠（防小孩亂按）
     const lockBtn = el('button', {
-      class: `btn small ${settings.wordsLocked ? 'berry' : 'ghost'}`,
+      class: `btn small words-lock-btn ${settings.wordsLocked ? 'berry' : 'ghost'}`,
+      'aria-pressed': String(settings.wordsLocked),
       onclick: () => { sfx.tap(); settings.wordsLocked = !settings.wordsLocked; saveSettings(); render(); },
     }, settings.wordsLocked ? [icon('lock'), t('words_unlock')] : [icon('unlock'), t('words_lock')]);
 
     const editBtn = el('button', {
-      class: `btn small ${editMode ? 'mint' : 'ghost'}`,
+      class: `btn small words-edit-btn ${editMode ? 'mint' : 'sky'}`,
+      'aria-pressed': String(editMode),
       onclick: () => { sfx.tap(); editMode = !editMode; selected.clear(); render(); },
     }, editMode ? [icon('check'), t('words_edit_done')] : [icon('broom'), t('words_edit')]);
 
@@ -179,23 +170,24 @@ function render() {
       render();
     });
 
-    root.append(el('div', { class: 'spread', style: 'margin-bottom:10px;' },
-      seg,
-      el('div', { class: 'row' },
-        editMode ? archBtn : lockBtn,
-        editMode ? delBtn : null,
-        editBtn,
-      ),
+    toolbar.append(el('div', { class: 'words-actions' },
+      editMode ? archBtn : lockBtn,
+      editMode ? delBtn : null,
+      editBtn,
     ));
-    root.append(el('p', { class: 'settings-note', style: 'margin-bottom:12px;',
-      text: editMode ? t('words_edit_hint')
-        : settings.wordsLocked ? t('words_lock_hint') : t('words_mark_hint') }));
+    workspace.append(toolbar);
   }
+  workspace.append(el('p', { class: 'settings-note words-mode-hint',
+    text: editMode ? t('words_edit_hint')
+      : locked ? t('words_lock_hint') : t(kidMode ? 'words_kid_hint' : 'words_mark_help'),
+  }));
 
   // ---- 字格 ----
   const now = Date.now();
   const grid = el('div', { class: 'word-grid' });
   const chipByCh = new Map();
+  let search;
+  let dragging = false;
 
   function setSel(ch, on) {
     const chip = chipByCh.get(ch);
@@ -203,6 +195,7 @@ function render() {
     if (on) selected.add(ch); else selected.delete(ch);
     chip.classList.toggle('sel', on);
     if (toolRefresher) toolRefresher();
+    search.refresh({ deferLayout: dragging });
   }
 
   function markCls(w) {
@@ -248,8 +241,13 @@ function render() {
     grid.append(chip);
   }
 
+  search = createWordSearch({
+    grid, entries: [...chipByCh].map(([ch, node]) => ({ ch, node })),
+    getSelected: editMode ? () => selected : undefined, value: searchQuery,
+    onQueryChange: (value) => { searchQuery = value; },
+  });
+
   if (editMode) {
-    let dragging = false;
     let dragOn = true;
 
     grid.addEventListener('pointerdown', (e) => {
@@ -267,29 +265,56 @@ function render() {
       if (!dragging) return;
       const elUnder = document.elementFromPoint(e.clientX, e.clientY);
       const chip = elUnder && elUnder.closest('.word-chip');
-      if (chip && chip.dataset.ch) {
+      if (chip && grid.contains(chip) && chip.dataset.ch) {
         const ch = chip.dataset.ch;
         if (selected.has(ch) !== dragOn) { sfx.tap(); setSel(ch, dragOn); }
       }
     });
-    const stop = () => { dragging = false; };
+    const stop = () => { dragging = false; search.refresh(); };
     grid.addEventListener('pointerup', stop);
     grid.addEventListener('pointercancel', stop);
     grid.addEventListener('pointerleave', stop);
   }
 
-  root.append(grid);
+  workspace.prepend(search.root);
+  workspace.append(grid);
+  root.append(workspace);
 }
 
-function statChip(num, label) {
-  return el('div', { class: 'stat-chip' },
-    el('div', { class: 'num', text: String(num) }),
-    el('div', { class: 'lab', text: label }),
+function statChip(num, label, kind = 'total') {
+  const symbol = { total: 'cards', learned: 'star', weak: 'heart', unused: 'leaf' }[kind];
+  return el('div', { class: `stat-chip ${kind}` },
+    el('span', { class: 'words-stat-icon', 'aria-hidden': 'true' }, icon(symbol)),
+    el('div', { class: 'words-stat-copy' },
+      el('div', { class: 'num', text: String(num) }),
+      el('div', { class: 'lab', text: label }),
+    ),
   );
 }
 
-function segBtn(mode, label) {
-  const b = el('button', { class: sortMode === mode ? 'on' : '', text: label });
-  b.addEventListener('click', () => { sfx.tap(); sortMode = mode; selected.clear(); render(); });
-  return b;
+/** 新增屬於偶爾的操作，按下時才展開，讓字表與搜尋常駐在畫面前方。 */
+function openAddWords() {
+  const m = openModal(t('words_add_open'), { icon: 'plus' });
+  m.modal.classList.add('words-add-modal');
+  const input = el('textarea', {
+    class: 'text-area', placeholder: t('words_add_ph'), 'aria-label': t('words_add_open'),
+  });
+  const addBtn = el('button', { class: 'btn mint', disabled: '' }, icon('plus'), t('words_add'));
+  input.addEventListener('input', () => { addBtn.disabled = ![...input.value].some(isHan); });
+  addBtn.addEventListener('click', () => {
+    sfx.tap();
+    const { added, dup, collide } = addWords(input.value);
+    if (added) {
+      sfx.sparkle();
+      let msg = t('words_added', { n: added });
+      if (dup) msg += ' ' + t('words_dup', { n: dup });
+      toast(msg);
+      if (collide?.length) toast(t('words_collide', { list: collide.join('、') }), true);
+      m.close();
+      render();
+    } else if (dup) toast(t('words_dup', { n: dup }), true);
+  });
+  m.body.append(input);
+  m.foot.append(el('button', { class: 'btn ghost', text: t('cancel'), onclick: () => { sfx.tap(); m.close(); } }), addBtn);
+  input.focus();
 }

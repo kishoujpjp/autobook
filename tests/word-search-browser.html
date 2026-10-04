@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Autobook 字表搜尋回歸</title><link rel="stylesheet" href="../css/app.css">
+<body style="overflow:auto;padding:20px">
+<div class="card"><p>獨立測試頁：使用測試字表與故事，不連收件匣、不呼叫 AI。</p>
+<div class="row"><button class="btn mint" id="run">執行回歸</button><button class="btn ghost" id="words">字表</button><button class="btn ghost" id="flash">選字練習</button><button class="btn ghost" id="gen">必用字</button><button class="btn ghost" id="new">追加新字</button><button class="btn ghost" id="lang">繁／簡</button></div>
+<ol id="results"></ol></div>
+<main id="test-root" style="max-width:1100px;margin:auto"></main><div id="modal-root"></div><div id="toast-root"></div><canvas id="confetti-canvas"></canvas>
+<script type="module">
+// 僅在專用 localhost origin 使用；初始化不含任何私人資料。
+if (!['localhost','127.0.0.1','[::1]'].includes(location.hostname)) throw new Error('測試頁僅限獨立 localhost origin');
+if (new URLSearchParams(location.search).get('theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+localStorage.setItem('autobook.settings', JSON.stringify({ lang:'zh-Hant', onboarded:true, apiKey:'', storyLayout:'side', autoPage:false, toastVoice:false }));
+localStorage.setItem('autobook.words', '[]');
+localStorage.setItem('autobook.stories', JSON.stringify([{id:'search-test',title:'測試故事',text:'月亮星星來了。',lang:'zh-Hant',textPolicy:1,newChars:[...'月亮星來了'],createdAt:1}]));
+localStorage.setItem('autobook.accounts', JSON.stringify([{id:'test-parent',name:'家長',role:'parent',avatar:'fox'},{id:'test-kid',name:'測試小孩',role:'kid',avatar:'cat'}]));
+localStorage.setItem('autobook.currentAccount', JSON.stringify('test-parent'));
+localStorage.setItem('autobook.wordsBy', '{}');
+const store = await import('../js/store.js');
+const {setLang,t} = await import('../js/i18n.js');
+const {initWords,refreshWordsPage} = await import('../js/words.js');
+const {initGame} = await import('../js/game.js');
+const {initStory,openGenModal,openReadSettingsCurrent} = await import('../js/story.js');
+const root = document.getElementById('test-root');
+if (new URLSearchParams(location.search).has('layout')) {
+  document.querySelector('body > .card').hidden = true;
+  root.removeAttribute('style');
+  root.classList.add('page','active');
+  document.body.style.padding = '0';
+  const {icon} = await import('../js/icons.js');
+  const {avatarEl} = await import('../js/avatars.js');
+  for (const [id,label,child] of [['parent-btn','家長',icon('lock')],['avatar-btn','帳號',avatarEl(store.currentAccount())]]) {
+    const btn=document.createElement('button');btn.id=id;btn.setAttribute('aria-label',label);btn.append(child);document.body.append(btn);
+  }
+}
+
+const report = document.getElementById('results');
+const chars = [...'貓狗燈發髮行樂長女綠嗎馬'];
+const close = () => document.querySelectorAll('.modal-close').forEach(b => b.click());
+const assert = (value,msg) => { if(!value) throw new Error(msg); };
+const scope = () => [...document.querySelectorAll('.modal')].at(-1) || root;
+const button = (label,parent=scope()) => [...parent.querySelectorAll('button')].find(b=>b.textContent.trim()===label);
+const grid = () => scope().querySelector('.word-search-grid');
+const card = ch => [...grid().children].find(n=>n.dataset.ch===ch);
+const visible = () => [...grid().children].filter(n=>!n.hidden).map(n=>n.dataset.ch);
+const selected = () => [...grid().children].filter(n=>n.getAttribute('aria-pressed')==='true').map(n=>n.dataset.ch);
+const query = value => { const input=scope().querySelector('.word-search input'); input.focus(); input.value=value; input.dispatchEvent(new Event('input',{bubbles:true})); return input; };
+const tap = ch => { const node=card(ch); const r=node.getBoundingClientRect(); node.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:1,clientX:r.x+20,clientY:r.y+20})); node.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:1})); };
+function reset() {
+  close(); store.words.splice(0); store.settings.lang='zh-Hant'; setLang('zh-Hant');
+  store.addWords(chars.join('')); store.setMark('貓','red'); store.setMark('燈','green');
+  store.words.find(w=>w.ch==='馬').archived=true;
+}
+function wordsPage(){close();initWords(root);refreshWordsPage();}
+function flashPage(){close();root.classList.remove('words-page');initGame(root);root.querySelector('.game-entry.flash').click();button(t('flash_pick')).click();}
+function addNew(){close();root.classList.remove('words-page');initStory(root);openReadSettingsCurrent();button(t('rs_add_new')).click();}
+function test(name,fn){const item=document.createElement('li');report.append(item);try{fn();item.textContent='通過：'+name;}catch(e){item.textContent='失敗：'+name+' — '+e.message;item.style.color='red';throw e;}}
+function run(){
+  reset();report.replaceChildren();
+  test('字表繁簡、聲調搜尋與原使用次數小字',()=>{wordsPage();const input=query('dēng');assert(visible().join('')==='燈','聲調搜尋');assert(document.activeElement===input,'輸入焦點');assert(card('燈').querySelector('.u').textContent===t('used_times',{n:0}),'原小字');assert(card('燈').classList.contains('mk-g'),'綠標');query('发');assert(visible().length===2,'發髮獨立');});
+  test('輸入法組字完成前不重新篩選',()=>{const input=query('灯');input.dispatchEvent(new CompositionEvent('compositionstart'));input.value='貓';input.dispatchEvent(new InputEvent('input',{isComposing:true}));assert(visible().join('')==='燈','組字不閃爍');input.dispatchEvent(new CompositionEvent('compositionend'));assert(visible().join('')==='貓','組字完成');});
+  test('新增字按需開啟，取消不存字、確認後保留搜尋',()=>{
+    wordsPage();query('灯');assert(!root.querySelector('textarea'),'不佔常駐空間');
+    button(t('words_add_open')).click();let input=scope().querySelector('textarea');
+    assert(button(t('words_add')).disabled,'空白不可送出');input.value='花草';input.dispatchEvent(new Event('input'));
+    button(t('cancel')).click();assert(!store.words.some(w=>w.ch==='花'),'取消不新增');
+    button(t('words_add_open')).click();input=scope().querySelector('textarea');input.value='花草';input.dispatchEvent(new Event('input'));
+    button(t('words_add')).click();assert(store.words.some(w=>w.ch==='花')&&store.words.some(w=>w.ch==='草'),'確認新增');
+    assert(!document.querySelector('.modal'),'面板已關');assert(root.querySelector('.word-search input').value==='灯','保留搜尋');
+  });
+  test('整理工具只在整理模式出現，鎖定仍保護紅綠',()=>{
+    assert(!button(t('words_del_multi',{n:0})),'一般模式不顯示刪除');
+    button(t('words_lock')).click();const before=store.getCard(store.words.find(w=>w.ch==='燈')).mark;card('燈').click();
+    assert(store.getCard(store.words.find(w=>w.ch==='燈')).mark===before,'鎖定不變標記');button(t('words_unlock')).click();
+    button(t('words_edit')).click();assert(!button(t('words_add_open')),'整理時不混入新增');assert(button(t('words_del_multi',{n:0})).disabled,'沒有選字不能刪除');
+    button(t('words_edit_done')).click();
+  });
+  test('整理模式保留同區已選字、紅綠與藍框，換排序不清空',()=>{query('');button(t('words_edit')).click();tap('貓');tap('燈');query('gou3');assert(visible().length===3 && visible().includes('狗'),'同區保留');assert(card('貓').classList.contains('mk-r')&&card('貓').classList.contains('sel'),'紅與選框');const before=getComputedStyle(card('貓')).backgroundColor;assert(before!==getComputedStyle(card('燈')).backgroundColor,'紅綠底色不同');const sort=root.querySelector('.words-sort-select');sort.value='least';sort.dispatchEvent(new Event('change'));assert(selected().length===2,'排序保留');assert(scope().querySelector('.word-search input').value==='gou3','排序保留查詢');tap('貓');assert(!visible().includes('貓'),'取消非符合字移出');});
+  test('滑選時非符合字先留原位，放手後才移出',()=>{query('gou3');const node=card('燈');node.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:2}));assert(!node.hidden,'拖選不重排');node.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:2}));assert(node.hidden,'放手移出');});
+  test('選字練習全選／取消只操作符合結果，排除入庫字',()=>{flashPage();assert(!card('馬'),'入庫不出題');tap('貓');query('灯');button(t('word_search_all')).click();assert(selected().length===2,'全選不清除保留');button(t('word_search_cancel')).click();assert(selected().join('')==='貓','取消只影響燈');query('xyz');assert(visible().join('')==='貓','無結果仍保留');tap('貓');assert(visible().length===0,'取消後空結果');});
+  test('簡體畫面發／髮選取獨立，繁體及拼音均能找',()=>{store.settings.lang='zh-Hans';setLang('zh-Hans');flashPage();query('发');assert(visible().length===2,'簡體兩張');tap('髮');query('發');assert(visible().length===2 && selected().join('')==='髮','原字分開且保留');query('fa4');assert(visible().includes('髮'),'拼音仍找髮');});
+  test('必用字保留選取、提示上限，關閉後重新開始',()=>{store.settings.lang='zh-Hant';setLang('zh-Hant');openGenModal();for(const ch of chars.slice(0,8))card(ch).click();card('女').click();assert(selected().length===8,'上限8');assert(document.querySelector('#toast-root').textContent.includes(t('word_search_limit',{n:8})),'上限提示');query('nv3');assert(visible().length===9,'符合與已選');close();openGenModal();assert(selected().length===0,'重新開始');assert(scope().querySelector('.word-search input').value==='','不保存查詢');close();});
+  test('追加新字預設全選、篩選取消不影響其他字、確認全選集',()=>{addNew();const total=selected().length;assert(total===5,'本篇新字');query('月');assert(visible().length===total,'已選仍留同區');button(t('word_search_cancel')).click();assert(selected().length===total-1,'只取消月');query('xyz');assert(visible().length===total-1,'保留其他選字');button(t('add_new_confirm',{n:total-1})).click();assert(!store.words.some(w=>w.ch==='月'),'不加月');assert(store.words.some(w=>w.ch==='星'),'非搜尋選字仍加入');});
+  test('搜尋與選取不更改各帳號紅綠、用字次數及字形',()=>{assert(store.getCard(store.words.find(w=>w.ch==='貓')).mark==='red','紅標保存');assert(store.words.filter(w=>chars.includes(w.ch)).every(w=>w.usedCount===0),'次數不改');assert(store.words.some(w=>w.ch==='發')&&store.words.some(w=>w.ch==='髮'),'不合併');});
+  test('小孩模式保留搜尋排序，不出現家長新增與整理工具',()=>{
+    store.setCurrentAccount('test-kid');wordsPage();
+    assert(!button(t('words_add_open'))&&!button(t('words_edit'))&&!button(t('words_lock')),'家長工具隱藏');
+    assert(root.querySelector('.words-sort-select'),'仍能排序');query('灯');assert(visible().join('')==='燈','仍能搜尋');
+    store.setCurrentAccount('test-parent');wordsPage();
+  });
+  report.dataset.result='passed'; flashPage();tap('貓');tap('燈');query('gou3');
+}
+document.getElementById('run').onclick=()=>{try{run();}catch(e){report.dataset.result='failed';console.error(e);}};
+document.getElementById('words').onclick=wordsPage;
+document.getElementById('flash').onclick=flashPage;
+document.getElementById('gen').onclick=()=>{close();openGenModal();};
+document.getElementById('new').onclick=addNew;
+document.getElementById('lang').onclick=()=>{store.settings.lang=store.settings.lang==='zh-Hant'?'zh-Hans':'zh-Hant';setLang(store.settings.lang);wordsPage();};
+reset();wordsPage();
+</script></body></html>

@@ -1,8 +1,17 @@
 # 自動繪本維護交接
 
-更新日期：2026-10-03（UTC+8）。目前 App 版本 v1.33.0；本次功能提交 `c57bd1af37b22bf9781d67bde198c203baec28c8`。歷次功能說明見 [README](../README.md)，測試與上線證據見 [開發記錄](DEVELOPMENT_LOG.md)。
+更新日期：2026-10-04（UTC+8）。目前本機 App 版本 v1.34.2；字表搜尋及認字表繪本風格已實裝、覆蓋安裝至 iPad，並依使用者要求提交本機 Git。尚未 push 或發布 Pages。上次線上功能提交仍是 `c57bd1af37b22bf9781d67bde198c203baec28c8`。歷次功能說明見 [README](../README.md)，測試與安裝證據見 [開發記錄](DEVELOPMENT_LOG.md)。
 
-## 已上線狀態
+## 本次本機更新
+
+- 四個字表入口共用 `word-search.js`／`word-search-ui.js`，離線多音索引 `search-readings.js`。新增 runtime 模組均已加入 SW SHELL。
+- 搜尋只篩选既有字卡；匹配結果和已選字在同一字格，原字鍵、帳號 × 語系標記及使用次數不變。字表切換排序不再清空選取；拖選期間延後隱藏／排列，放手才更新。
+- 認字表 v1.34.1 將新增移至面板、統計縮為資訊列、排序改單一選單，搜尋與管理操作集中於字卡區。樣式只作用於認字表。
+- v1.34.2 增加小書本 SVG 角色與多彩徽章、104×116px 字卡和至少 64px 高的常用控制；夜間模式文字與圖示使用對應亮色。搜尋／熟悉度／選取規則沿用。
+- 新增拼音單元測試與合成資料的瀏覽器回歸頁；60 項自動測試、12 組介面回歸與 iPad 尺寸直橫向檢查通過。
+- iPad 安裝紀錄：2026-10-04 17:25:12，v1.34.2 build 75；未讀取裝置私人故事／字表作互動測試。下方是上次公開上線紀錄，不能當作 v1.34.2 已公開發布的證據。
+
+## 上次公開上線紀錄（2026-10-03）
 
 | 目標 | 本次確認結果 |
 |---|---|
@@ -95,4 +104,4 @@ iPad 目標 `Kipad Pro 12.9`，裝置 ID `773F74E2-B275-5B55-AD68-9E2C9F4FBA30`�
 
 `xcodebuild` 必須指定實機 ID，免費帳號不可使用 generic destination，否則 provisioning profile 可能被另一台裝置替換。使用 `/Applications/Xcode-beta.app/Contents/Developer`；本次系統預設 Xcode 的 devicectl 初始化逾時，指定此 DEVELOPER_DIR 後查詢成功。免費簽名有效七天，既有排程每五天重簽。
 
-App 改版同步更新 `js/store.js`、`sw.js`、`package.json`／lockfile、Xcode 兩處 MARKETING_VERSION；新增 runtime JS 同步加入 SW SHELL。純文檔更新不升版，不需重部署 Worker。推送 main 仍會觸發既有 Pages 與 iPad 自動部署，建置號可能因此遞增，版本號保持 v1.33.0。
+App 改版同步更新 `js/store.js`、`sw.js`、`package.json`／lockfile、Xcode 兩處 MARKETING_VERSION；新增 runtime JS 同步加入 SW SHELL。純文檔更新不升版，不需重部署 Worker。推送 main 仍會觸發既有 Pages 與 iPad 自動部署，建置號可能因此遞增，版本號以當次改版檔案為準。

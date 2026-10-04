@@ -6,6 +6,8 @@ const S7 = 'fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="r
 const F = 'fill="currentColor"';
 
 export const ICONS = {
+  // 認字表的小書本朋友：純 SVG 隨 app shell 離線打包。
+  'word-friend': `<path d="M9 9 Q9 5 14 5 H37 Q42 5 42 10 V38 Q42 43 37 43 H14 Q9 43 9 38Z" fill="var(--mint)"/><path d="M9 10 H14 V38 Q9 38 9 42Z" fill="var(--mint-deep)"/><rect x="17" y="11" width="19" height="25" rx="6" fill="var(--card)"/><circle cx="22" cy="21" r="1.8" fill="var(--ink)"/><circle cx="31" cy="21" r="1.8" fill="var(--ink)"/><path d="M23 27 Q26.5 31 30 27" fill="none" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round"/><ellipse cx="20" cy="25" rx="2.3" ry="1.5" fill="var(--no-deep)"/><ellipse cx="33" cy="25" rx="2.3" ry="1.5" fill="var(--no-deep)"/><path d="M4 15 1 20 M44 31 47 28" fill="none" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/><path d="m37 1 2 4 4 1-3 3v4l-4-2-4 1 1-4-2-3 4-1Z" fill="var(--sun)"/>`,
   // ---- 導航 ----
   book: `<path d="M24 12 C19 8 12 8 7 10 V38 C12 36 19 36 24 40 C29 36 36 36 41 38 V10 C36 8 29 8 24 12 Z" ${S}/><path d="M24 12 V40" ${S}/>`,
   balloon: `<ellipse cx="24" cy="18" rx="12" ry="14" ${S}/><path d="M24 32 L22 37 H26 L24 32 M24 37 C22 41 26 43 24 46" ${S}/>`,
@@ -33,6 +35,7 @@ export const ICONS = {
   camera: `<path d="M6 16 H15 L19 10 H29 L33 16 H42 V38 H6 Z" ${S}/><circle cx="24" cy="27" r="7" ${S}/>`,
   sparkle: `<path d="M24 5 L28 19 L42 24 L28 29 L24 43 L20 29 L6 24 L20 19 Z" ${F}/><path d="M38 6 L39.5 10.5 L44 12 L39.5 13.5 L38 18 L36.5 13.5 L32 12 L36.5 10.5 Z" ${F}/>`,
   star: `<path d="M24 5 L30 17 L43 19 L33.5 28.5 L36 42 L24 35.5 L12 42 L14.5 28.5 L5 19 L18 17 Z" ${F} stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>`,
+  heart: `<path d="M24 40 C18 35 5 26 5 16 A10 10 0 0 1 24 12 A10 10 0 0 1 43 16 C43 26 30 35 24 40 Z" ${F} stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>`,
   starOutline: `<path d="M24 5 L30 17 L43 19 L33.5 28.5 L36 42 L24 35.5 L12 42 L14.5 28.5 L5 19 L18 17 Z" ${S}/>`,
   trophy: `<path d="M14 8 H34 V18 A10 10 0 0 1 14 18 Z" ${F}/><path d="M14 11 H9 A5 5 0 0 0 14 20 M34 11 H39 A5 5 0 0 1 34 20" ${S}/><path d="M22 27 H26 V33 H22 Z M16 35 H32 V40 H16 Z" ${F}/>`,
   refresh: `<path d="M38 20 A15 15 0 1 0 40 32" ${S}/><path d="M40 8 V20 H28 Z" ${F}/>`,

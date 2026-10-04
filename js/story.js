@@ -7,6 +7,7 @@
 import { t, getLang } from './i18n.js';
 import { el, toast, openModal, confirmDialog, infoDialog, confetti, switchEl, TIMING } from './ui.js';
 import { icon } from './icons.js';
+import { createWordSearch } from './word-search-ui.js';
 import { showPage } from './nav.js';
 import { waitScene } from './wait.js';
 import { sfx, playBlob, speakNative } from './sfx.js';
@@ -1448,13 +1449,15 @@ function openAddNewChars(story) {
   const selected = new Set(cands); // 預設全選，點掉不要的
   const grid = el('div', { class: 'pick-grid' });
   const btns = new Map();
+  let search;
   const okBtn = el('button', { class: 'btn mint' });
   const refresh = () => {
     okBtn.replaceChildren(icon('check'), t('add_new_confirm', { n: selected.size }));
     okBtn.disabled = selected.size === 0;
+    search?.refresh();
   };
   for (const ch of cands) {
-    const btn = el('button', { class: 'pick-zi on', text: convertTo(ch, getLang()) });
+    const btn = el('button', { class: 'pick-zi on', 'data-ch': ch, text: convertTo(ch, getLang()) });
     btn.addEventListener('click', () => {
       sfx.tap();
       if (selected.has(ch)) { selected.delete(ch); btn.classList.remove('on'); }
@@ -1464,18 +1467,25 @@ function openAddNewChars(story) {
     btns.set(ch, btn);
     grid.append(btn);
   }
-  const allBtn = el('button', { class: 'btn ghost small', onclick: () => {
+  search = createWordSearch({
+    grid, entries: [...btns].map(([ch, node]) => ({ ch, node })), getSelected: () => selected,
+  });
+  const bulk = (on) => {
     sfx.tap();
-    const all = selected.size < cands.length;
-    for (const ch of cands) { if (all) selected.add(ch); else selected.delete(ch); btns.get(ch).classList.toggle('on', all); }
+    for (const ch of search.matches()) {
+      if (on) selected.add(ch); else selected.delete(ch);
+      btns.get(ch).classList.toggle('on', on);
+    }
     refresh();
-  } }, t('flash_pick_all'));
+  };
+  const allBtn = el('button', { class: 'btn ghost small', onclick: () => bulk(true) }, t('word_search_all'));
+  const clearBtn = el('button', { class: 'btn ghost small', onclick: () => bulk(false) }, t('word_search_cancel'));
   refresh();
 
   m.body.append(
     el('p', { class: 'settings-note', style: 'margin-top:0;', text: t('add_new_hint') }),
-    el('div', { class: 'row', style: 'margin-bottom:10px;' }, allBtn),
-    grid,
+    el('div', { class: 'row', style: 'margin-bottom:10px;' }, allBtn, clearBtn),
+    search.root, grid,
   );
   okBtn.addEventListener('click', () => {
     sfx.tap();
@@ -1519,8 +1529,10 @@ export function openGenModal() {
   // 必用字選擇（最近新加的優先）
   const sorted = [...words].sort((a, b) => b.addedAt - a.addedAt);
   const grid = el('div', { class: 'pick-grid' });
+  const entries = [];
+  let search;
   for (const w of sorted) {
-    const btn = el('button', { class: 'pick-zi' },
+    const btn = el('button', { class: 'pick-zi', 'data-ch': w.ch },
       convertTo(w.ch, getLang()),
       el('span', { class: 'cnt', text: String(w.usedCount) }),
     );
@@ -1528,9 +1540,14 @@ export function openGenModal() {
       sfx.tap();
       if (selected.has(w.ch)) { selected.delete(w.ch); btn.classList.remove('on'); }
       else if (selected.size < 8) { selected.add(w.ch); btn.classList.add('on'); }
+      else toast(t('word_search_limit', { n: 8 }), true);
+      search.refresh();
     });
+    entries.push({ ch: w.ch, node: btn });
     grid.append(btn);
   }
+
+  search = createWordSearch({ grid, entries, getSelected: () => selected, maxSelected: 8 });
 
   const todayInput = el('input', {
     class: 'text-input', placeholder: t('gen_today_ph'),
@@ -1552,7 +1569,7 @@ export function openGenModal() {
     el('div', { class: 'field-label' }, icon('leaf'), t('gen_today')),
     todayInput,
     el('div', { class: 'field-label', text: t('gen_must') }),
-    grid,
+    search.root, grid,
     el('div', { class: 'field-label' }, icon('sliders'), t('gen_mix')),
     mixRadar(),
     el('div', { class: 'field-label', text: t('gen_extra') }),
