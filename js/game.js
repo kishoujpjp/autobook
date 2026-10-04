@@ -33,12 +33,13 @@ let viewSeq = 0;
 function renderIntro() {
   viewSeq++;
   root.innerHTML = '';
+  root.classList.add('game-page');
+  root.classList.remove('game-picker-page');
 
-  function entry(iconName, label, desc, cls, onclick) {
+  function entry(iconName, label, cls, onclick) {
     const card = el('button', { class: `game-entry ${cls}`, onclick },
       el('span', { class: 'ge-emoji' }, icon(iconName)),
       el('span', { class: 'ge-label', text: label }),
-      el('span', { class: 'ge-desc', text: desc }),
     );
     return card;
   }
@@ -51,38 +52,37 @@ function renderIntro() {
   }, t('weak_mode'));
 
   root.append(
-    el('div', { class: 'h1' }, icon('balloon'), t('game_title')),
+    el('div', { class: 'h1 game-heading' }, icon('balloon'), t('game_title')),
     el('div', { class: 'game-menu' },
-      entry('fox', t('game_menu_listen'), t('game_intro'), 'listen', async () => {
+      entry('game-listen', t('game_menu_listen'), 'listen', async () => {
         sfx.tap();
         if (!(await weakModeGate())) return;
         startPrep();
       }),
-      entry('cards', t('game_menu_flash'), t('game_menu_flash_desc'), 'flash', () => {
+      entry('game-cards', t('game_menu_flash'), 'flash', () => {
         sfx.tap();
         if (words.length < 4) { toast(t('game_need_words'), true); return; }
         openFlashMenu();
       }),
-      entry('puzzle', t('game_menu_word'), t('game_menu_word_desc'), 'word', async () => {
+      entry('game-words', t('game_menu_word'), 'word', async () => {
         sfx.tap();
         if (words.length < 4) { toast(t('game_need_words'), true); return; }
         if (!(await weakModeGate())) return;
         startFlash(root, 'word', renderIntro);
       }),
     ),
-    // 不熟模式是家長調的出題範圍，小孩帳號不顯示
-    isKid() ? null : el('div', { class: 'card', style: 'max-width:1100px;margin:20px auto 0;' },
+  );
+  // 原生 append(null) 會產生「null」文字，小孩頁面只追加真正存在的內容。
+  if (!isKid()) root.append(el('div', { class: 'card game-parent-options' },
       el('div', { class: 'settings-line', style: 'border-bottom:0;padding-bottom:4px;' },
         el('span', {}, icon('fire'), t('weak_mode')), weakSwitch,
       ),
-      el('p', { class: 'settings-note', style: 'margin:0;', text: t('weak_mode_note') }),
-    ),
-  );
+    ));
 }
 
 // ---------- 認字卡：出題範圍選單與選字頁 ----------
 let pickQuery = '';
-let pickSort = 'weak';     // 選字清單排序：weak | new | least | most
+let pickSort = 'new';      // 選字清單排序：new | weak | least | most
 const pickSel = new Set(); // 已選的字（切換排序時保留）
 
 function openFlashMenu() {
@@ -91,17 +91,18 @@ function openFlashMenu() {
     el('button', { class: `btn big ${cls}`, style: 'width:100%;justify-content:center;', onclick }, icon(iconName), label);
   m.body.append(
     el('div', { style: 'display:flex;flex-direction:column;gap:12px;padding:6px 0;min-width:min(340px,72vw);' },
-      mk('mint', 'rocket', t('flash_start_all'), async () => {
+      mk('mint', 'play', t('flash_start_all'), async () => {
         sfx.tap();
         m.close();
         if (!(await weakModeGate())) return;
         startFlash(root, 'char', renderIntro);
       }),
-      mk('sky', 'target', t('flash_pick'), () => {
+      mk('sky', 'cards', t('flash_pick'), () => {
         sfx.tap();
         m.close();
         pickSel.clear();
         pickQuery = '';
+        pickSort = 'new';
         renderFlashPicker();
       }),
     ),
@@ -131,9 +132,10 @@ function sortedPicker() {
 
 function renderFlashPicker() {
   root.innerHTML = '';
+  root.classList.add('game-picker-page');
 
   const backBtn = el('button', { class: 'btn ghost small', onclick: () => { sfx.tap(); renderIntro(); } },
-    '↩️ ', t('flash_back'));
+    icon('back'), t('flash_back'));
 
   const seg = el('div', { class: 'seg' });
   const mkSort = (val, label) => {
@@ -142,19 +144,19 @@ function renderFlashPicker() {
     return b;
   };
   seg.append(
-    mkSort('weak', t('words_sort_weak')),
     mkSort('new', t('words_sort_new')),
+    mkSort('weak', t('words_sort_weak')),
     mkSort('least', t('words_sort_least')),
     mkSort('most', t('words_sort_most')),
   );
 
   const startBtn = el('button', { class: 'btn mint' });
-  const allBtn = el('button', { class: 'btn ghost small', text: t('word_search_all') });
-  const clearBtn = el('button', { class: 'btn ghost small', text: t('word_search_cancel') });
+  const allBtn = el('button', { class: 'btn ghost small', 'aria-label': t('word_search_all') }, icon('check'), t('flash_pick_all'));
+  const clearBtn = el('button', { class: 'btn ghost small', 'aria-label': t('word_search_cancel') }, icon('close'), t('flash_pick_clear'));
 
   function refreshStart() {
     startBtn.textContent = '';
-    startBtn.append('🃏 ', t('flash_pick_start', { n: pickSel.size }));
+    startBtn.append(icon('play'), t('flash_pick_start', { n: pickSel.size }));
     startBtn.disabled = pickSel.size === 0;
   }
   startBtn.addEventListener('click', () => {
@@ -195,7 +197,6 @@ function renderFlashPicker() {
       style: 'touch-action:none;', // 在字卡上起手的拖曳不會捲動頁面
     },
       el('span', { class: 'w', text: convertTo(w.ch, getLang()) }),
-      el('span', { class: 'u', text: t('used_times', { n: w.usedCount }) }),
     );
     chipByCh.set(w.ch, chip);
     grid.append(chip);
@@ -236,13 +237,11 @@ function renderFlashPicker() {
   grid.addEventListener('pointerleave', stopDrag);
 
   root.append(
-    el('div', { class: 'spread' },
-      el('div', { class: 'row' }, backBtn, el('div', { class: 'h1', style: 'margin:0;' }, icon('target'), t('flash_pick'))),
-      el('div', { class: 'row' }, allBtn, clearBtn, startBtn),
-    ),
+    el('div', { class: 'row game-picker-heading' }, backBtn,
+      el('div', { class: 'h1', style: 'margin:0;' }, icon('cards'), t('flash_pick'))),
     search.root,
-    el('div', { class: 'spread', style: 'margin:10px 0;' }, seg),
-    el('p', { class: 'settings-note', style: 'margin-bottom:12px;', text: t('flash_pick_hint') }),
+    el('div', { class: 'game-picker-tools' }, el('div', { class: 'row' }, allBtn, clearBtn), startBtn),
+    el('div', { class: 'game-picker-sort' }, seg),
     grid,
   );
 }
@@ -460,7 +459,7 @@ function renderQuestion() {
   root.append(
     el('div', { class: 'game-stage' },
       el('div', { class: 'game-hud' }, scoreEl, dots),
-      el('p', { style: 'font-size:24px;font-weight:800;color:var(--ink-soft);margin-top:8px;', text: t('game_listen') }),
+      el('p', { class: 'game-instruction', text: t('game_listen') }),
       speaker,
       el('div', { class: 'choice-row' }, cards),
     ),

@@ -1,5 +1,5 @@
 // Service Worker：app shell 快取（cache-first），API 一律走網路
-const CACHE = 'autobook-v1.34.2';
+const CACHE = 'autobook-v1.35.0';
 // 音節音檔獨立持久快取：檔案不變，cache-first；版本更新時不清除（不用重抓 25MB）
 const SYL_CACHE = 'autobook-syl-1';
 const SHELL = [
@@ -37,6 +37,12 @@ const SHELL = [
   './js/search-readings.js',
   './js/word-search.js',
   './js/word-search-ui.js',
+  './js/word-filter.js',
+  './js/story-pronunciation.js',
+  './js/story-pronunciation-ui.js',
+  './js/vendor/pronunciation-sources.md',
+  './js/vendor/pinyin-license.txt',
+  './js/vendor/moe-concised-use.pdf',
   './js/story.js',
   './js/story-layout.js',
   './js/game.js',
@@ -53,6 +59,8 @@ self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE)
       .then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))))
+      .then(() => caches.open(SYL_CACHE))
+      .then((c) => c.addAll(['./syl/zhao2.mp3', './syl/zhe5.mp3'].map((u) => new Request(u, { cache: 'reload' }))))
       .then(() => self.skipWaiting()),
   );
 });

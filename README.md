@@ -1,6 +1,6 @@
 # 自動繪本 Autobook
 
-給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前本機與 iPad 版本 **v1.34.2**；本次尚未發布網頁版。
+給 5 歲小朋友的中文認字／英語啟蒙 PWA，主要在 iPad 13 吋使用。目前本機與 iPad 版本 **v1.35.0**；本次尚未發布網頁版。
 
 - 維護交接：[交接文檔](docs/HANDOFF.md)（架構、字形規則、資料遷移、部署與驗證）。
 - 開發與上線記錄：[開發記錄](docs/DEVELOPMENT_LOG.md)（本次修正、測試與部署證據）；較早版本沿用本頁功能與技術備註。
@@ -65,6 +65,16 @@
 - 紅綠熟悉度、藍色選框／勾號及原使用次數保留；搜尋時已選字仍在同一字格。入庫與刪除仍只在整理模式顯示。
 - 角色為內嵌 SVG，隨 App 離線打包。新增樣式只套用於認字表及其新增字面板。
 
+## 四色篩選、兒童遊戲與逐字讀音（v1.35.0）
+
+- 認字表上方「全部字／已學會／不熟字／還沒用過」可點按篩選，當前分類有藍框與勾號；分類與繁簡／拼音搜尋取交集。整理模式的已選字即使不符合分類，仍保留在同一字格，紅綠與選框共存。
+- 每次進入認字表回到「全部＋最新」，認字卡「選字出題」也預設最新；本次切換分類或排序保留搜尋和選取。
+- 遊戲首頁改為三個大 SVG 圖示和短標題：聽一聽、認字卡、詞語卡；移除入口的小字說明。選字頁控制至少 64px 高，開始鈕獨立靠右，字卡不顯示使用次數小字；正式認字表仍保留原使用次數。
+- 家長在故事「閱讀設定 → 這篇的讀音 → 設定讀音」，點選內文中某個位置的字，選讀音或輸入單一拼音，再試聽、儲存。例如持續觀看的「看著」可指定 `zhe5`，入睡的「睡著」指定 `zhao2`。
+- 指定讀音只套用該故事、該位置；同篇不同「著」可分別設定。支援數字／調號聲調、輕聲 0／5、ü／v／u:，只接受已有錄音的音節。點讀優先播放指定錄音，可單獨恢復預設；完整備份保留設定。
+- 修改內文後清除該篇指定讀音，避免套錯位置或語境；只改標題、未改內文則保留。此入口僅供家長使用。
+- 補充兩份離線錄音與完整授權說明，來源見 [pronunciation-sources.md](js/vendor/pronunciation-sources.md)。PWA 安裝時將補充音檔預先放入持久音節快取；原生 App 隨包附帶。
+
 ## 分頁總覽
 
 | 分頁 | 內容 |
@@ -88,7 +98,7 @@
   - **高亮模式**（小孩自讀）：點字高亮，再點取消。
   - **標註模式**（親子共讀）：點字循環 白→綠→紅→白，**直接寫入認字卡的熟悉度**（見「熟悉度打通」）。紅綠都算已讀、都會散開迷霧。
   - 兩種模式的紀錄各自獨立、互不干擾；**都依帳號分開**。
-- **長按單字只發音**（0.5 秒，不改標記）；多音字播「所屬詞」的音以取得正確讀音。
+- **長按單字只發音**（0.5 秒，不改標記）；有指定讀音時優先播放該音節；其餘多音字依「所屬詞」發音。
 - **點字發音開關**（閱讀設定內，`storySpeak`）；發音規則：高亮時發音、**標綠（學會）不發音、標紅發音一次**幫忙複習、清除不發音。
 - **生成視窗進度 log**：生成中即時顯示各階段（撰寫第幾次、插圖、API 層自動重試…，帶時間戳）；失敗時視窗不自動關，完整過程留在 log 裡好除錯（gemini.js `setLogListener`）。
 - **追加新字到字表**（閱讀設定內，v1.19.0）：列出本篇內文「轉繁體後不在字表」的字（每次重算，不用過期的 `newChars`），預設全選、可點掉、有全選鈕；確定後以**繁體**加入字表（走 `addWords` 的跨繁簡去重與衝突提醒），並重算本篇新字標示。
@@ -191,19 +201,19 @@
 
 ## 發音架構（重要）
 
-**`js/voice.js` 是統一入口**，優先序：
+**`js/voice.js` 是統一入口**。故事某位置有家長指定讀音時，先直接播放對應音節，不使用單字／整詞快取；其餘發音優先序：
 
 | 順位 | 來源 | 特性 |
 |---|---|---|
 | 1 | **AI 語音快取**（IndexedDB `audio`） | 音質最自然；生成不穩定，有多少算多少 |
 | 2 | **音節庫** `syl/*.mp3` | App 自帶靜態檔，臺灣讀音、離線、**永不失敗** |
-| 3 | **裝置內建語音** `speakNative()` | 最後保底；也負責音節庫沒有的輕聲字與多音字整詞 |
+| 3 | **裝置內建語音** `speakNative()` | 最後保底；也負責音節庫未收錄的字與多音字整詞 |
 
-- **音節庫**：1,288 個「拼音音節」mp3（不是一字一檔——全中文字共用約 1,300 個音節）＋ `js/readings.js` 的 26,367 字對照表。**加新字不需要任何下載**，查表即得。
-- 授權：[davinfifield/mp3-chinese-pinyin-sound](https://github.com/davinfifield/mp3-chinese-pinyin-sound)，**Unlicense（公有領域）**；讀音來源 Unicode Unihan `kMandarin`，**兩讀音時取臺灣讀音**。
+- **音節庫**：1,288 個「拼音音節」mp3（不是一字一檔——全中文字共用約 1,300 個音節），v1.35.0 另補 `zhao2`／`zhe5` 兩份錄音；搭配 `js/readings.js` 的 26,367 字對照表。**加新字不需要任何下載**，查表即得。
+- 原音節庫與補充 `zhao2` 授權：[davinfifield/mp3-chinese-pinyin-sound](https://github.com/davinfifield/mp3-chinese-pinyin-sound)，**Unlicense（公有領域）**；字對照來源 Unicode Unihan `kMandarin`，**兩讀音時取臺灣讀音**。補充 `zhe5` 為教育部原錄音，**CC BY-ND 3.0 TW**；完整說明見 [錄音來源](js/vendor/pronunciation-sources.md)。
 - **音節庫不受「清除語音快取」影響**（那顆只清 IndexedDB），也不受 App 版本更新影響（獨立持久快取 `autobook-syl-1`）。
 - **決策必須同步**：iOS 要求聲音在使用者手勢的同步呼叫堆疊中觸發，所以用 `hasAudioCached()`（開站載入的同步索引）判斷走哪條路，**不能先 await 查 IndexedDB**。
-- 多音字：故事頁「準備發音」時由文字模型偵測本篇多音字＋所屬詞（存 `story.polys`），TTS 以整詞快取（key `w:詞`）；缺快取時用內建語音唸整詞（會依詞境自動選對讀音）。
+- 多音字：故事頁「準備發音」時由文字模型偵測本篇多音字＋所屬詞（存 `story.polys`），TTS 以整詞快取（key `w:詞`）；缺快取時用內建語音唸整詞（會嘗試依詞境選音，仍可能誤判）；家長可用「這篇的讀音」修正個別位置。
 
 ## 本地開發
 
@@ -234,12 +244,13 @@ push `main` → GitHub Actions 自動部署 Pages（`.github/workflows/pages.yml
 
 - localStorage：`autobook.settings` / `words` / `stories` / `accounts` / `currentAccount` / `phrases` / `repGroups` / `errlog`（API 錯誤紀錄，最多 30 筆）。
 - `word`：`{ ch, addedAt, usedCount, readCount, archived, cards, sourceChars? }`；熟悉度在 `cards['帳號id|語系']`，`sourceChars` 保留遷移前簡體字形別名。
-- `story`：`{ id, title, text, lang, textPolicy, textBackup?, createdAt, newChars, hasImage, imagePrompt, demo, hlBy, marksBy, readsBy, media, polys }`
+- `story`：`{ id, title, text, lang, textPolicy, textBackup?, createdAt, newChars, hasImage, imagePrompt, demo, hlBy, marksBy, readsBy, media, polys, readings? }`
   - `lang` 固定 `zh-Hant`，表示儲存字形；`textPolicy: 1` 表示已套用現行規則，與介面語系分開。改動的舊故事以 `textBackup` 保存完整原紀錄；字表原紀錄另存 `autobook.textBackup`，兩者都納入完整備份。
   - `hlBy['帳號id'] = [索引]`（高亮模式）、`marksBy['帳號id'] = { 索引: 'green'|'red' }`（標註模式）——**都依帳號分開**；舊版全域 `highlights` 會自動遷移給第一個開啟的帳號。
   - `readsBy['帳號id'] = 讀完整本的次數`（高亮／標註都算），決定這一遍要打開哪一組媒體。
   - `media = [{ id, kind: 'image'|'video', url? }]`：`url` 有值＝外部連結，沒有＝blob 存在 IndexedDB `images`（key＝`m.id`）。**沒有 `media` 欄位的舊資料**由 `storyMedia()` 相容轉換成 `hasImage ? [{ id: 故事id, kind:'image' }] : []`，不做寫入式遷移；`hasImage` 仍同步維護（書架封面在看）。
   - `polys = [{ char, word }]`（多音字，每本偵測一次）。
+  - `readings = { [Unicode字索引]: { char, syllable } }`（家長指定讀音，如 `{ "1": { "char": "著", "syllable": "zhe5" } }`）；點讀會核對原字與可用音節，內文變動即清除。
 - IndexedDB `autobook`（v2）：`images`（故事 id、故事媒體 `故事id|m…`、`ph|題目id`）、`audio`（中文按字、多音字詞 `w:詞`、英文 `en|小寫句子`）、`avatars`（帳號 id）。**影片也放 `images` store**（就是個 blob KV，不另開 store 免得動 DB 版本）；備份匯出是照 store 逐鍵掃的，所以影片會一起匯出——長片建議改用連結。
 - Cache Storage：`autobook-v<版本>`（app shell，換版清除）、**`autobook-syl-1`（音節音檔，換版不清）**。
 - 版本升級的資料遷移一律就地進行，不清資料。

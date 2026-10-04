@@ -1202,32 +1202,57 @@ video.media-el { object-fit: contain; background: #1A1410; }
 .game-menu {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 20px;
+  gap: 24px;
   max-width: 1100px;
   margin: 0 auto;
 }
 .game-entry {
   background: var(--card);
-  border-radius: var(--r-3);
+  border-radius: 40px;
   box-shadow: var(--shadow-soft);
-  padding: 36px 20px 30px;
+  min-height: 310px;
+  padding: 36px 24px;
+  border: 3px solid var(--line);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 24px;
   transition: transform var(--t-press) var(--ease-out);
 }
 .game-entry:active { transform: scale(0.96); }
-.game-entry .ge-emoji { font-size: 88px; line-height: 1; display: block; }
-.game-entry .ge-emoji .ic { width: 1em; height: 1em; }
-.game-entry .ge-label { font-size: 30px; font-weight: 800; }
-.game-entry .ge-desc { font-size: 16px; font-weight: 700; color: var(--ink-2); }
-.game-entry.listen { border-bottom: 8px solid var(--sky); }
-.game-entry.listen .ge-emoji { color: var(--sky); }
-.game-entry.flash { border-bottom: 8px solid var(--primary); }
-.game-entry.flash .ge-emoji { color: var(--primary); }
-.game-entry.word { border-bottom: 8px solid var(--mint); }
-.game-entry.word .ge-emoji { color: var(--mint); }
+.game-heading { margin-right: 200px; }
+.game-entry .ge-emoji { width: 160px; height: 160px; padding: 12px; border-radius: 50%; background: var(--card); display: flex; align-items: center; justify-content: center; }
+.game-entry .ge-emoji .ic { width: 136px; height: 136px; }
+.game-entry .ge-label { font-size: 36px; font-weight: 800; color: var(--ink); }
+.game-entry.listen { background: var(--sky-bg); border-bottom: 8px solid var(--sky); }
+.game-entry.flash { background: var(--no-bg); border-bottom: 8px solid var(--berry); }
+.game-entry.word { background: var(--mint-bg); border-bottom: 8px solid var(--mint); }
+.game-parent-options { max-width: 1100px; margin: 28px auto 0; padding: 16px 24px; }
+.game-parent-options .settings-line { font-size: 22px; }
+.game-instruction { font-size: 28px; font-weight: 800; color: var(--ink-2); margin-top: 8px; }
+.game-picker-heading { margin: 0 200px 20px 0; }
+.game-picker-tools { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: 16px; margin-bottom: 20px; }
+.game-picker-sort { margin-bottom: 20px; }
+.game-picker-page .btn, .game-picker-page .seg button { min-height: 64px; font-size: 20px; border-radius: 22px; }
+.game-picker-page .btn .ic { width: 28px; height: 28px; }
+.game-picker-page .word-search-field .text-input { min-height: 64px; font-size: 22px; }
+.game-picker-page .word-grid { gap: 16px; }
+.game-picker-page .word-chip { width: 104px; height: 108px; border-radius: 28px; }
+.game-picker-page .word-chip .w { font-size: 52px; }
+.fc-status-key { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; font-size: 20px; font-weight: 800; }
+.fc-status-key > span { display: inline-flex; gap: 8px; align-items: center; padding: 10px 16px; border-radius: 20px; }
+.fc-status-learned { color: var(--ok); background: var(--ok-bg); }
+.fc-status-weak { color: var(--no); background: var(--no-bg); }
+.fc-status-key .ic { width: 26px; height: 26px; }
+@media (max-width: 700px) {
+  .game-menu { grid-template-columns: 1fr; gap: 18px; }
+  .game-entry { flex-direction: row; min-height: 154px; padding: 20px; gap: 24px; }
+  .game-entry .ge-emoji { width: 100px; height: 100px; padding: 4px; flex-shrink: 0; }
+  .game-entry .ge-emoji .ic { width: 88px; height: 88px; }
+  .game-entry .ge-label { font-size: 30px; }
+  .fc-status-key { gap: 6px; font-size: 16px; }
+  .fc-status-key > span { padding: 8px; }
+}
 
 /* ---- 字卡／詞卡（面對面教具） ---- */
 .fc-stage {
@@ -2337,6 +2362,10 @@ details.adv[open] summary::before { content: "▾ "; }
 .words-page .stats-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; padding: 0; border: 0; }
 .words-page .stat-chip { --stat-bg: var(--sky-bg); --stat-ink: var(--words-blue-ink); display: flex; align-items: center; justify-content: flex-start; gap: 12px; min-width: 0; padding: 12px 18px; background: var(--stat-bg); border: 2px solid var(--card); border-radius: 24px; box-shadow: 0 4px 0 var(--line); text-align: left; }
 .words-page .stat-chip + .stat-chip { border-left: 2px solid var(--card); }
+.words-page .stat-chip { position: relative; min-height: 84px; cursor: pointer; transition: transform var(--t-press); }
+.words-page .stat-chip.on { outline: 3px solid var(--words-blue-ink); outline-offset: 2px; }
+.words-page .stat-chip.on::after { content: '✓'; position: absolute; top: -10px; right: 10px; width: 26px; height: 26px; border-radius: 50%; background: var(--sky); color: var(--ink-on-color); text-align: center; font-size: 18px; }
+.words-page .stat-chip:active { transform: translateY(3px); }
 .words-page .stat-chip.learned { --stat-bg: var(--ok-bg); --stat-ink: var(--ok); }
 .words-page .stat-chip.weak { --stat-bg: var(--no-bg); --stat-ink: var(--no); }
 .words-page .stat-chip.unused { --stat-bg: var(--sun-bg); --stat-ink: var(--warn); }
@@ -2375,6 +2404,20 @@ details.adv[open] summary::before { content: "▾ "; }
 .words-page .word-chip:active { transform: translateY(3px) scale(0.96); }
 .words-add-modal .btn { min-height: 64px; font-size: 22px; border-radius: 24px; }
 .words-add-modal .text-area { min-height: 160px; font-size: 24px; border-radius: 24px; }
+
+/* 家長設定每個位置的讀音；文章字鈕與拼音選項均可輕鬆點按。 */
+.pronunciation-modal .btn { min-height: 64px; font-size: 20px; }
+.pronunciation-editor { padding: 18px; border-radius: 24px; background: var(--sky-bg); margin-bottom: 20px; box-shadow: 0 4px 0 var(--line); }
+.pronunciation-editor[hidden] { display: none; }
+.pronunciation-editor .text-input { margin-bottom: 12px; }
+.pronunciation-context { font-size: 24px; margin-bottom: 12px; }
+.pronunciation-context b { margin: 0 6px; padding: 2px 8px; background: var(--sun-bg); border-radius: 10px; }
+.pronunciation-choices { margin-bottom: 12px; }
+.pronunciation-text { white-space: pre-wrap; line-height: 3.4; padding: 8px; }
+.pronunciation-char { width: 56px; height: 64px; margin: 3px; font-size: 30px; border-radius: 14px; background: var(--card-2); color: var(--ink); border: 2px solid var(--line); vertical-align: middle; }
+.pronunciation-char.custom { border-color: var(--mint); background: var(--mint-bg); }
+.pronunciation-char[aria-pressed='true'] { outline: 3px solid var(--sky); outline-offset: 2px; }
+.pronunciation-credit a { color: var(--ink-2); }
 @media (max-width: 700px) {
   .words-heading { flex-wrap: wrap; }
   .words-title-row { gap: 10px; }

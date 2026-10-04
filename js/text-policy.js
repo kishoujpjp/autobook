@@ -46,6 +46,7 @@ export function prepareStoredStory(story, known = new Set(), { legacy = false } 
     next.textBackup = story.textBackup || JSON.parse(JSON.stringify(story));
   }
   if (changed) {
+    if (text !== story.text) delete next.readings;
     delete next.polys; // 舊詞組的音訊仍留在 IDB，新詞組使用新的快取 key。
     if ([...text].length !== [...(story.text || '')].length || [...title].length !== [...(story.title || '')].length) {
       next.hlBy = {};

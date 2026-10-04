@@ -4,6 +4,7 @@ import { t, getLang } from './i18n.js';
 import { el, toast, confirmDialog, openModal } from './ui.js';
 import { icon } from './icons.js';
 import { createWordSearch } from './word-search-ui.js';
+import { matchesWordFilter } from './word-filter.js';
 import { sfx } from './sfx.js';
 import {
   settings, saveSettings, words, addWords, removeWords, setArchived,
@@ -20,6 +21,7 @@ let editMode = false;
 let selected = new Set();
 let searchQuery = '';
 let sortMode = 'new'; // new | least | most | weak
+let filterMode = 'total';
 
 export function initWords(rootEl) {
   root = rootEl;
@@ -28,6 +30,8 @@ export function initWords(rootEl) {
 
 export function refreshWordsPage() {
   searchQuery = '';
+  sortMode = 'new';
+  filterMode = 'total';
   editMode = false;
   selected.clear();
   render();
@@ -186,6 +190,7 @@ function render() {
   const now = Date.now();
   const grid = el('div', { class: 'word-grid' });
   const chipByCh = new Map();
+  const wordByCh = new Map(words.map((w) => [w.ch, w]));
   let search;
   let dragging = false;
 
@@ -228,6 +233,7 @@ function render() {
           if (mark === 'green') { chip.classList.add('mk-g'); sfx.correct(); }
           else if (mark === 'red') { chip.classList.add('mk-r'); sfx.unpop(); }
           else sfx.tap();
+          search.refresh();
         }
         void chip.offsetWidth;
         chip.classList.add('pop');
@@ -244,6 +250,10 @@ function render() {
   search = createWordSearch({
     grid, entries: [...chipByCh].map(([ch, node]) => ({ ch, node })),
     getSelected: editMode ? () => selected : undefined, value: searchQuery,
+    getCandidates: () => [...chipByCh.keys()].filter((ch) => {
+      const w = wordByCh.get(ch);
+      return matchesWordFilter(w, filterMode, getCard(w, acc));
+    }),
     onQueryChange: (value) => { searchQuery = value; },
   });
 
@@ -283,7 +293,11 @@ function render() {
 
 function statChip(num, label, kind = 'total') {
   const symbol = { total: 'cards', learned: 'star', weak: 'heart', unused: 'leaf' }[kind];
-  return el('div', { class: `stat-chip ${kind}` },
+  return el('button', {
+    class: `stat-chip ${kind}${filterMode === kind ? ' on' : ''}`, type: 'button',
+    'aria-pressed': String(filterMode === kind), 'aria-label': label,
+    onclick: () => { sfx.tap(); filterMode = kind; render(); },
+  },
     el('span', { class: 'words-stat-icon', 'aria-hidden': 'true' }, icon(symbol)),
     el('div', { class: 'words-stat-copy' },
       el('div', { class: 'num', text: String(num) }),

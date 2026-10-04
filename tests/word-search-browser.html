@@ -14,13 +14,15 @@ localStorage.setItem('autobook.settings', JSON.stringify({ lang:'zh-Hant', onboa
 localStorage.setItem('autobook.words', '[]');
 localStorage.setItem('autobook.stories', JSON.stringify([{id:'search-test',title:'測試故事',text:'月亮星星來了。',lang:'zh-Hant',textPolicy:1,newChars:[...'月亮星來了'],createdAt:1}]));
 localStorage.setItem('autobook.accounts', JSON.stringify([{id:'test-parent',name:'家長',role:'parent',avatar:'fox'},{id:'test-kid',name:'測試小孩',role:'kid',avatar:'cat'}]));
-localStorage.setItem('autobook.currentAccount', JSON.stringify('test-parent'));
+localStorage.setItem('autobook.currentAccount', JSON.stringify(new URLSearchParams(location.search).has('kid')?'test-kid':'test-parent'));
 localStorage.setItem('autobook.wordsBy', '{}');
 const store = await import('../js/store.js');
 const {setLang,t} = await import('../js/i18n.js');
 const {initWords,refreshWordsPage} = await import('../js/words.js');
 const {initGame} = await import('../js/game.js');
 const {initStory,openGenModal,openReadSettingsCurrent} = await import('../js/story.js');
+const {openStoryPronunciation} = await import('../js/story-pronunciation-ui.js');
+const {readingAt,setStoryReading} = await import('../js/story-pronunciation.js');
 const root = document.getElementById('test-root');
 if (new URLSearchParams(location.search).has('layout')) {
   document.querySelector('body > .card').hidden = true;
@@ -39,7 +41,7 @@ const chars = [...'貓狗燈發髮行樂長女綠嗎馬'];
 const close = () => document.querySelectorAll('.modal-close').forEach(b => b.click());
 const assert = (value,msg) => { if(!value) throw new Error(msg); };
 const scope = () => [...document.querySelectorAll('.modal')].at(-1) || root;
-const button = (label,parent=scope()) => [...parent.querySelectorAll('button')].find(b=>b.textContent.trim()===label);
+const button = (label,parent=scope()) => [...parent.querySelectorAll('button')].find(b=>b.textContent.trim()===label || b.getAttribute('aria-label')===label);
 const grid = () => scope().querySelector('.word-search-grid');
 const card = ch => [...grid().children].find(n=>n.dataset.ch===ch);
 const visible = () => [...grid().children].filter(n=>!n.hidden).map(n=>n.dataset.ch);
@@ -51,9 +53,11 @@ function reset() {
   store.addWords(chars.join('')); store.setMark('貓','red'); store.setMark('燈','green');
   store.words.find(w=>w.ch==='馬').archived=true;
 }
-function wordsPage(){close();initWords(root);refreshWordsPage();}
-function flashPage(){close();root.classList.remove('words-page');initGame(root);root.querySelector('.game-entry.flash').click();button(t('flash_pick')).click();}
-function addNew(){close();root.classList.remove('words-page');initStory(root);openReadSettingsCurrent();button(t('rs_add_new')).click();}
+function clearPageClasses(){root.classList.remove('words-page','game-page','game-picker-page','story-fixed');}
+function wordsPage(){close();clearPageClasses();initWords(root);refreshWordsPage();}
+function gamePage(){close();clearPageClasses();initGame(root);}
+function flashPage(){gamePage();root.querySelector('.game-entry.flash').click();button(t('flash_pick')).click();}
+function addNew(){close();clearPageClasses();initStory(root);openReadSettingsCurrent();button(t('rs_add_new')).click();}
 function test(name,fn){const item=document.createElement('li');report.append(item);try{fn();item.textContent='通過：'+name;}catch(e){item.textContent='失敗：'+name+' — '+e.message;item.style.color='red';throw e;}}
 function run(){
   reset();report.replaceChildren();
@@ -88,6 +92,62 @@ function run(){
     assert(root.querySelector('.words-sort-select'),'仍能排序');query('灯');assert(visible().join('')==='燈','仍能搜尋');
     store.setCurrentAccount('test-parent');wordsPage();
   });
+  test('四色按鈕與搜尋取交集，紅綠更動立即更新分類',()=>{
+    wordsPage();button(t('words_learned')).click();assert(visible().join('')==='燈','已學會');
+    query('gou3');assert(visible().length===0,'分類與搜尋取交集');query('');
+    button(t('words_weak')).click();assert(visible().join('')==='貓','不熟');
+    card('貓').click();assert(visible().length===0,'改為白字後移出紅字分類');
+    store.setMark('貓','red');button(t('words_unused')).click();assert(visible().length===store.words.length,'未用過');
+    button(t('words_all')).click();assert(root.querySelector('.stat-chip.total').getAttribute('aria-pressed')==='true','全部被選');
+  });
+  test('分類篩選仍保留其他分類的已選字，最新預設重新進入還原',()=>{
+    button(t('words_edit')).click();tap('貓');button(t('words_learned')).click();
+    assert(visible().includes('貓')&&visible().includes('燈'),'同一格保留');
+    query('灯');assert(selected().join('')==='貓','搜尋保留選取');
+    const sort=root.querySelector('.words-sort-select');sort.value='weak';sort.dispatchEvent(new Event('change'));
+    assert(selected().join('')==='貓'&&root.querySelector('.word-search input').value==='灯','排序不清空');
+    refreshWordsPage();assert(root.querySelector('.words-sort-select').value==='new','最新預設');
+    assert(root.querySelector('.stat-chip.total').getAttribute('aria-pressed')==='true','預設全部');
+  });
+  test('遊戲三個大 SVG 入口沒有小字說明，選字預設最新',()=>{
+    gamePage();assert(root.querySelectorAll('.game-entry').length===3,'三個入口');
+    assert(!root.querySelector('.ge-desc'),'沒有小字說明');
+    assert([...root.querySelectorAll('.ge-emoji')].every(n=>n.querySelector('svg')),'統一 SVG 圖示');
+    store.setCurrentAccount('test-kid');gamePage();assert(!root.querySelector('.game-parent-options')&&!root.textContent.includes('null'),'小孩不顯示家長項目及 null');store.setCurrentAccount('test-parent');
+    flashPage();assert(root.querySelector('.seg .on').textContent===t('words_sort_new'),'選字最新');
+    assert(!root.querySelector('.word-chip .u'),'選字減少小字');
+  });
+  test('同篇不同位置指定讀音，儲存及恢复互不影響',()=>{
+    const story=store.stories[0];story.text='🌙看著月亮，睡著了。';
+    openStoryPronunciation(story);
+    const choose=(index,value)=>{scope().querySelector(`[data-index="${index}"]`).click();const inp=scope().querySelector('input');inp.value=value;inp.dispatchEvent(new Event('input'));button(t('acc_save')).click();};
+    choose(2,'zhe5');choose(7,'zháo');
+    assert(readingAt(story,2)==='zhe5'&&readingAt(story,7)==='zhao2','兩处不同音');
+    store.flushSaves();const saved=JSON.parse(localStorage.getItem('autobook.stories'))[0];assert(readingAt(saved,7)==='zhao2','落盤');
+    close();openStoryPronunciation(story);scope().querySelector('[data-index="2"]').click();
+    button(t('pron_reset')).click();assert(!readingAt(story,2)&&readingAt(story,7)==='zhao2','單處恢复');
+    close();store.setCurrentAccount('test-kid');openStoryPronunciation(story);assert(!document.querySelector('.modal'),'小孩不能改讀音');store.setCurrentAccount('test-parent');
+  });
+  test('實際文章點讀優先播放指定音節，不使用整詞預設',()=>{
+    const story=store.stories[0];setStoryReading(story,2,'zhe5');setStoryReading(story,7,'zhao2');
+    story.polys=[{char:'著',word:'睡著'},{char:'著',word:'看著'}];story.hlBy={};
+    store.settings.storySpeak=true;store.settings.storyMode='hl';
+    const NativeAudio=window.Audio,played=[];
+    window.Audio=class {constructor(src){this.src=src;}play(){played.push(this.src);return Promise.resolve();}pause(){}};
+    try {
+      close();clearPageClasses();initStory(root);
+      const targets=[...root.querySelectorAll('.story-text .zi')].filter(n=>n.textContent==='著');
+      assert(targets.length===2,'兩個著');targets[0].click();targets[1].click();
+      assert(played.join('|')==='syl/zhe5.mp3|syl/zhao2.mp3','正確音檔與優先序');
+    } finally {window.Audio=NativeAudio;}
+  });
+  test('讀音拒絕無效輸入，修改內文後不沿用錯位讀音',()=>{
+    const story=store.stories[0];openStoryPronunciation(story);scope().querySelector('[data-index="7"]').click();
+    const inp=scope().querySelector('input');inp.value='sleep9';inp.dispatchEvent(new Event('input'));
+    assert(button(t('acc_save')).disabled&&button(t('pron_preview')).disabled,'無效音節不可儲存／播放');close();
+    openReadSettingsCurrent();button(t('story_edit')).click();const text=scope().querySelector('textarea');text.value='月亮出來了。';
+    button(t('acc_save')).click();assert(!story.readings,'修改內文清除');
+  });
   report.dataset.result='passed'; flashPage();tap('貓');tap('燈');query('gou3');
 }
 document.getElementById('run').onclick=()=>{try{run();}catch(e){report.dataset.result='failed';console.error(e);}};
@@ -96,5 +156,11 @@ document.getElementById('flash').onclick=flashPage;
 document.getElementById('gen').onclick=()=>{close();openGenModal();};
 document.getElementById('new').onclick=addNew;
 document.getElementById('lang').onclick=()=>{store.settings.lang=store.settings.lang==='zh-Hant'?'zh-Hans':'zh-Hant';setLang(store.settings.lang);wordsPage();};
-reset();wordsPage();
+reset();
+if(new URLSearchParams(location.search).get('layout')==='game') gamePage();
+else if(new URLSearchParams(location.search).get('layout')==='pronunciation') {
+  store.stories[0].text='妹妹看著肥嘟嘟，肥嘟嘟睡著了。';
+  clearPageClasses();initStory(root);openStoryPronunciation(store.stories[0]);
+}
+else wordsPage();
 </script></body></html>

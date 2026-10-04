@@ -20,7 +20,9 @@ import {
 } from './store.js';
 import { generateStory, generateImage, pickImageStyle, ttsChar, findNewChars, detectPolys, errHintKey, setLogListener } from './gemini.js';
 import { convertTo, toStoredTraditional, audioKeysFor } from './zhconv.js';
-import { playSyllable } from './voice.js';
+import { playSyllable, playReading } from './voice.js';
+import { readingAt } from './story-pronunciation.js';
+import { openStoryPronunciation } from './story-pronunciation-ui.js';
 import { Fog } from './fog.js';
 import { storyLines } from './story-layout.js';
 
@@ -833,6 +835,12 @@ function openReadSettings(story) {
     ),
   );
 
+  if (!isKid()) m.body.append(
+    el('div', { class: 'field-label' }, icon('speaker'), t('pron_title')),
+    el('button', { class: 'btn mint', onclick: () => { sfx.tap(); m.close(); openStoryPronunciation(story); } },
+      icon('speaker'), t('pron_open')),
+  );
+
   // 追加新字：把本篇還沒在字表裡的字（繁體）挑選後加入字表
   m.body.append(
     el('div', { class: 'field-label', text: t('rs_add_new_label') }),
@@ -1089,6 +1097,7 @@ function openEditStoryModal(story, onSaved) {
     const rawTitle = titleInput.value.trim();
     story.title = (rawTitle === story.title ? rawTitle : toStoredTraditional(rawTitle, inputScript.value))
       || [...text].slice(0, 8).join('');
+    if (story.text !== text) delete story.readings;
     story.text = text;
     story.lang = 'zh-Hant';
     story.hlBy = {};
@@ -1888,6 +1897,8 @@ function polyAt(story, i) {
  * 這樣簡體同形字（髮/發 都顯示成 发）也能各播各的正確讀音。
  */
 async function speakAt(story, dispCh, i) {
+  const reading = readingAt(story, i);
+  if (reading) { playReading(reading); return; }
   const p = polyAt(story, i);
   const stored = [...story.text][i] || dispCh;
 

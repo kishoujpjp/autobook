@@ -5,7 +5,7 @@ import { filterCharacters } from './word-search.js';
 import { syllableOf } from './readings.js';
 
 /** 篩選既有字卡節點，保留其標色、讀音、選框及事件；輸入時不重繪頁面。 */
-export function createWordSearch({ grid, entries, getSelected, value = '', onQueryChange = () => {}, maxSelected }) {
+export function createWordSearch({ grid, entries, getSelected, getCandidates, value = '', onQueryChange = () => {}, maxSelected }) {
   const nodes = new Map(entries.map(({ ch, node }) => [ch, node]));
   const pool = [...nodes.keys()];
   let query = value;
@@ -25,13 +25,14 @@ export function createWordSearch({ grid, entries, getSelected, value = '', onQue
 
   function refresh({ deferLayout = false } = {}) {
     const selected = getSelected?.() || new Set();
-    result = filterCharacters(pool, query, selected);
+    const candidates = getCandidates?.() || pool;
+    result = filterCharacters(pool, query, selected, candidates);
     clear.hidden = !input.value;
-    let label = t('word_search_count', { n: result.matches.length, total: pool.length });
+    let label = t('word_search_count', { n: result.matches.length, total: candidates.length });
     if (result.retained.length) label += ' · ' + t('word_search_retained', { n: result.retained.length });
     if (getSelected) label += ' · ' + t('word_search_selected', { n: selected.size }) + (maxSelected ? ` / ${maxSelected}` : '');
     summary.textContent = label;
-    empty.hidden = !query.trim() || result.matches.length > 0;
+    empty.hidden = (!query.trim() && !getCandidates) || result.matches.length > 0;
     if (deferLayout) return;
     const visible = new Set(result.visible);
     for (const [ch, node] of nodes) {

@@ -1,15 +1,15 @@
 # 自動繪本維護交接
 
-更新日期：2026-10-04（UTC+8）。目前本機 App 版本 v1.34.2；字表搜尋及認字表繪本風格已實裝、覆蓋安裝至 iPad，並依使用者要求提交本機 Git。尚未 push 或發布 Pages。上次線上功能提交仍是 `c57bd1af37b22bf9781d67bde198c203baec28c8`。歷次功能說明見 [README](../README.md)，測試與安裝證據見 [開發記錄](DEVELOPMENT_LOG.md)。
+更新日期：2026-10-04（UTC+8）。目前本機及 iPad App 版本 v1.35.0；四色篩選、兒童遊戲介面與逐字讀音已實裝、覆蓋更新至 iPad。使用者已授權本次 commit／push，正在發布並核對 Pages。上一個本機提交 `f12fd24` 是 v1.34.2 字表搜尋及繪本風格；上次公開功能提交仍是 `c57bd1af37b22bf9781d67bde198c203baec28c8`。歷次功能說明見 [README](../README.md)，測試與安裝證據見 [開發記錄](DEVELOPMENT_LOG.md)。
 
 ## 本次本機更新
 
-- 四個字表入口共用 `word-search.js`／`word-search-ui.js`，離線多音索引 `search-readings.js`。新增 runtime 模組均已加入 SW SHELL。
-- 搜尋只篩选既有字卡；匹配結果和已選字在同一字格，原字鍵、帳號 × 語系標記及使用次數不變。字表切換排序不再清空選取；拖選期間延後隱藏／排列，放手才更新。
-- 認字表 v1.34.1 將新增移至面板、統計縮為資訊列、排序改單一選單，搜尋與管理操作集中於字卡區。樣式只作用於認字表。
-- v1.34.2 增加小書本 SVG 角色與多彩徽章、104×116px 字卡和至少 64px 高的常用控制；夜間模式文字與圖示使用對應亮色。搜尋／熟悉度／選取規則沿用。
-- 新增拼音單元測試與合成資料的瀏覽器回歸頁；60 項自動測試、12 組介面回歸與 iPad 尺寸直橫向檢查通過。
-- iPad 安裝紀錄：2026-10-04 17:25:12，v1.34.2 build 75；未讀取裝置私人故事／字表作互動測試。下方是上次公開上線紀錄，不能當作 v1.34.2 已公開發布的證據。
+- 四個字表入口共用 `word-search.js`／`word-search-ui.js`，離線多音索引 `search-readings.js`。認字表新增 `word-filter.js`，四色統計按鈕篩選目前管理帳號的紅綠及全家共用使用次數；分類與搜尋取交集，完整選取仍保留同一字格。重新進入字表回到全部、最新，選字出題也預設最新。
+- 遊戲首頁用三個大 SVG 入口與短標題，移除說明小字；選字頁加大控制、開始靠右、去除使用次數小字，正式認字表仍保留。閃卡紅綠提示改成短徽章，夜間配色沿用 App 變數。
+- `story-pronunciation.js` 提供逐位置讀音驗證；家長「閱讀設定 → 設定讀音」開啟 `story-pronunciation-ui.js`。設定存在 `story.readings[index] = { char, syllable }`，同篇相同字可獨立保存；同步優先播放指定音節，繞過整詞／AI 快取。修改內文或字形政策改動內文即清除，純標題改動保留。完整備份包含此欄位。
+- `zhao2` 補錄音沿用 Unlicense 上游，`zhe5` 使用教育部《國語辭典簡編本》原始錄音，CC BY-ND 3.0 TW；兩者未修改。來源、完整授權及教育部原說明隨包附帶。SW SHELL 包含新 runtime 和授權資產，補充音檔安裝時快取至 SYL_CACHE，設定頁離線下載亦包含兩份音檔。
+- 67 項自動測試、18 組瀏覽器互動回歸、lint 與 diff 檢查通過；以合成資料檢查 iPad 1024×1366、1366×1024 與夜間配色。實際瀏覽器點按兩個「著」分別儲存並驗證指定音檔路徑；未操作 iPad 的私人故事／字表作互動測試。
+- iPad 安裝紀錄：2026-10-04 18:28:57，v1.35.0 build 76；裝置查詢確認實際版本，22 個修改 runtime／CSS／音檔／授權檔的 source、dist、原生安裝包 SHA-256 一致。未解除安裝或清除資料。build 76 依目前 HEAD 提交數產生，不代表本次修改已提交。
 
 ## 上次公開上線紀錄（2026-10-03）
 
@@ -24,7 +24,7 @@
 ## 架構與維護入口
 
 - 前端為原生 ES modules。`npm run build` 先產生固定版本 OpenCC vendor，再將靜態資源複製到 `dist/`；Pages 與 Capacitor 均使用該產物。
-- `js/store.js` 管 localStorage、IndexedDB、版本與儲存邊界；`js/story.js` 管閱讀、編輯、手動新增；`js/words.js` 與 `js/game.js` 管字表與遊戲；`js/voice.js` 是統一發音入口。
+- `js/store.js` 管 localStorage、IndexedDB、版本與儲存邊界；`js/story.js` 管閱讀、編輯、手動新增；`js/words.js` 與 `js/game.js` 管字表與遊戲；`js/voice.js` 是統一發音入口；`js/story-pronunciation.js`／`js/story-pronunciation-ui.js` 管故事逐位置讀音及家長設定。
 - `js/zhconv.js` 管字形轉換；`js/text-policy.js` 管故事入庫與舊資料修復，為 App 和 Worker 共用的純函式模組。
 - `cloud/inbox/worker.js` + 私人 R2 保存傳入故事；`js/inbox-format.js` 管格式，`js/inbox-transfer.js` 管接收，`js/inbox.js` 管配對與自動檢查。部署及送書操作見 [收件匣 README](../cloud/inbox/README.md)。
 - App 資料與 Safari PWA 分屬不同 origin。資料同步須用設定頁完整匯出／匯入；故事收件匣的配對亦各自獨立。
@@ -54,7 +54,7 @@ OpenCC 固定 `opencc-js@1.4.2`。`tools/vendor-opencc.mjs` 產生 `js/vendor/op
 - `store.js` 載入資料時，先處理既有字卡遷移，再套用 v1.33.0 字形政策。`textPolicy: 1` 的故事不重跑舊資料修復。
 - 舊故事先按來源轉繁體，再執行 `repairLegacyText()`：只用明確詞組表修復錯詞，再以 OpenCC t → tw 正規化繁體異體字。禁止全域 `後 → 后`、`幹 → 干`、`裏 → 里`，以免改壞合法內容。
 - 文字變動或原來源為簡體的舊故事，其完整原紀錄存於該故事 `textBackup`；字表重寫前先將完整原字表存於 localStorage `autobook.textBackup`。兩者納入完整備份的匯出／匯入。
-- 標題和內文的 Unicode 字元數皆未變時保留點讀／標註索引；任一長度變動才清除索引式紀錄。文字變動移除 `polys`，下次重新偵測；IndexedDB 原音訊不刪，媒體與 `readsBy` 保留。
+- 標題和內文的 Unicode 字元數皆未變時保留點讀／標註索引；任一長度變動才清除索引式紀錄。文字變動移除 `polys`，下次重新偵測；內文變動另移除 `readings`，避免錯位；IndexedDB 原音訊不刪，媒體與 `readsBy` 保留。
 - 字表僅將簡體專有字正規化成繁體鍵；相同鍵合併時，紅綠取較新 `markedAt`、次數取較大值、入庫取聯集、各帳號卡片保留，舊字形記入 `sourceChars`。
 - 字表備份寫入失敗時不重寫字表；儲存失敗保留磁碟原資料，後續載入可重試。不要為排除遷移問題清除 localStorage、IndexedDB 或移除 App。
 - 自動修復不能保證重建所有舊逐字誤轉的原意。新增修復詞組前，需同時測試合法繁體詞不被改壞，並沿用原文備份。

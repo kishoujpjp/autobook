@@ -54,9 +54,9 @@ function matchRank(ch, tokens) {
 }
 
 /** pool 保留原排序；完整音節優先。selected 非符合項仍留在同一格區。 */
-export function filterCharacters(pool, query, selected = new Set()) {
+export function filterCharacters(pool, query, selected = new Set(), candidates = pool) {
   const tokens = tokensFor(query);
-  const ranked = pool.map((ch) => ({ ch, rank: query.trim() ? matchRank(ch, tokens) : 0 }));
+  const ranked = candidates.map((ch) => ({ ch, rank: query.trim() ? matchRank(ch, tokens) : 0 }));
   const matches = ranked.filter((item) => Number.isFinite(item.rank))
     .sort((a, b) => a.rank - b.rank).map((item) => item.ch);
   const matched = new Set(matches);

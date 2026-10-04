@@ -14,6 +14,12 @@ let sylAudio = null;
 export function playSyllable(ch) {
   const syl = syllableOf(ch);
   if (!syl) return false;
+  return playReading(syl);
+}
+
+/** 直接播放已驗證的音節檔名，故事指定讀音不使用單字／整詞快取。 */
+export function playReading(syl) {
+  if (!/^[a-z]+[1-5]$/.test(syl)) return false;
   if (sylAudio) { sylAudio.pause(); sylAudio = null; }
   const a = new Audio(`syl/${syl}.mp3`);
   sylAudio = a;

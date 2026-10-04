@@ -15,7 +15,7 @@ import {
 } from './store.js';
 import { openAccountEditor, openPinSetup, clearPin } from './account.js';
 import { avatarEl } from './avatars.js';
-import { allSyllables } from './readings.js';
+import { readingSyllables } from './story-pronunciation.js';
 import { hasInbox, inboxStatus, watchInbox, pairInbox, disconnectInbox, syncInbox, pauseInbox } from './inbox.js';
 
 const SYL_CACHE = 'autobook-syl-1'; // 與 sw.js 一致：音節音檔的持久快取
@@ -337,7 +337,7 @@ function openErrLog() {
 /** 把全部音節 mp3 抓進持久快取（App 更新不會清掉）；已抓過的跳過，可中斷後續按 */
 async function downloadAllSyllables() {
   if (!('caches' in window)) { toast(t('syl_dl_unavail'), true); return; }
-  const syls = allSyllables();
+  const syls = readingSyllables();
   const cache = await caches.open(SYL_CACHE);
   const existing = new Set((await cache.keys()).map((r) => new URL(r.url).pathname.split('/').pop()));
   const missing = syls.filter((s) => !existing.has(`${s}.mp3`));

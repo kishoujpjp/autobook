@@ -1,6 +1,7 @@
 // 介面文字：繁 / 簡 兩套
 const DICT = {
   'zh-Hant': {
+    pron_invalid: '請輸入單一拼音音節，聲調用 1–5；也可點選下方讀音。', pron_title: '這篇的讀音', pron_open: '設定讀音', pron_input: '指定拼音', pron_input_ph: '例如 zhao2、zháo、zhe5', pron_text: '點選文章中的字', pron_char: '第 {n} 字：{ch}', pron_hint: '點選文章中要修正的那個字，再選讀音或輸入拼音並試聽。只套用於這個位置；修改內文後會清除指定讀音。', pron_preview: '試聽', pron_reset: '恢復預設', pron_saved: '這個字的讀音已儲存', pron_reset_done: '已恢復預設讀音', pron_done: '完成', pron_credit: '輕聲錄音：教育部《國語辭典簡編本》2021', pron_license: 'CC BY-ND 3.0 TW 使用說明',
     input_script: '輸入字形', input_script_auto: '自動判斷（不確定時保留原文）',
     input_script_hant: '繁體中文（保留原文）', input_script_hans: '簡體中文（轉成繁體）',
     inbox_title: '故事收件匣', inbox_note: '收到後可離線閱讀。雲端副本會在第一台裝置收到 7 天後清理。',
@@ -237,10 +238,10 @@ const DICT = {
     // 遊戲頁
     game_title: '認字遊戲',
     game_intro: '聽聲音，找出正確的字！',
-    game_menu_listen: '聽音認字',
+    game_menu_listen: '聽一聽',
     game_menu_flash: '認字卡',
     game_menu_flash_desc: '大字卡，拿給小朋友一起唸',
-    game_menu_word: '認詞彙',
+    game_menu_word: '詞語卡',
     game_menu_word_desc: '用學過的字拼出詞語卡',
     flash_back: '返回',
     flash_count: '第 {n} 張',
@@ -451,6 +452,7 @@ const DICT = {
     hint_network: '連不上伺服器：請檢查網路連線',
   },
   'zh-Hans': {
+    pron_invalid: '请输入单一拼音音节，声调用 1–5；也可点选下方读音。', pron_title: '这篇的读音', pron_open: '设置读音', pron_input: '指定拼音', pron_input_ph: '例如 zhao2、zháo、zhe5', pron_text: '点选文章中的字', pron_char: '第 {n} 字：{ch}', pron_hint: '点选文章中要修正的那个字，再选读音或输入拼音并试听。只套用于这个位置；修改正文后会清除指定读音。', pron_preview: '试听', pron_reset: '恢复默认', pron_saved: '这个字的读音已保存', pron_reset_done: '已恢复默认读音', pron_done: '完成', pron_credit: '轻声录音：教育部《國語辭典簡編本》2021', pron_license: 'CC BY-ND 3.0 TW 使用说明',
     input_script: '输入字形', input_script_auto: '自动判断（不确定时保留原文）',
     input_script_hant: '繁体中文（保留原文）', input_script_hans: '简体中文（转成繁体）',
     inbox_title: '故事收件箱', inbox_note: '收到后可离线阅读。云端副本会在第一台设备收到 7 天后清理。',
@@ -684,10 +686,10 @@ const DICT = {
     story_again: '再读一遍',
     game_title: '认字游戏',
     game_intro: '听声音，找出正确的字！',
-    game_menu_listen: '听音认字',
+    game_menu_listen: '听一听',
     game_menu_flash: '认字卡',
     game_menu_flash_desc: '大字卡，拿给小朋友一起念',
-    game_menu_word: '认词汇',
+    game_menu_word: '词语卡',
     game_menu_word_desc: '用学过的字拼出词语卡',
     flash_back: '返回',
     flash_count: '第 {n} 张',

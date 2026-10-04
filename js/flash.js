@@ -33,6 +33,7 @@ function isWeak(w) {
 }
 
 export function startFlash(root, mode, onExit, opts = {}) {
+  root.classList.remove('game-picker-page');
   // 指定出題範圍（選字出題）：只出這些字，且不受綠字冷卻與不熟模式限制
   const only = opts.onlyChs || null;
   const seq = [];
@@ -230,9 +231,9 @@ export function startFlash(root, mode, onExit, opts = {}) {
   const backBtn = el('button', { class: 'icon-btn', 'aria-label': t('flash_back') });
   backBtn.innerHTML = SVG_BACK;
   backBtn.addEventListener('click', () => { sfx.tap(); onExit(); });
-  const prevBtn = el('button', { class: 'fc-nav' });
+  const prevBtn = el('button', { class: 'fc-nav', 'aria-label': t('shelf_page_prev') });
   prevBtn.innerHTML = SVG_PREV;
-  const nextBtn = el('button', { class: 'fc-nav next' });
+  const nextBtn = el('button', { class: 'fc-nav next', 'aria-label': t('shelf_page_next') });
   nextBtn.innerHTML = SVG_NEXT;
 
   // 認詞彙：詞長選擇
@@ -263,7 +264,10 @@ export function startFlash(root, mode, onExit, opts = {}) {
       cardArea,
       el('div', { class: 'fc-controls' },
         prevBtn,
-        el('span', { class: 'fc-hint', text: t('flash_hint') }),
+        el('span', { class: 'fc-status-key' },
+          el('span', { class: 'fc-status-learned' }, icon('check'), t('words_learned')),
+          el('span', { class: 'fc-status-weak' }, icon('heart'), t('words_weak')),
+        ),
         nextBtn,
       ),
     ),
