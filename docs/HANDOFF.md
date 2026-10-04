@@ -1,6 +1,6 @@
 # 自動繪本維護交接
 
-更新日期：2026-10-04（UTC+8）。目前本機及 iPad App 版本 v1.35.0；四色篩選、兒童遊戲介面與逐字讀音已實裝、覆蓋更新至 iPad。使用者已授權本次 commit／push，正在發布並核對 Pages。上一個本機提交 `f12fd24` 是 v1.34.2 字表搜尋及繪本風格；上次公開功能提交仍是 `c57bd1af37b22bf9781d67bde198c203baec28c8`。歷次功能說明見 [README](../README.md)，測試與安裝證據見 [開發記錄](DEVELOPMENT_LOG.md)。
+更新日期：2026-10-04（UTC+8）。目前本機及 iPad App 版本 v1.35.0；四色篩選、兒童遊戲介面與逐字讀音已實裝、覆蓋更新至 iPad。本次已依使用者授權 commit／push 並發布 Pages；功能提交為 `321ee44f29c570684e87925573e6659c6987fab2`。前一個提交 `f12fd24` 的 v1.34.2 字表搜尋及繪本風格也隨本次推送公開。歷次功能說明見 [README](../README.md)，測試與安裝證據見 [開發記錄](DEVELOPMENT_LOG.md)。
 
 ## 本次本機更新
 
@@ -11,13 +11,13 @@
 - 67 項自動測試、18 組瀏覽器互動回歸、lint 與 diff 檢查通過；以合成資料檢查 iPad 1024×1366、1366×1024 與夜間配色。實際瀏覽器點按兩個「著」分別儲存並驗證指定音檔路徑；未操作 iPad 的私人故事／字表作互動測試。
 - iPad 安裝紀錄：2026-10-04 18:28:57，v1.35.0 build 76；裝置查詢確認實際版本，22 個修改 runtime／CSS／音檔／授權檔的 source、dist、原生安裝包 SHA-256 一致。未解除安裝或清除資料。build 76 依目前 HEAD 提交數產生，不代表本次修改已提交。
 
-## 上次公開上線紀錄（2026-10-03）
+## 最新公開上線紀錄（2026-10-04）
 
 | 目標 | 本次確認結果 |
 |---|---|
-| [GitHub Pages](https://kishoujpjp.github.io/autobook/) | v1.33.0；本次 SHA 的 Actions 成功，正式站五個關鍵 JS 檔與本機 dist 的 SHA-256 一致 |
-| [故事收件匣](https://autobook-inbox.daizukan.app/health) | Worker `autobook-inbox` 已部署；版本 ID `da1fd09e-99dc-4286-bb66-f43766b97d6f`，health 正常 |
-| iPad「自動繪本」 | `com.kishou.autobook` v1.33.0，build 73；安裝成功，已用 devicectl 查詢裝置實際版本 |
+| [GitHub Pages](https://kishoujpjp.github.io/autobook/) | v1.35.0；功能提交 `321ee44` 的 [Actions](https://github.com/kishoujpjp/autobook/actions/runs/37198401588) 成功，正式站 22 個關鍵 runtime／CSS／錄音／授權資產的 SHA-256 與本機 dist 及 iOS 安裝包一致 |
+| 故事收件匣 | 本次未修改／部署 Worker；沿用 2026-10-03 的部署紀錄，未在此次重新查詢雲端版本 |
+| iPad「自動繪本」 | `com.kishou.autobook` v1.35.0，build 77；2026-10-04 19:21:13 自動更新完成，devicectl 確認裝置實際版本。純文檔提交後 build 號可能繼續遞增 |
 
 這是上述日期的部署紀錄，後續維護須重新查詢當次結果。`/health` 的 `version: 1` 是收件匣協定版本，不是 App 版號，也不能單憑 health 判定 Worker 程式版本。安裝成功不等於裝置上的資料遷移已完成；遷移於新版 App 載入時執行，本次未讀取 iPad 的私人故事與字表驗證遷移。
 

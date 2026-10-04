@@ -116,3 +116,11 @@
 - 新模組與授權資產加入 SW SHELL；安裝時補充錄音放入持久 SYL_CACHE，設定頁的离線下載也枚舉這兩份音檔。原生 App 隨包附带。
 - lint、67／67 自動測試、18 組瀏覽器互動回歸、diff 檢查通過。用實際模組和合成資料檢查 iPad 直橫向、夜間配色；實際點按兩個「著」分別保存 zhe5／zhao2、驗證播放使用指定檔案路徑。修正讀音編輯區在橫向遮住下方選字，以及原生 append(null) 讓小孩首頁出現文字的問題。未在實體 iPad 逐字操作或主觀確認播放聲音。
 - build、Capacitor sync、原生建置與安裝成功。2026-10-04 18:28:57 覆蓋更新 iPad v1.35.0 build 76；devicectl 查詢實際版本一致，22 個 runtime／CSS／補充錄音／授權資產的 source、dist、App public SHA-256 一致。未解除安裝或清除資料。本次變更尚未 commit／push 或發布 Pages，未重新部署收件匣 Worker；部署日誌的 HEAD `f12fd24` 是前一版提交，不是此次變更。
+
+## 2026-10-04 — 提交、推送與公開發布 v1.35.0
+
+- 依使用者「commit push」授權建立功能提交 `321ee44f29c570684e87925573e6659c6987fab2`，推送 `main`；前一個尚未推送的 `f12fd24` 也一起發布。未追蹤的個人圖片保持原狀。
+- 發布前 lint、67／67 自動測試、build 與 diff 檢查通過；先前 18 項實際瀏覽器互動結果沿用，沒有修改已驗證的程式。
+- [本次 GitHub Actions](https://github.com/kishoujpjp/autobook/actions/runs/37198401588) 的 head SHA 與功能提交一致，完成且 conclusion=success（2026-10-04 19:21:07 UTC+8）。
+- 正式 Pages 的 22 個 runtime／CSS／補充錄音／授權檔使用提交 SHA 查詢參數避開舊快取，下載成功，SHA-256 與本機 dist、iOS 安裝包 public 完全一致。新版 v1.35.0 確認公開發布；本次未修改或部署 Worker。
+- 2026-10-04 19:21:13，main 提交觸發既有自動部署，iPad 覆蓋更新至 v1.35.0 build 77；devicectl 查詢確認實際版本一致。資料未清除。此次發布紀錄另以純文檔提交補錄，App 版號不變，自動部署的 build 號可能再次遞增。
