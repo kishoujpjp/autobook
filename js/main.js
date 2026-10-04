@@ -3,7 +3,7 @@
 import { setLang, t } from './i18n.js';
 import { settings, isKid } from './store.js';
 import { sfx } from './sfx.js';
-import { toast, TIMING } from './ui.js';
+import { toast, TIMING, stopConfetti } from './ui.js';
 import { icon } from './icons.js';
 import { setNavHandler } from './nav.js';
 import { initStory, refreshStoryPage, initShelf, refreshShelfPage, currentStoryId } from './story.js';
@@ -44,6 +44,7 @@ let activePage = 'story';
 function showPage(target) {
   if (!pages[target]) return;
   if (PARENT_ONLY.has(target) && isKid()) target = 'story'; // 小孩帳號：程式面也擋
+  if (target !== activePage) stopConfetti();
   activePage = target;
   document.querySelectorAll('#tabbar .tab').forEach((x) => {
     const on = x.dataset.page === target;

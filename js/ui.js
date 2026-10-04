@@ -106,8 +106,18 @@ export function switchEl(on, onToggle, label = '') {
 const COLORS = ['#E9631A', '#199E94', '#E64B82', '#2F82D6', '#FFD93D', '#7DC855'];
 let confettiRun = 0; // 每次呼叫一個世代：新的一場開始，舊的迴圈自己退場（以前共用一個旗標會互相殺）
 
+export function stopConfetti() {
+  confettiRun++;
+  const canvas = document.getElementById('confetti-canvas');
+  if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+}
+
 export function confetti(durationMs = 2200, count = 120) {
   const canvas = document.getElementById('confetti-canvas');
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    stopConfetti();
+    return;
+  }
   const dpr = window.devicePixelRatio || 1;
   canvas.width = innerWidth * dpr;
   canvas.height = innerHeight * dpr;

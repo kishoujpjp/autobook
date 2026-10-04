@@ -1,12 +1,33 @@
 // WebAudio 合成音效（不需任何素材檔）＋ PCM→WAV 工具
 let ctx = null;
+let effectBus = null;
+let effectContext = null;
 export function audioCtx() {
-  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (!ctx || ctx.state === 'closed') ctx = new (window.AudioContext || window.webkitAudioContext)();
   if (ctx.state === 'suspended') ctx.resume();
   return ctx;
 }
 
-function tone(freq, start, dur, type = 'sine', gain = 0.25, glide = 0) {
+// 音效共用柔和音量與壓縮器；連點、完成和星星同時響也不累加成尖銳的大聲。
+// 只處理效果音，不改錄音／語音的音量；iOS 重建 AudioContext 時一起重建。
+function effects(c) {
+  if (effectContext !== c) {
+    const level = c.createGain();
+    level.gain.value = 0.65;
+    const limiter = c.createDynamicsCompressor();
+    limiter.threshold.value = -18;
+    limiter.knee.value = 12;
+    limiter.ratio.value = 8;
+    limiter.attack.value = 0.005;
+    limiter.release.value = 0.18;
+    level.connect(limiter).connect(c.destination);
+    effectBus = level;
+    effectContext = c;
+  }
+  return effectBus;
+}
+
+function tone(freq, start, dur, type = 'sine', gain = 0.16, glide = 0) {
   const c = audioCtx();
   const o = c.createOscillator();
   const g = c.createGain();
@@ -14,48 +35,57 @@ function tone(freq, start, dur, type = 'sine', gain = 0.25, glide = 0) {
   o.frequency.setValueAtTime(freq, c.currentTime + start);
   if (glide) o.frequency.exponentialRampToValueAtTime(glide, c.currentTime + start + dur);
   g.gain.setValueAtTime(0, c.currentTime + start);
-  g.gain.linearRampToValueAtTime(gain, c.currentTime + start + 0.015);
-  g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + start + dur);
-  o.connect(g).connect(c.destination);
+  g.gain.linearRampToValueAtTime(gain, c.currentTime + start + Math.min(0.018, dur / 4));
+  g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + start + dur);
+  g.gain.linearRampToValueAtTime(0, c.currentTime + start + dur + 0.015);
+  o.connect(g).connect(effects(c));
+  o.onended = () => { o.disconnect(); g.disconnect(); };
   o.start(c.currentTime + start);
   o.stop(c.currentTime + start + dur + 0.05);
 }
 
-export const sfx = {
-  pop()   { tone(880, 0, 0.09, 'sine', 0.2, 1320); },
-  unpop() { tone(660, 0, 0.09, 'sine', 0.15, 440); },
+// 木琴／音樂盒的圓潤主音，泛音短而輕，沒有鋸齒波的刺耳蜂鳴。
+function chime(freq, start = 0, dur = 0.28, gain = 0.16) {
+  tone(freq, start, dur, 'sine', gain);
+  tone(freq * 2, start + 0.008, dur * 0.45, 'sine', gain * 0.13);
+}
+
+const effectSounds = {
+  pop()   { tone(587.33, 0, 0.12, 'sine', 0.12, 783.99); },
+  unpop() { tone(523.25, 0, 0.12, 'sine', 0.09, 392); },
   // 故事點讀高亮用：極輕的短提示音，不干擾親子唸讀
-  tick()  { tone(1200, 0, 0.045, 'sine', 0.06); },
-  tock()  { tone(800, 0, 0.045, 'sine', 0.05); },
-  tap()   { tone(520, 0, 0.06, 'triangle', 0.15); },
+  tick()  { tone(880, 0, 0.055, 'sine', 0.045); },
+  tock()  { tone(659.25, 0, 0.055, 'sine', 0.035); },
+  tap()   { tone(587.33, 0, 0.085, 'sine', 0.09, 523.25); },
   correct() {
-    tone(523.25, 0,    0.12, 'triangle', 0.28);
-    tone(659.25, 0.09, 0.12, 'triangle', 0.28);
-    tone(783.99, 0.18, 0.22, 'triangle', 0.3);
+    chime(523.25, 0, 0.22, 0.17);
+    chime(659.25, 0.11, 0.22, 0.17);
+    chime(783.99, 0.22, 0.34, 0.18);
   },
   wrong() {
-    tone(220, 0, 0.18, 'sawtooth', 0.12, 160);
-    tone(180, 0.12, 0.22, 'sawtooth', 0.1, 120);
+    // 「再試試看」：兩顆柔和低音，不用警報聲懲罰嘗試。
+    chime(392, 0, 0.18, 0.12);
+    chime(329.63, 0.14, 0.24, 0.1);
   },
   fanfare() {
-    const notes = [523.25, 659.25, 783.99, 1046.5, 783.99, 1046.5];
-    notes.forEach((f, i) => tone(f, i * 0.13, 0.2, 'triangle', 0.3));
-    tone(1318.5, 0.78, 0.5, 'triangle', 0.32);
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((f, i) => chime(f, i * 0.15, 0.32, 0.17));
+    chime(659.25, 0.58, 0.48, 0.1);
+    chime(1046.5, 0.58, 0.48, 0.16);
   },
   sparkle() {
-    tone(1567.98, 0, 0.1, 'sine', 0.15);
-    tone(2093, 0.07, 0.14, 'sine', 0.12);
+    chime(1046.5, 0, 0.16, 0.09);
+    chime(1318.51, 0.09, 0.22, 0.07);
   },
   /** 星星階梯音：第 i 顆（0~4）音高遞升，帶一點高八度亮光 */
   star(i) {
-    const ladder = [523.25, 659.25, 783.99, 987.77, 1174.66]; // C5 E5 G5 B5 D6
-    const f = ladder[Math.min(i, ladder.length - 1)];
-    tone(f, 0, 0.22, 'triangle', 0.3);
-    tone(f * 2, 0.02, 0.12, 'sine', 0.1);
+    const ladder = [523.25, 587.33, 659.25, 783.99, 880]; // C5 D5 E5 G5 A5
+    const f = ladder[Math.max(0, Math.min(Math.trunc(i) || 0, ladder.length - 1))];
+    chime(f, 0, 0.26, 0.15);
   },
   whoosh() {
     const c = audioCtx();
-    const len = 0.35 * c.sampleRate;
+    const len = Math.floor(0.3 * c.sampleRate);
     const buf = c.createBuffer(1, len, c.sampleRate);
     const d = buf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
@@ -63,14 +93,30 @@ export const sfx = {
     src.buffer = buf;
     const f = c.createBiquadFilter();
     f.type = 'bandpass';
-    f.frequency.setValueAtTime(600, c.currentTime);
-    f.frequency.exponentialRampToValueAtTime(3000, c.currentTime + 0.3);
+    f.frequency.setValueAtTime(420, c.currentTime);
+    f.frequency.exponentialRampToValueAtTime(1400, c.currentTime + 0.28);
+    f.Q.value = 0.7;
     const g = c.createGain();
-    g.gain.value = 0.18;
-    src.connect(f).connect(g).connect(c.destination);
+    g.gain.setValueAtTime(0, c.currentTime);
+    g.gain.linearRampToValueAtTime(0.09, c.currentTime + 0.045);
+    g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.3);
+    src.connect(f).connect(g).connect(effects(c));
+    src.onended = () => { src.disconnect(); f.disconnect(); g.disconnect(); };
     src.start();
   },
 };
+
+// 同種提示在 45ms 內合併：防止重複觸控事件或快速連點把音量與振盪器堆起來。
+// 不同效果仍可同時播放，星星與完成旋律中的各音符不受影響。
+export const sfx = Object.fromEntries(Object.entries(effectSounds).map(([name, play]) => {
+  let last = -Infinity;
+  return [name, (...args) => {
+    const now = performance.now();
+    if (now - last < 45) return;
+    last = now;
+    play(...args);
+  }];
+}));
 
 // Gemini TTS 回傳 raw PCM (s16le, 24kHz, mono)，包成 WAV 才能給 <audio> 播
 export function pcmToWav(pcmBytes, sampleRate = 24000, channels = 1) {

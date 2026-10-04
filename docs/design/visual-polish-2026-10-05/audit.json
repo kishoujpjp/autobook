@@ -1,0 +1,361 @@
+{
+  "engine": "chromium",
+  "errors": [],
+  "filters": [
+    {
+      "selected": "stat-chip learned on",
+      "pressed": 1,
+      "visible": 18
+    },
+    {
+      "selected": "stat-chip weak on",
+      "pressed": 1,
+      "visible": 18
+    },
+    {
+      "selected": "stat-chip unused on",
+      "pressed": 1,
+      "visible": 14
+    },
+    {
+      "selected": "stat-chip total on",
+      "pressed": 1,
+      "visible": 54
+    }
+  ],
+  "combinations": [
+    {
+      "size": {
+        "width": 1366,
+        "height": 1024
+      },
+      "theme": "light",
+      "layout": "focus",
+      "font": "small",
+      "pages": 2,
+      "clipped": [],
+      "pageOverflow": false,
+      "progressNoTouch": true
+    },
+    {
+      "size": {
+        "width": 1366,
+        "height": 1024
+      },
+      "theme": "light",
+      "layout": "focus",
+      "font": "big",
+      "pages": 3,
+      "clipped": [],
+      "pageOverflow": false,
+      "progressNoTouch": true
+    },
+    {
+      "size": {
+        "width": 1366,
+        "height": 1024
+      },
+      "theme": "light",
+      "layout": "side",
+      "font": "small",
+      "pages": 2,
+      "clipped": [],
+      "pageOverflow": false,
+      "progressNoTouch": true
+    },
+    {
+      "size": {
+        "width": 1366,
+        "height": 1024
+      },
+      "theme": "light",
+      "layout": "side",
+      "font": "big",
+      "pages": 3,
+      "clipped": [],
+      "pageOverflow": false,
+      "progressNoTouch": true
+    },
+    {
+      "size": {
+        "width": 1366,
+        "height": 1024
+      },
+      "theme": "dark",
+      "layout": "focus",
+      "font": "small",
+      "pages": 2,
+      "clipped": [],
+      "pageOverflow": false,
+      "progressNoTouch": true
+    },
+    {
+      "size": {
+        "width": 1366,
+        "height": 1024
+      },
+      "theme": "dark",
+      "layout": "focus",
+      "font": "big",
+      "pages": 3,
+      "clipped": [],
+      "pageOverflow": false,
+      "progressNoTouch": true
+    },
+    {
+      "size": {
+        "width": 1366,
+        "height": 1024
+      },
+      "theme": "dark",
+      "layout": "side",
+      "font": "small",
+      "pages": 2,
+      "clipped": [],
+      "pageOverflow": false,
+      "progressNoTouch": true
+    },
+    {
+      "size": {
+        "width": 1366,
+        "height": 1024
+      },
+      "theme": "dark",
+      "layout": "side",
+      "font": "big",
+      "pages": 3,
+      "clipped": [],
+      "pageOverflow": false,
+      "progressNoTouch": true
+    },
+    {
+      "size": {
+        "width": 1024,
+        "height": 1366
+      },
+      "theme": "light",
+      "layout": "focus",
+      "font": "small",
+      "pages": 1,
+      "clipped": [],
+      "pageOverflow": false,
+      "progressNoTouch": true
+    },
+    {
+      "size": {
+        "width": 1024,
+        "height": 1366
+      },
+      "theme": "light",
+      "layout": "focus",
+      "font": "big",
+      "pages": 2,
+      "clipped": [],
+      "pageOverflow": false,
+      "progressNoTouch": true
+    },
+    {
+      "size": {
+        "width": 1024,
+        "height": 1366
+      },
+      "theme": "light",
+      "layout": "side",
+      "font": "small",
+      "pages": 3,
+      "clipped": [],
+      "pageOverflow": false,
+      "progressNoTouch": true
+    },
+    {
+      "size": {
+        "width": 1024,
+        "height": 1366
+      },
+      "theme": "light",
+      "layout": "side",
+      "font": "big",
+      "pages": 5,
+      "clipped": [],
+      "pageOverflow": false,
+      "progressNoTouch": true
+    },
+    {
+      "size": {
+        "width": 1024,
+        "height": 1366
+      },
+      "theme": "dark",
+      "layout": "focus",
+      "font": "small",
+      "pages": 1,
+      "clipped": [],
+      "pageOverflow": false,
+      "progressNoTouch": true
+    },
+    {
+      "size": {
+        "width": 1024,
+        "height": 1366
+      },
+      "theme": "dark",
+      "layout": "focus",
+      "font": "big",
+      "pages": 2,
+      "clipped": [],
+      "pageOverflow": false,
+      "progressNoTouch": true
+    },
+    {
+      "size": {
+        "width": 1024,
+        "height": 1366
+      },
+      "theme": "dark",
+      "layout": "side",
+      "font": "small",
+      "pages": 3,
+      "clipped": [],
+      "pageOverflow": false,
+      "progressNoTouch": true
+    },
+    {
+      "size": {
+        "width": 1024,
+        "height": 1366
+      },
+      "theme": "dark",
+      "layout": "side",
+      "font": "big",
+      "pages": 5,
+      "clipped": [],
+      "pageOverflow": false,
+      "progressNoTouch": true
+    }
+  ],
+  "reveal": [
+    {
+      "w": 1366,
+      "h": 1024,
+      "frame": {
+        "x": 133.671875,
+        "y": 50.75,
+        "right": 1232.328125,
+        "bottom": 885.234375
+      },
+      "close": {
+        "top": 909.234375,
+        "bottom": 973.234375
+      },
+      "imageFit": "contain"
+    },
+    {
+      "w": 1024,
+      "h": 1366,
+      "frame": {
+        "x": 28,
+        "y": 271.90625,
+        "right": 996,
+        "bottom": 1006.078125
+      },
+      "close": {
+        "top": 1030.078125,
+        "bottom": 1094.078125
+      },
+      "imageFit": "contain"
+    },
+    {
+      "w": 844,
+      "h": 390,
+      "frame": {
+        "x": 295.328125,
+        "y": 52.59375,
+        "right": 548.65625,
+        "bottom": 249.40625
+      },
+      "close": {
+        "top": 273.40625,
+        "bottom": 337.40625
+      },
+      "imageFit": "contain"
+    }
+  ],
+  "store": {
+    "reads": 1,
+    "markCount": 65
+  },
+  "audio": [
+    {
+      "effect": "pop",
+      "peak": 0.06536741554737091,
+      "rms": 0.004018064451152575,
+      "tail": 0
+    },
+    {
+      "effect": "unpop",
+      "peak": 0.049139589071273804,
+      "rms": 0.00306909705070863,
+      "tail": 0
+    },
+    {
+      "effect": "tap",
+      "peak": 0.0480666384100914,
+      "rms": 0.002603644378871064,
+      "tail": 0
+    },
+    {
+      "effect": "tick",
+      "peak": 0.021929433569312096,
+      "rms": 0.000998769453849895,
+      "tail": 0
+    },
+    {
+      "effect": "tock",
+      "peak": 0.01680854521691799,
+      "rms": 0.0007863963333713938,
+      "tail": 0
+    },
+    {
+      "effect": "correct",
+      "peak": 0.2657386362552643,
+      "rms": 0.02784001831079024,
+      "tail": 0
+    },
+    {
+      "effect": "wrong",
+      "peak": 0.1414855420589447,
+      "rms": 0.011638463030741794,
+      "tail": 0
+    },
+    {
+      "effect": "fanfare",
+      "peak": 0.3621135652065277,
+      "rms": 0.04342001925520045,
+      "tail": 0
+    },
+    {
+      "effect": "sparkle",
+      "peak": 0.0974358543753624,
+      "rms": 0.00770344192951908,
+      "tail": 0
+    },
+    {
+      "effect": "star",
+      "peak": 0.08600557595491409,
+      "rms": 0.00793104008268886,
+      "tail": 0
+    },
+    {
+      "effect": "whoosh",
+      "peak": 0.026810653507709503,
+      "rms": 0.0015588463966951377,
+      "tail": 0
+    },
+    {
+      "effect": "overlap",
+      "peak": 0.3621135652065277,
+      "rms": 0.04424278426125295,
+      "tail": 0
+    }
+  ]
+}

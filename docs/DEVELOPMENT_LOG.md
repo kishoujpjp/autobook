@@ -124,3 +124,22 @@
 - [本次 GitHub Actions](https://github.com/kishoujpjp/autobook/actions/runs/37198401588) 的 head SHA 與功能提交一致，完成且 conclusion=success（2026-10-04 19:21:07 UTC+8）。
 - 正式 Pages 的 22 個 runtime／CSS／補充錄音／授權檔使用提交 SHA 查詢參數避開舊快取，下載成功，SHA-256 與本機 dist、iOS 安裝包 public 完全一致。新版 v1.35.0 確認公開發布；本次未修改或部署 Worker。
 - 2026-10-04 19:21:13，main 提交觸發既有自動部署，iPad 覆蓋更新至 v1.35.0 build 77；devicectl 查詢確認實際版本一致。資料未清除。此次發布紀錄另以純文檔提交補錄，App 版號不變，自動部署的 build 號可能再次遞增。
+
+
+## 2026-10-05 — v1.36.0：5 歲幼兒視覺與音效精修（本機待發布）
+
+- 閱讀／通用卡片改為柔和紙張陰影，按鈕和字塊縮短底邊與按壓位移；保留字塊、文字卡內距、大小字和分頁計算。遊戲入口與對話框減輕厚重邊框。
+- 完成舞台改用奶油色紙框、淡化背景、短暫彩色星星；框內圖片採 contain 完整顯示。保留完成／重看／點圖重播／再讀一遍／多媒體依遍數解鎖。收起或切頁立即清除彩帶，系統減少動態效果時省略彩帶與飛散星星；補鍵盤 Escape 與焦點往返。
+- 書架未讀完封面加入 SVG 花園與書頁層次，維持書名首字及未讀完不顯圖。底部分頁新繪四個彩色 SVG，保持現有入口與權限。
+- 四色篩選移除藍色選框與勾，改用同色短底線、浮起與圖示放大；原配色、分類／搜尋交集、已選字保留不變。
+- 所有效果音改為較圓潤的正弦音／輕泛音，答錯改兩個低音；獨立效果音壓縮器、45ms 重複事件合併、播放結束斷開節點。語音與音節錄音未改，保留 iOS 語音後 AudioContext 重建。
+
+### 驗證
+
+- `npm run lint`、67 項 `npm test`、`npm run build`、`npx cap sync ios`、`git diff --check` 全部通過。
+- `tools/visual-polish-audit.mjs` 使用獨立 Chromium context 與合成帳號／故事：iPad 1366×1024、1024×1366 × 日夜 × focus／side × 大小字，共 16 組、全部 42 頁；沒有裁字或頁面橫向溢出，進度條維持不可點。
+- 四色分類得到 18／18／14／54 字，選中狀態僅一個。完成只計一遍；重看不增加完成數；再讀清掉當前高亮，第二遍解鎖第二張圖並計兩遍。圖片框、關閉鈕在 iPad 直橫向與 844×390 短螢幕內均可見；Escape／Tab 焦點、彩帶停止與 reduced-motion 檢查通過。
+- 使用另一空白頁錄製的無聲合成 WebM 檢查播放、初始靜音、喇叭切換、點影片不重播特效、收起時停播；不用使用者的私人媒體。最初短暫 MediaRecorder 片段只載入 metadata，換成完整可解碼合成片段後通過，未因此修改 App 播放邏輯。
+- 11 種音效與「20 次重複 tap＋完成＋星星」經 OfflineAudioContext 生成：最大峰值約 0.362，沒有削波，尾端回到 0。這是數位訊號檢查，尚未以實際 iPad 喇叭確認聽感。
+- [預覽與音效](design/visual-polish-2026-10-05/index.html)／[檢查結果](design/visual-polish-2026-10-05/audit.json)留供檢視；docs 與 tools 不打包進 dist。
+- 本機缺少 Playwright WebKit 執行檔，未宣稱 Safari／實際 iPad 已驗證。本次未 commit／push、發布 Pages 或安裝 iPad；只是準備本機與原生靜態資源。

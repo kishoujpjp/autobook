@@ -1,8 +1,17 @@
 # 自動繪本維護交接
 
-更新日期：2026-10-04（UTC+8）。目前本機及 iPad App 版本 v1.35.0；四色篩選、兒童遊戲介面與逐字讀音已實裝、覆蓋更新至 iPad。本次已依使用者授權 commit／push 並發布 Pages；功能提交為 `321ee44f29c570684e87925573e6659c6987fab2`。前一個提交 `f12fd24` 的 v1.34.2 字表搜尋及繪本風格也隨本次推送公開。歷次功能說明見 [README](../README.md)，測試與安裝證據見 [開發記錄](DEVELOPMENT_LOG.md)。
+更新日期：2026-10-05（UTC+8）。本機待發布版為 v1.36.0：幼兒視覺、閱讀圖片框、書架封面、分頁 SVG、四色篩選與音效精修；已 build／Capacitor sync，尚未 commit／push、發布 Pages 或安裝 iPad。上一份已核對的發布記錄為 2026-10-04 的 v1.35.0、功能提交 `321ee44f29c570684e87925573e6659c6987fab2`。歷次功能見 [README](../README.md)，驗證結果見 [開發記錄](DEVELOPMENT_LOG.md)。
 
-## 本次本機更新
+## 本次本機更新（v1.36.0）
+
+- `css/app.css` 統一紙張層次與短底邊，保持故事字塊尺寸、行距計算、文字卡內距與不可點的進度條；四個分頁使用 `nav-*` SVG，四色篩選用短底線與浮起，保留原色。
+- `story.js` 揭曉舞台改為奶油色紙框並完整顯示圖片，保留媒體與完成邏輯；新增鍵盤 Escape／焦點往返，裝飾尊重 reduced-motion。書架未完成封面增加 SVG 花園，不提早露出圖片。
+- `ui.js` 提供 `stopConfetti()`，收起舞台或 `main.js` 換頁時清掉上一場彩帶；效果仍在完成時播放。
+- `sfx.js` 只調效果音：正弦音與短泛音、柔和答錯音、效果專用音量／壓縮器、45ms 重複事件合併、節點釋放。`audioCtx()`、TTS、音節錄音、PCM／WAV API 不變，保留 iOS 語音結束後重建 AudioContext 的處理。
+- `tools/visual-polish-audit.mjs` 用獨立瀏覽器與合成資料驗證閱讀、四色分類、圖片重看／下一張解鎖、影片與音效；輸出畫面與 WAV。實際 iPad／Safari WebKit 尚待驗證，此主機未提供 Playwright WebKit 執行檔。
+- [本機預覽](design/visual-polish-2026-10-05/index.html)只供檢視，docs／tools 不進 dist 或 App 包。發布前仍依下方既有流程核對裝置与正式站。
+
+## 上次更新（v1.35.0）
 
 - 四個字表入口共用 `word-search.js`／`word-search-ui.js`，離線多音索引 `search-readings.js`。認字表新增 `word-filter.js`，四色統計按鈕篩選目前管理帳號的紅綠及全家共用使用次數；分類與搜尋取交集，完整選取仍保留同一字格。重新進入字表回到全部、最新，選字出題也預設最新。
 - 遊戲首頁用三個大 SVG 入口與短標題，移除說明小字；選字頁加大控制、開始靠右、去除使用次數小字，正式認字表仍保留。閃卡紅綠提示改成短徽章，夜間配色沿用 App 變數。

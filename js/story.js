@@ -5,7 +5,7 @@
 // 一本書可以放多組圖片／影片，讀完一遍換下一組（讀完最後一組之後固定用最後一組）
 // 底層一律繁體；顯示簡體時才產生轉換副本。
 import { t, getLang } from './i18n.js';
-import { el, toast, openModal, confirmDialog, infoDialog, confetti, switchEl, TIMING } from './ui.js';
+import { el, toast, openModal, confirmDialog, infoDialog, confetti, stopConfetti, switchEl, TIMING } from './ui.js';
 import { icon } from './icons.js';
 import { createWordSearch } from './word-search-ui.js';
 import { showPage } from './nav.js';
@@ -33,6 +33,7 @@ let pageResize = null; // 目前這次 render 的 resize 監聽（重繪前要�
 let pageRO = null;     // 文字卡尺寸觀察器（插圖載入、安全區、鍵盤等任何版面變動都重算頁高）
 let mediaView = null;  // 目前顯示的圖片／影片元件（重繪前要停播）
 let stageEl = null;    // 專注版面的揭曉舞台（童話外框）
+let stageReturnFocus = null;
 let objUrls = [];      // 這次 render 建立的 blob URL，重繪前釋放
 let celebrateSeq = 0;  // 揭曉動畫的世代編號：重繪後舊的計時器就作廢
 let autoTimer = 0;     // 自動翻頁的倒數（重繪或再點字都要取消）
@@ -673,12 +674,15 @@ function createMediaView(m) {
 
 // ---------- 揭曉舞台（專注版面的童話外框圖片框） ----------
 function closeStage() {
-  if (stageEl) { stageEl.remove(); stageEl = null; }
+  if (stageEl) { stageEl.remove(); stageEl = null; stopConfetti(); }
+  if (stageReturnFocus?.isConnected) stageReturnFocus.focus({ preventScroll: true });
+  stageReturnFocus = null;
 }
 
 /** 把媒體放進童話外框、蓋在整頁上彈出來；點外面或「收起來」關掉（文字還在下面隨時可以再讀） */
 function openStage(view) {
   closeStage();
+  stageReturnFocus = document.activeElement;
   const frame = el('div', { class: 'story-frame in' },
     ...['tl', 'tr', 'bl', 'br'].map((k) => el('span', { class: `orn ${k}` }, icon('sparkle'))),
     el('div', { class: 'frame-mat' }, view.el),
@@ -698,14 +702,25 @@ function openStage(view) {
     sfx.fanfare();
     confetti();
   });
-  const stage = el('div', { class: 'reveal-stage' },
+  const closeBtn = el('button', { class: 'stage-close', onclick: (e) => { e.stopPropagation(); shut(); } }, icon('close'), t('reveal_close'));
+  const stage = el('div', { class: 'reveal-stage', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('media_replay') },
     frame,
-    el('button', { class: 'stage-close', onclick: (e) => { e.stopPropagation(); shut(); } }, icon('close'), t('reveal_close')),
+    closeBtn,
   );
   stage.addEventListener('click', (e) => { if (e.target === stage) shut(); });
+  stage.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); shut(); }
+    if (e.key === 'Tab') {
+      const buttons = [...stage.querySelectorAll('button')].filter((b) => !b.hidden && !b.disabled);
+      const at = buttons.indexOf(document.activeElement);
+      e.preventDefault();
+      buttons[(at + (e.shiftKey ? -1 : 1) + buttons.length) % buttons.length].focus();
+    }
+  });
   // 掛在故事頁裡：切到別的分頁時整頁 display:none，舞台跟著收起來
   root.append(stage);
   stageEl = stage;
+  closeBtn.focus({ preventScroll: true });
   spawnMagicStars(frame);
   sfx.fanfare();
   confetti();
@@ -720,6 +735,7 @@ function speakChar(story, dispCh) {
 
 /** 揭曉時灑在插圖上的魔法星星 */
 function spawnMagicStars(host) {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const names = ['sparkle', 'star', 'sparkle'];
   for (let i = 0; i < 12; i++) {
     const s = el('span', { class: 'magic-star' }, icon(names[i % names.length]));
@@ -1007,7 +1023,7 @@ function renderShelf() {
       art.classList.add('plain');
       art.style.background = `linear-gradient(160deg, ${c1}, ${c2})`;
       const first = [...displayText(s, s.title)].find(isHan) || '書';
-      art.append(el('span', { text: first }));
+      art.append(icon('cover-garden'), el('span', { class: 'bk-initial', text: first }));
     }
     const starN = st.done ? 5 : Math.floor(st.ratio * 5);
     const prog = el('div', { class: 'bk-stars', 'aria-hidden': 'true' }, ...Array.from({ length: 5 }, (_, k) => icon('star', k < starN ? 'on' : '')));
