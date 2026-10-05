@@ -33,6 +33,27 @@ export function validateStoryInput(raw) {
 
 export function validateManifest(raw) {
   const story = validateStoryInput(raw);
+  return { ...story, ...validateImagesManifest(raw),
+    ...(raw.textPolicy === 1 ? { textPolicy: 1 } : {}) };
+}
+
+/** 追加只攜帶原書編號與圖片，不能藉此更改書名、內文或閱讀狀態。 */
+export function validateIllustrationInput(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)
+      || !INBOX_ID.test(raw.id || '') || !INBOX_ID.test(raw.targetId || '')
+      || typeof raw.id !== 'string' || typeof raw.targetId !== 'string') throw new InboxError('format');
+  return { id: raw.id, targetId: raw.targetId, kind: 'illustrations' };
+}
+
+export function validateIllustrationManifest(raw) {
+  const update = validateIllustrationInput(raw);
+  if (raw.kind !== 'illustrations') throw new InboxError('format');
+  return { ...update, ...validateImagesManifest(raw) };
+}
+
+export const illustrationReceiptId = (id) => `illustration:${id}`;
+
+function validateImagesManifest(raw) {
   if (raw.version !== INBOX_VERSION || !Number.isSafeInteger(raw.createdAt) || raw.createdAt <= 0
       || !SHA256.test(raw.digest || '') || !Array.isArray(raw.images) || !raw.images.length
       || raw.images.length > INBOX_LIMITS.images) throw new InboxError('format');
@@ -44,9 +65,8 @@ export function validateManifest(raw) {
   });
   if (images.reduce((n, im) => n + im.size, 0) > INBOX_LIMITS.uploadBytes) throw new InboxError('too_large', 413);
   if (raw.textPolicy != null && raw.textPolicy !== 1) throw new InboxError('format');
-  if (raw.textPolicy === 1 && story.lang !== 'zh-Hant') throw new InboxError('format');
-  return { ...story, version: INBOX_VERSION, createdAt: raw.createdAt, digest: raw.digest, images,
-    ...(raw.textPolicy === 1 ? { textPolicy: 1 } : {}) };
+  if (raw.textPolicy === 1 && raw.lang !== 'zh-Hant') throw new InboxError('format');
+  return { version: INBOX_VERSION, createdAt: raw.createdAt, digest: raw.digest, images };
 }
 
 export function imageMime(bytes) {

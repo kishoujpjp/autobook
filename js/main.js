@@ -103,7 +103,9 @@ window.addEventListener('autobook:inbox-story', () => {
   else if (activePage === 'story' && !currentStoryId()) refreshStoryPage();
 });
 watchInbox((state) => {
-  if ((state.kind === 'done' || state.kind === 'error') && state.count > 0) toast(t('inbox_received', { n: state.count }));
+  if ((state.kind === 'done' || state.kind === 'error') && (state.count > 0 || state.images > 0)) {
+    toast(t('inbox_received', { n: state.count, images: state.images || 0 }));
+  }
 });
 startInbox();
 

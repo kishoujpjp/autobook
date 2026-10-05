@@ -1,12 +1,12 @@
 // 開啟／回前景／恢復連線時接收故事；開著 App 時每分鐘檢查一次。
-import { settings, saveSettings, stories, words, MAX_STORIES, getStory, commitInboxStory,
+import { settings, saveSettings, stories, words, MAX_STORIES, getStory, commitInboxStory, commitInboxIllustrations,
   inboxReceipt, saveInboxReceipt, idbSet, idbDel, bumpUsed } from './store.js';
-import { inboxUrl, parsePairing, InboxError, INBOX_LIMITS } from './inbox-format.js';
-import { receiveInboxStory } from './inbox-transfer.js';
+import { inboxUrl, parsePairing, InboxError, INBOX_LIMITS, INBOX_ID, illustrationReceiptId, validateIllustrationManifest } from './inbox-format.js';
+import { receiveInboxStory, receiveInboxIllustrations } from './inbox-transfer.js';
 import { findNewChars } from './gemini.js';
 
 const listeners = new Set();
-let state = { kind: 'idle', count: 0, error: '', at: 0 };
+let state = { kind: 'idle', count: 0, images: 0, error: '', at: 0 };
 let running = null;
 let controller = null;
 let started = false;
@@ -79,7 +79,7 @@ export async function pairInbox(code) {
     settings.inboxReadToken = previous.token;
     throw new InboxError('storage');
   }
-  status({ kind: 'idle', error: '', count: 0, at: 0 });
+  status({ kind: 'idle', error: '', count: 0, images: 0, at: 0 });
 }
 
 export function disconnectInbox() {
@@ -92,7 +92,7 @@ export function disconnectInbox() {
     settings.inboxReadToken = previous.token;
     throw new InboxError('storage');
   }
-  status({ kind: 'idle', error: '', count: 0, at: 0 });
+  status({ kind: 'idle', error: '', count: 0, images: 0, at: 0 });
 }
 
 function deviceId() {
@@ -155,8 +155,9 @@ export async function pauseInbox() {
 
 async function sync(signal) {
   let count = 0;
+  let images = 0;
   const failures = [];
-  status({ kind: 'checking', count: 0, error: '' });
+  status({ kind: 'checking', count: 0, images: 0, error: '' });
   try {
     const cfg = config();
     const device = deviceId();
@@ -199,7 +200,7 @@ async function sync(signal) {
           });
         } catch (e) {
           const code = e.code || (['storage', 'shelf_full'].includes(e.message) ? e.message : 'network');
-          if (code === 'cancelled' || code === 'auth' || code === 'shelf_full' || code === 'storage') throw new InboxError(code);
+          if (code === 'cancelled' || code === 'auth' || code === 'storage') throw new InboxError(code);
           failures.push(code);
         }
       }
@@ -209,11 +210,75 @@ async function sync(signal) {
         cursors.add(cursor);
       }
     } while (cursor);
+    // 原書先接收，再處理追加；書架滿也不妨礙既有書收圖。
+    await syncIllustrations(cfg, device, signal, failures, (id, n) => {
+      images += n;
+      window.dispatchEvent(new CustomEvent('autobook:inbox-story', { detail: { id } }));
+      status({ images });
+    });
     status({ kind: failures.length ? 'error' : 'done', count, error: failures[0] || '', at: Date.now() });
   } catch (e) {
     if (e.code !== 'cancelled') status({ kind: 'error', count, error: e.code || 'network', at: Date.now() });
   }
-  return { count, error: state.error };
+  return { count, images, error: state.error };
+}
+
+async function syncIllustrations(cfg, device, signal, failures, onApplied) {
+  const packets = [];
+  const cursors = new Set();
+  let cursor = null;
+  const ack = (id, outcome) => request(cfg, `/v1/illustrations/${id}/receipts`, {
+    method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deviceId: device, outcome }),
+  });
+  do {
+    let page;
+    try { page = await request(cfg, `/v1/illustrations${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`, { signal }); }
+    catch (e) {
+      if (!cursor && e.status === 404 && e.code === 'not_found') return; // 相容尚未升級的 Worker
+      throw e;
+    }
+    if (!Array.isArray(page.ids) || page.ids.length > 50 || (page.cursor !== null && typeof page.cursor !== 'string')) throw new InboxError('format');
+    for (const id of page.ids) {
+      if (typeof id !== 'string' || !INBOX_ID.test(id)) throw new InboxError('format');
+      const receiptId = illustrationReceiptId(id);
+      const receipt = inboxReceipt(cfg.url, receiptId);
+      if (receipt) {
+        if (receipt.ackPending || receipt.deviceId !== device) {
+          await ack(id, receipt.outcome);
+          saveInboxReceipt(cfg.url, receiptId, false, device, receipt.outcome);
+        }
+        continue;
+      }
+      const packet = validateIllustrationManifest(await request(cfg, `/v1/illustrations/${id}`, { signal }));
+      if (packet.id !== id) throw new InboxError('format');
+      packets.push(packet);
+    }
+    cursor = page.cursor;
+    if (cursor) {
+      if (cursors.has(cursor)) throw new InboxError('format');
+      cursors.add(cursor);
+    }
+  } while (cursor);
+  // 跨分頁按上傳時間處理；同一本較早追加失敗時，後續追加留到下一輪。
+  packets.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+  const blocked = new Set();
+  for (const packet of packets) {
+    if (blocked.has(packet.targetId)) continue;
+    try {
+      await receiveInboxIllustrations(packet, cfg.url, {
+        receipt: inboxReceipt, saveReceipt: (source, id, pending, outcome) => saveInboxReceipt(source, id, pending, device, outcome),
+        findStory: getStory, download: (id, index) => request(cfg, `/v1/illustrations/${id}/images/${index}`, { signal }),
+        prepare: prepareImage, put: (key, blob) => idbSet('images', key, blob), remove: (key) => idbDel('images', key),
+        checkActive: () => { if (signal.aborted || settings.inboxUrl !== cfg.url || settings.inboxReadToken !== cfg.token) throw new InboxError('cancelled'); },
+        commit: commitInboxIllustrations, ack, onApplied,
+      });
+    } catch (e) {
+      const code = e.code || (['storage', 'target_missing', 'conflict'].includes(e.message) ? e.message : 'network');
+      if (['cancelled', 'auth', 'storage'].includes(code)) throw new InboxError(code);
+      blocked.add(packet.targetId);
+      failures.push(code);
+    }
+  }
 }
 
 export function startInbox() {

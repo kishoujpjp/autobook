@@ -1,5 +1,15 @@
 # 自動繪本維護交接
 
+## 待發布：v1.37.0 既有繪本追加插圖
+
+本機已實作追加插圖；尚未部署 Worker、push 或安裝 iPad，正式站沿用下方 v1.36.0 紀錄。沿用憑證與配對，先發布 Worker，再發布 App，最後使用 `append`／`append-status`。完整格式、失敗語義與 API 見 [收件匣操作文檔](../cloud/inbox/README.md#替既有繪本追加插圖app-v1370)。
+
+- `inbox-format.js` 驗證獨立圖片追加封包，targetId 為原收件匣書 id；`worker.js` 提供 `/v1/illustrations` 清單、私人圖片、獨立回條與七天清理，保留不可變的整本故事接口。
+- `inbox-transfer.js` 校驗全部圖後提交；`store.js` 同步落盤媒體與去重紀錄才更新記憶體，最新閱讀資料及手動媒體保留。回條斷線或存檔失敗可由紀錄恢復，不重加圖片。整本書／追加的本機回條以不同 id 命名空間存入既有備份鍵。
+- `inbox.js` 先收原書、再跨分頁按時間處理追加，同一本較早追加失敗會暫停後續；原書未到保留待收，曾收到但已刪除則略過。書架滿不阻止既有書收圖，正在閱讀的頁面不重繪。
+- 私人追加草稿位於 `.inbox/`，不得提交或發布。澄南澄夏與迪迦插圖已備好，未上傳；發布並取得授權後才送至原繪本。
+- 本機驗證：lint、79 項自動測試、Worker dry-run、build／cap sync、9 個 runtime／SW 的 source／dist／原生靜態資源一致。隔離 Chromium 的 iPad 直橫向完整流程與媒體管理並行合併、重載持久保存通過；[合成資料結果](verification/inbox-append-2026-10-05/browser-report.json)。尚未在實際 iPad 操作或接收。
+
 更新日期：2026-10-05（UTC+8）。本機、網頁與 iPad App 均已更新至 v1.36.0：幼兒視覺、閱讀圖片框、書架封面、分頁 SVG、四色篩選與音效精修。功能提交 `0c35311d259ab743b4a91be4a7c4cb2097466b66` 已 push main；Pages Actions 成功，9 個改版 runtime／CSS／SW 檔與 dist、iPad 簽名包 SHA-256 一致。2026-10-05 07:59:20 iPad 自動覆蓋安裝 v1.36.0 build 79，devicectl 查詢實際版本一致。純文檔提交仍會觸發自動安裝、使 build 號遞增；功能版號不變。歷次功能見 [README](../README.md)，驗證結果見 [開發記錄](DEVELOPMENT_LOG.md)。
 
 ## 本次本機更新（v1.36.0）

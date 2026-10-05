@@ -221,10 +221,10 @@ function inboxCard() {
   const update = (state) => {
     receiveBtn.disabled = !hasInbox() || state.kind === 'checking';
     if (!hasInbox()) note.textContent = t('inbox_unpaired');
-    else if (state.kind === 'checking') note.textContent = t('inbox_checking', { n: state.count });
+    else if (state.kind === 'checking') note.textContent = t('inbox_checking', { n: state.count, images: state.images || 0 });
     else if (state.kind === 'error') note.textContent = t(`inbox_error_${state.error}`) === `inbox_error_${state.error}`
       ? t('inbox_error_network') : t(`inbox_error_${state.error}`);
-    else if (state.kind === 'done') note.textContent = t('inbox_checked', { n: state.count, time: new Date(state.at).toLocaleTimeString() });
+    else if (state.kind === 'done') note.textContent = t('inbox_checked', { n: state.count, images: state.images || 0, time: new Date(state.at).toLocaleTimeString() });
     else note.textContent = t('inbox_ready');
   };
   unwatchInbox = watchInbox(update);

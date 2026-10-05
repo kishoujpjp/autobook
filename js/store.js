@@ -1,8 +1,9 @@
 // 資料層：settings / 字表 / 故事 用 localStorage；圖片與語音 blob 用 IndexedDB
 import { t2s, s2t, toStoredTraditional, unambiguousTraditional } from './zhconv.js';
 import { prepareStoredStory, prepareStoredWords } from './text-policy.js';
+import { illustrationReceiptId } from './inbox-format.js';
 
-export const VERSION = '1.36.0';
+export const VERSION = '1.37.0';
 
 const LS = {
   settings: 'autobook.settings',
@@ -371,10 +372,11 @@ export function inboxReceipt(source, id) {
   return inboxReceipts.find((r) => r.source === source && r.id === id);
 }
 
-export function saveInboxReceipt(source, id, ackPending = true, deviceId = '') {
+export function saveInboxReceipt(source, id, ackPending = true, deviceId = '', outcome = '') {
   const prev = inboxReceipt(source, id);
   const next = inboxReceipts.filter((r) => r !== prev);
-  next.push({ source, id, receivedAt: prev?.receivedAt || Date.now(), ackPending, deviceId: deviceId || prev?.deviceId || '' });
+  next.push({ source, id, receivedAt: prev?.receivedAt || Date.now(), ackPending, deviceId: deviceId || prev?.deviceId || '',
+    ...((outcome || prev?.outcome) ? { outcome: outcome || prev.outcome } : {}) });
   if (!save(LS.inbox, next)) throw new Error('storage');
   inboxReceipts = next;
 }
@@ -394,6 +396,25 @@ export function commitInboxStory(story) {
   // 若這筆存檔失敗，故事已經成功存好；下次透過 deterministic id 補回條，不重寫圖片。
   saveInboxReceipt(story.inbox.source, story.inbox.id);
   return true;
+}
+
+/** 同步落盤後才改記憶體；追加不能改寫文字、標記、讀音、已讀次數或原圖。 */
+export function commitInboxIllustrations(packet, source, media, localId) {
+  const story = getStory(localId);
+  if (!story) throw new Error('target_missing');
+  if (story.inbox?.source !== source || story.inbox?.id !== packet.targetId) throw new Error('conflict');
+  const updates = Array.isArray(story.inboxIllustrations) ? story.inboxIllustrations : [];
+  const prev = updates.find((u) => u?.source === source && u.id === packet.id);
+  if (prev && prev.digest !== packet.digest) throw new Error('conflict');
+  if (!prev) {
+    const next = { ...story, media: [...storyMedia(story), ...media], hasImage: true,
+      inboxIllustrations: [...updates, { source, id: packet.id, digest: packet.digest }] };
+    if (!save(LS.stories, stories.map((s) => s === story ? next : s))) throw new Error('storage');
+    Object.assign(story, next);
+  }
+  // 即使這一步失敗，下次也能由書上的去重紀錄恢復，並保留已存圖片。
+  saveInboxReceipt(source, illustrationReceiptId(packet.id), true, '', 'applied');
+  return !prev;
 }
 
 /** 刪掉一本書所有存在 IndexedDB 的媒體 blob（外部連結沒有 blob） */

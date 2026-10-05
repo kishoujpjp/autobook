@@ -1163,12 +1163,17 @@ function openEditStoryModal(story, onSaved) {
 function openMediaModal(story, onChanged) {
   const urls = [];
   let changed = false;
+  const onInboxMedia = (event) => {
+    if (event.detail?.id === story.id) { changed = true; draw(); }
+  };
   const m = openModal(t('media_title'), { icon: 'image',
     onClose: () => {
+      window.removeEventListener('autobook:inbox-story', onInboxMedia);
       urls.forEach((u) => URL.revokeObjectURL(u));
       if (changed && onChanged) onChanged();
     },
   });
+  window.addEventListener('autobook:inbox-story', onInboxMedia);
 
   const list = el('div', { class: 'media-list' });
   function commit(next) {
@@ -1208,16 +1213,20 @@ function openMediaModal(story, onChanged) {
       up.disabled = i === 0;
       up.addEventListener('click', () => {
         sfx.tap();
-        const n = [...media];
-        [n[i - 1], n[i]] = [n[i], n[i - 1]];
+        const n = [...storyMedia(story)];
+        const pos = n.findIndex((m) => m.id === mi.id);
+        if (pos < 1) return;
+        [n[pos - 1], n[pos]] = [n[pos], n[pos - 1]];
         commit(n);
       });
       const down = el('button', { class: 'mi-btn', text: '⬇' });
       down.disabled = i === media.length - 1;
       down.addEventListener('click', () => {
         sfx.tap();
-        const n = [...media];
-        [n[i + 1], n[i]] = [n[i], n[i + 1]];
+        const n = [...storyMedia(story)];
+        const pos = n.findIndex((m) => m.id === mi.id);
+        if (pos < 0 || pos >= n.length - 1) return;
+        [n[pos + 1], n[pos]] = [n[pos], n[pos + 1]];
         commit(n);
       });
       const del = el('button', { class: 'mi-btn danger', 'aria-label': t('del_label') }, icon('trash'));
@@ -1225,8 +1234,9 @@ function openMediaModal(story, onChanged) {
         sfx.tap();
         const yes = await confirmDialog(t('media_del_confirm'));
         if (!yes) return;
-        const gone = storyMedia(story)[i];
-        const next = storyMedia(story).filter((_, k) => k !== i);
+        const gone = storyMedia(story).find((m) => m.id === mi.id);
+        if (!gone) return;
+        const next = storyMedia(story).filter((m) => m.id !== mi.id);
         commit(next);
         await deleteMediaBlob(gone);
       });
@@ -1240,21 +1250,21 @@ function openMediaModal(story, onChanged) {
     const files = [...(imgFile.files || [])];
     imgFile.value = '';
     if (!files.length) return;
-    const next = [...storyMedia(story)];
+    const added = [];
     let ok = 0;
     for (const f of files) {
       try {
         const blob = await downscaleImage(f, 1280);
         const id = newMediaId(story);
         await idbSet('images', id, blob);
-        next.push({ id, kind: 'image', up: true }); // up＝家長上傳的，書架滿了不會先被淘汰
+        added.push({ id, kind: 'image', up: true }); // up＝家長上傳的，書架滿了不會先被淘汰
         ok++;
       } catch (e) {
         console.warn('add image failed', e);
       }
     }
     if (!ok) { toast(t('acc_img_fail'), true); return; }
-    commit(next);
+    commit([...storyMedia(story), ...added]);
     toast(t('media_added'));
   });
 
@@ -1263,7 +1273,7 @@ function openMediaModal(story, onChanged) {
     const files = [...(vidFile.files || [])];
     vidFile.value = '';
     if (!files.length) return;
-    const next = [...storyMedia(story)];
+    const added = [];
     let ok = 0;
     for (const f of files) {
       const mb = Math.round(f.size / 1e6);
@@ -1271,14 +1281,14 @@ function openMediaModal(story, onChanged) {
       const id = newMediaId(story);
       try {
         await idbSet('images', id, f); // 影片原檔直接存（'images' 就是個 blob KV）
-        next.push({ id, kind: 'video', up: true });
+        added.push({ id, kind: 'video', up: true });
         ok++;
       } catch (e) {
         console.warn('add video failed', e);
       }
     }
     if (!ok) { toast(t('acc_img_fail'), true); return; }
-    commit(next);
+    commit([...storyMedia(story), ...added]);
     toast(t('media_added'));
   });
 

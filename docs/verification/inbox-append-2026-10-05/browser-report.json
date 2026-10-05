@@ -1,0 +1,74 @@
+[
+  {
+    "viewport": {
+      "width": 1366,
+      "height": 1024
+    },
+    "first": {
+      "count": 0,
+      "images": 1,
+      "error": ""
+    },
+    "retry": {
+      "count": 0,
+      "images": 1,
+      "error": ""
+    },
+    "appliedOrder": [
+      "append_first",
+      "append_earlier",
+      "append_000_later"
+    ],
+    "persisted": {
+      "count": 6,
+      "allBlobs": true
+    },
+    "full": {
+      "count": 0,
+      "images": 1,
+      "error": "shelf_full"
+    },
+    "missing": {
+      "count": 1,
+      "images": 1,
+      "error": ""
+    },
+    "errors": []
+  },
+  {
+    "viewport": {
+      "width": 1024,
+      "height": 1366
+    },
+    "first": {
+      "count": 0,
+      "images": 1,
+      "error": ""
+    },
+    "retry": {
+      "count": 0,
+      "images": 1,
+      "error": ""
+    },
+    "appliedOrder": [
+      "append_first",
+      "append_earlier",
+      "append_000_later"
+    ],
+    "persisted": {
+      "count": 6,
+      "allBlobs": true
+    },
+    "full": {
+      "count": 0,
+      "images": 1,
+      "error": "shelf_full"
+    },
+    "missing": {
+      "count": 1,
+      "images": 1,
+      "error": ""
+    },
+    "errors": []
+  }
+]

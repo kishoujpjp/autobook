@@ -3,7 +3,7 @@ import { readFile, writeFile, mkdir, chmod } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { inboxUrl, validateStoryInput, INBOX_ID, INBOX_LIMITS, imageMime } from '../js/inbox-format.js';
+import { inboxUrl, validateStoryInput, validateIllustrationInput, INBOX_ID, INBOX_LIMITS, imageMime } from '../js/inbox-format.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const privateDir = join(root, '.inbox');
@@ -66,9 +66,9 @@ async function main() {
     console.log('配對碼已寫入 .inbox/pairing.txt；請貼到 App「設定 → 故事收件匣」。');
     return;
   }
-  if (command === 'upload') {
+  if (command === 'upload' || command === 'append') {
     const [path, ...imagePaths] = args;
-    if (!path || !imagePaths.length || imagePaths.length > INBOX_LIMITS.images) throw new Error('需要一份故事 JSON 與 1～8 張圖片。');
+    if (!path || !imagePaths.length || imagePaths.length > INBOX_LIMITS.images) throw new Error('需要一份故事／追加 JSON 與 1～8 張圖片。');
     const config = await loadConfig();
     const raw = JSON.parse(await readFile(resolve(path), 'utf8'));
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('故事 JSON 必須是一個物件。');
@@ -77,9 +77,10 @@ async function main() {
       // 第一次生成的 id 存回原檔；中途斷線再傳同一份檔案時，不會變成第二本。
       await writeFile(resolve(path), JSON.stringify(raw, null, 2) + '\n');
     }
-    const story = validateStoryInput(raw);
+    const append = command === 'append';
+    const story = append ? validateIllustrationInput(raw) : validateStoryInput(raw);
     const form = new FormData();
-    form.set('story', JSON.stringify(story));
+    form.set(append ? 'update' : 'story', JSON.stringify(story));
     let total = 0;
     for (const path of imagePaths) {
       const bytes = await readFile(resolve(path));
@@ -87,23 +88,28 @@ async function main() {
       if (!bytes.length || bytes.length > INBOX_LIMITS.imageBytes || total > INBOX_LIMITS.uploadBytes) throw new Error('圖片過大：每張最多 4 MB，整組最多 20 MB。');
       form.append('images', new Blob([bytes], { type: imageMime(bytes) }), 'image');
     }
-    const result = await api(config, '/v1/stories', { method: 'POST', body: form });
-    console.log(JSON.stringify({ ...result, status: result.expired ? '這本故事先前已送達並清理；要重新傳送請使用新 id。' : '雲端已收到；等待 App 接收。' }, null, 2));
+    const result = await api(config, append ? '/v1/illustrations' : '/v1/stories', { method: 'POST', body: form });
+    console.log(JSON.stringify({ ...result, ...(append ? { targetId: story.targetId } : {}),
+      status: result.expired ? '這份內容先前已接收並清理；重試不會重新送出。' : '雲端已收到；等待 App 接收。' }, null, 2));
     return;
   }
-  if (command === 'status') {
+  if (command === 'status' || command === 'append-status') {
     if (!INBOX_ID.test(args[0] || '')) throw new Error('需要故事 id。');
     const config = await loadConfig();
+    const append = command === 'append-status';
     const receipts = [];
     let expired = false;
     let cursor = null;
     do {
-      const result = await api(config, `/v1/stories/${args[0]}/receipts${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
+      const result = await api(config, `/v1/${append ? 'illustrations' : 'stories'}/${args[0]}/receipts${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
       receipts.push(...result.receipts);
       expired = !!result.expired;
       cursor = result.cursor;
     } while (cursor);
-    console.log(JSON.stringify({ id: args[0], status: expired ? 'App 已匯入；雲端故事與圖片已清理。' : receipts.length ? 'App 已匯入。' : '雲端已收到；等待 App 接收。', expired, receipts }, null, 2));
+    const received = append ? receipts.some((r) => r.outcome === 'applied')
+      ? 'App 已追加插圖。' : '原書已刪除；App 已略過追加。' : 'App 已匯入。';
+    console.log(JSON.stringify({ id: args[0], status: receipts.length
+      ? received + (expired ? '雲端內容已清理。' : '') : '雲端已收到；等待 App 接收。', expired, receipts }, null, 2));
     return;
   }
   console.log('用法：node tools/inbox-upload.mjs init [收件匣網址]\n'
@@ -111,7 +117,9 @@ async function main() {
     + '      node tools/inbox-upload.mjs set-url <https://…workers.dev>\n'
     + '      node tools/inbox-upload.mjs pair\n'
     + '      node tools/inbox-upload.mjs upload <故事.json> <圖片1> [圖片2…]\n'
-    + '      node tools/inbox-upload.mjs status <故事id>');
+    + '      node tools/inbox-upload.mjs status <故事id>\n'
+    + '      node tools/inbox-upload.mjs append <追加.json> <圖片1> [圖片2…]\n'
+    + '      node tools/inbox-upload.mjs append-status <追加id>');
 }
 
-main().catch((e) => { console.error(e.code === 'format' ? '故事格式不正確：書名最多 40 字，中文內文最多 1500 字。' : e.message); process.exitCode = 1; });
+main().catch((e) => { console.error(e.code === 'format' ? '格式不正確：追加需指定原書 targetId；故事書名最多 40 字，中文內文最多 1500 字。' : e.message); process.exitCode = 1; });

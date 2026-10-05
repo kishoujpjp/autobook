@@ -153,3 +153,14 @@
 - 正式 Pages 以完整提交 SHA 查詢參數及 no-cache 下載 9 個改版檔：index、CSS、icons、main、sfx、story、ui、store、SW；全部 SHA-256 與 dist、已安裝的 iPad 簽名包 public 一致，確認 v1.36.0 已公開。
 - 既有自動部署於 2026-10-05 07:59:20 覆蓋安裝 iPad v1.36.0 build 79；devicectl 依 bundle id 查詢實際 version=1.36.0、bundleVersion=79。沒有解除安裝或清除資料，也沒有操作使用者的私人故事與字表作測試。
 - 本次未修改／部署收件匣 Worker。發布證據以此純文檔提交補錄；會再觸發既有 Pages 和 iPad 自動部署，build 號可繼續增加，App 功能版號維持 v1.36.0。
+
+## 2026-10-05 — v1.37.0：既有繪本追加插圖（本機待發布）
+
+- 依使用者「新增插圖追加推送功能」實作獨立追加封包，保留原書不可變接口；Worker 新增私人 `/v1/illustrations` 清單、圖片、回條與獨立七天清理。原書清理後仍可憑 id 防重傳紀錄追加。
+- App 先收原書，再跨分頁按上傳時間追加；最新原圖／影片、文字、所有帳號閱讀與標註、指定讀音保留。書架滿仍可替既有書收圖，未收原書保留待收，已刪原書明確略過而不復活。
+- 圖片及追加去重紀錄同步落盤後才回條；斷線、回條存檔失敗與重試不重加。手動移除已追加圖後，同一封包不再補回。管理面板的上傳／重排改用最新媒體清單，避免和雲端追加並行時覆蓋新圖；正在閱讀的圖不自動切換。
+- 工具新增 `append` 與 `append-status`；無 id 的追加草稿首傳存回固定 id，斷線重試沿用。狀態區分等待、已追加與原書已刪除而略過。使用原配對，不新增裝置登入或公開私人圖片。
+- `npm run lint`、79／79 `npm test`（12 項新增）、`npm run ios:sync`（包含 build、cap sync）與 `git diff --check` 通過。App、SW、package／lock、iOS Debug／Release 版號對齊 1.37.0；9 個修改 runtime／SW 的 source、dist 與原生靜態資源內容一致。
+- `tools/inbox-append-audit.mjs` 在全新 Chromium context 與記憶體 Worker 驗證 iPad 1366×1024、1024×1366：真實 IndexedDB 存圖、閱讀中不切換、重開依已讀次數換圖、跨分頁依序追加、回條斷線恢復、書架滿、刪書略過、新原書先收後追加、手動上傳與雲端追加並行合併、重載後六組媒體與 blob 保存。兩組無 pageerror；[瀏覽器結果](verification/inbox-append-2026-10-05/browser-report.json)。
+- Wrangler 4.143.0 `deploy --dry-run` 通過，打包 2296.27 KiB／gzip 585.45 KiB；僅檢查打包與綁定，未部署或重設任何秘密。
+- 本次未 commit／push、發布 Pages／Worker 或安裝 iPad，尚未執行私人追加草稿上傳；等待正式發布確認。實際 Safari／iPad 接收與原書第二張插圖需發布後查回條，不能以本機測試代替。
