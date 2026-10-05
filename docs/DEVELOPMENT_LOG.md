@@ -143,3 +143,13 @@
 - 11 種音效與「20 次重複 tap＋完成＋星星」經 OfflineAudioContext 生成：最大峰值約 0.362，沒有削波，尾端回到 0。這是數位訊號檢查，尚未以實際 iPad 喇叭確認聽感。
 - [預覽與音效](design/visual-polish-2026-10-05/index.html)／[檢查結果](design/visual-polish-2026-10-05/audit.json)留供檢視；docs 與 tools 不打包進 dist。
 - 本機缺少 Playwright WebKit 執行檔，未宣稱 Safari／實際 iPad 已驗證。本次未 commit／push、發布 Pages 或安裝 iPad；只是準備本機與原生靜態資源。
+
+
+## 2026-10-05 — 提交、推送、發布與安裝 v1.36.0
+
+- 依使用者「發佈並安裝。commit push」授權建立功能提交 `0c35311d259ab743b4a91be4a7c4cb2097466b66`，push `main`；原有未追蹤的個人圖片保持未提交。
+- 發布前重新通過 lint、67／67 自動測試、build 和 diff 檢查；沿用前述 16 組／42 頁瀏覽器與音效／媒體回歸，沒有修改已驗證的 runtime。
+- [GitHub Actions](https://github.com/kishoujpjp/autobook/actions/runs/37245685132) 的完整 head SHA 與功能提交一致，conclusion=success，於 2026-10-05 07:59:31（UTC+8）完成。
+- 正式 Pages 以完整提交 SHA 查詢參數及 no-cache 下載 9 個改版檔：index、CSS、icons、main、sfx、story、ui、store、SW；全部 SHA-256 與 dist、已安裝的 iPad 簽名包 public 一致，確認 v1.36.0 已公開。
+- 既有自動部署於 2026-10-05 07:59:20 覆蓋安裝 iPad v1.36.0 build 79；devicectl 依 bundle id 查詢實際 version=1.36.0、bundleVersion=79。沒有解除安裝或清除資料，也沒有操作使用者的私人故事與字表作測試。
+- 本次未修改／部署收件匣 Worker。發布證據以此純文檔提交補錄；會再觸發既有 Pages 和 iPad 自動部署，build 號可繼續增加，App 功能版號維持 v1.36.0。

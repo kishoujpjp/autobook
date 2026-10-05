@@ -1,6 +1,6 @@
 # 自動繪本維護交接
 
-更新日期：2026-10-05（UTC+8）。本機待發布版為 v1.36.0：幼兒視覺、閱讀圖片框、書架封面、分頁 SVG、四色篩選與音效精修；已 build／Capacitor sync，尚未 commit／push、發布 Pages 或安裝 iPad。上一份已核對的發布記錄為 2026-10-04 的 v1.35.0、功能提交 `321ee44f29c570684e87925573e6659c6987fab2`。歷次功能見 [README](../README.md)，驗證結果見 [開發記錄](DEVELOPMENT_LOG.md)。
+更新日期：2026-10-05（UTC+8）。本機、網頁與 iPad App 均已更新至 v1.36.0：幼兒視覺、閱讀圖片框、書架封面、分頁 SVG、四色篩選與音效精修。功能提交 `0c35311d259ab743b4a91be4a7c4cb2097466b66` 已 push main；Pages Actions 成功，9 個改版 runtime／CSS／SW 檔與 dist、iPad 簽名包 SHA-256 一致。2026-10-05 07:59:20 iPad 自動覆蓋安裝 v1.36.0 build 79，devicectl 查詢實際版本一致。純文檔提交仍會觸發自動安裝、使 build 號遞增；功能版號不變。歷次功能見 [README](../README.md)，驗證結果見 [開發記錄](DEVELOPMENT_LOG.md)。
 
 ## 本次本機更新（v1.36.0）
 
@@ -8,8 +8,8 @@
 - `story.js` 揭曉舞台改為奶油色紙框並完整顯示圖片，保留媒體與完成邏輯；新增鍵盤 Escape／焦點往返，裝飾尊重 reduced-motion。書架未完成封面增加 SVG 花園，不提早露出圖片。
 - `ui.js` 提供 `stopConfetti()`，收起舞台或 `main.js` 換頁時清掉上一場彩帶；效果仍在完成時播放。
 - `sfx.js` 只調效果音：正弦音與短泛音、柔和答錯音、效果專用音量／壓縮器、45ms 重複事件合併、節點釋放。`audioCtx()`、TTS、音節錄音、PCM／WAV API 不變，保留 iOS 語音結束後重建 AudioContext 的處理。
-- `tools/visual-polish-audit.mjs` 用獨立瀏覽器與合成資料驗證閱讀、四色分類、圖片重看／下一張解鎖、影片與音效；輸出畫面與 WAV。實際 iPad／Safari WebKit 尚待驗證，此主機未提供 Playwright WebKit 執行檔。
-- [本機預覽](design/visual-polish-2026-10-05/index.html)只供檢視，docs／tools 不進 dist 或 App 包。發布前仍依下方既有流程核對裝置与正式站。
+- `tools/visual-polish-audit.mjs` 用獨立瀏覽器與合成資料驗證閱讀、四色分類、圖片重看／下一張解鎖、影片與音效；輸出畫面與 WAV。實際 iPad／Safari WebKit 尚待驗證，此主機未提供 Playwright WebKit 執行檔；本次安裝只核對實際版本與包內資產，未操作 iPad 私人故事或字表，也未主觀驗證喇叭聽感。
+- [本機預覽](design/visual-polish-2026-10-05/index.html)只供檢視，docs／tools 不進 dist 或 App 包。發布前仍依下方既有流程核對裝置與正式站。
 
 ## 上次更新（v1.35.0）
 
@@ -20,13 +20,13 @@
 - 67 項自動測試、18 組瀏覽器互動回歸、lint 與 diff 檢查通過；以合成資料檢查 iPad 1024×1366、1366×1024 與夜間配色。實際瀏覽器點按兩個「著」分別儲存並驗證指定音檔路徑；未操作 iPad 的私人故事／字表作互動測試。
 - iPad 安裝紀錄：2026-10-04 18:28:57，v1.35.0 build 76；裝置查詢確認實際版本，22 個修改 runtime／CSS／音檔／授權檔的 source、dist、原生安裝包 SHA-256 一致。未解除安裝或清除資料。build 76 依目前 HEAD 提交數產生，不代表本次修改已提交。
 
-## 最新公開上線紀錄（2026-10-04）
+## 最新公開上線紀錄（2026-10-05）
 
 | 目標 | 本次確認結果 |
 |---|---|
-| [GitHub Pages](https://kishoujpjp.github.io/autobook/) | v1.35.0；功能提交 `321ee44` 的 [Actions](https://github.com/kishoujpjp/autobook/actions/runs/37198401588) 成功，正式站 22 個關鍵 runtime／CSS／錄音／授權資產的 SHA-256 與本機 dist 及 iOS 安裝包一致 |
-| 故事收件匣 | 本次未修改／部署 Worker；沿用 2026-10-03 的部署紀錄，未在此次重新查詢雲端版本 |
-| iPad「自動繪本」 | `com.kishou.autobook` v1.35.0，build 77；2026-10-04 19:21:13 自動更新完成，devicectl 確認裝置實際版本。純文檔提交後 build 號可能繼續遞增 |
+| [GitHub Pages](https://kishoujpjp.github.io/autobook/) | v1.36.0；功能提交 `0c35311` 的 [Actions](https://github.com/kishoujpjp/autobook/actions/runs/37245685132) 成功，正式站 9 個改版 runtime／CSS／SW 檔的 SHA-256 與 dist、iPad 簽名包一致 |
+| 故事收件匣 | 本次未修改／部署 Worker，未重新查詢雲端版本 |
+| iPad「自動繪本」 | `com.kishou.autobook` v1.36.0，build 79；2026-10-05 07:59:20 自動更新完成，devicectl 確認裝置實際版本。純文檔提交後 build 號可能繼續遞增 |
 
 這是上述日期的部署紀錄，後續維護須重新查詢當次結果。`/health` 的 `version: 1` 是收件匣協定版本，不是 App 版號，也不能單憑 health 判定 Worker 程式版本。安裝成功不等於裝置上的資料遷移已完成；遷移於新版 App 載入時執行，本次未讀取 iPad 的私人故事與字表驗證遷移。
 
