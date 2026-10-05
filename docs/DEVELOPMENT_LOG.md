@@ -164,3 +164,12 @@
 - `tools/inbox-append-audit.mjs` 在全新 Chromium context 與記憶體 Worker 驗證 iPad 1366×1024、1024×1366：真實 IndexedDB 存圖、閱讀中不切換、重開依已讀次數換圖、跨分頁依序追加、回條斷線恢復、書架滿、刪書略過、新原書先收後追加、手動上傳與雲端追加並行合併、重載後六組媒體與 blob 保存。兩組無 pageerror；[瀏覽器結果](verification/inbox-append-2026-10-05/browser-report.json)。
 - Wrangler 4.143.0 `deploy --dry-run` 通過，打包 2296.27 KiB／gzip 585.45 KiB；僅檢查打包與綁定，未部署或重設任何秘密。
 - 本次未 commit／push、發布 Pages／Worker 或安裝 iPad，尚未執行私人追加草稿上傳；等待正式發布確認。實際 Safari／iPad 接收與原書第二張插圖需發布後查回條，不能以本機測試代替。
+
+## 2026-10-05 — 發布、安裝 v1.37.0 並完成既有繪本追加
+
+- 依使用者「要」的發布、安裝及追加授權，發布前再通過 lint、79／79 自動測試與 diff 檢查。功能提交 `e1566bd270ec7a0866d79e5d3ec8e9b4cc83030d` 已 push main；未追蹤個人 PNG 及 `.inbox/` 私人內容保持未提交。
+- 先發布 Cloudflare Worker，版本 ID `dafe723d-7c26-4e45-ba6c-0d22530b1bf0`；正式自訂網域 health 的 capabilities 提供 `append-illustrations`。沿用既有 R2、秘密與配對，未重設憑證。
+- [功能版 Pages Actions](https://github.com/kishoujpjp/autobook/actions/runs/37251041996) 的完整 head SHA 與功能提交一致，conclusion=success。正式站 9 個修改 runtime／SW 檔以完整 SHA 查詢參數和 no-cache 下載，SHA-256 與 dist、iPad 簽名包 public 完全一致。
+- 2026-10-05 09:20:35（UTC+8）既有自動部署覆蓋安裝 iPad v1.37.0 build 81；devicectl 確認實際 version=1.37.0、bundleVersion=81。未解除安裝或清除資料。
+- 原繪本追加前雲端有一張圖；私人追加清單上傳一張指定插圖成功，圖片 SHA-256 與本機檔一致，原繪本 manifest（包含歌詞及原圖校驗）完全未變。啟動 iPad App 後，2026-10-05 09:25:59 原裝置回報 `outcome: applied`，確認追加已落盤。故事／追加編號、裝置回條與校驗快照僅保存在忽略的 `.inbox/`，未公開到 Pages。
+- 此為本次功能及追加的已驗證結果；未宣稱已逐一操作 iPad 私人閱讀 UI。後續純文檔提交會再次觸發既有部署並遞增 build 號，App 功能版本仍為 v1.37.0。

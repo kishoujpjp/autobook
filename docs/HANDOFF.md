@@ -1,18 +1,18 @@
 # 自動繪本維護交接
 
-## 待發布：v1.37.0 既有繪本追加插圖
+## 最新更新：v1.37.0 既有繪本追加插圖
 
-本機已實作追加插圖；尚未部署 Worker、push 或安裝 iPad，正式站沿用下方 v1.36.0 紀錄。沿用憑證與配對，先發布 Worker，再發布 App，最後使用 `append`／`append-status`。完整格式、失敗語義與 API 見 [收件匣操作文檔](../cloud/inbox/README.md#替既有繪本追加插圖app-v1370)。
+2026-10-05 已發布 Worker、網頁並覆蓋安裝 iPad。功能提交 `e1566bd270ec7a0866d79e5d3ec8e9b4cc83030d` 已 push main，[Pages Actions](https://github.com/kishoujpjp/autobook/actions/runs/37251041996) 成功；9 個修改 runtime／SW 的正式站、dist 與 iPad 簽名包 SHA-256 一致。沿用憑證與配對；完整格式、失敗語義與 API 見 [收件匣操作文檔](../cloud/inbox/README.md#替既有繪本追加插圖app-v1370)。
 
 - `inbox-format.js` 驗證獨立圖片追加封包，targetId 為原收件匣書 id；`worker.js` 提供 `/v1/illustrations` 清單、私人圖片、獨立回條與七天清理，保留不可變的整本故事接口。
 - `inbox-transfer.js` 校驗全部圖後提交；`store.js` 同步落盤媒體與去重紀錄才更新記憶體，最新閱讀資料及手動媒體保留。回條斷線或存檔失敗可由紀錄恢復，不重加圖片。整本書／追加的本機回條以不同 id 命名空間存入既有備份鍵。
 - `inbox.js` 先收原書、再跨分頁按時間處理追加，同一本較早追加失敗會暫停後續；原書未到保留待收，曾收到但已刪除則略過。書架滿不阻止既有書收圖，正在閱讀的頁面不重繪。
-- 私人追加草稿位於 `.inbox/`，不得提交或發布。澄南澄夏與迪迦插圖已備好，未上傳；發布並取得授權後才送至原繪本。
-- 本機驗證：lint、79 項自動測試、Worker dry-run、build／cap sync、9 個 runtime／SW 的 source／dist／原生靜態資源一致。隔離 Chromium 的 iPad 直橫向完整流程與媒體管理並行合併、重載持久保存通過；[合成資料結果](verification/inbox-append-2026-10-05/browser-report.json)。尚未在實際 iPad 操作或接收。
+- 私人追加草稿位於 `.inbox/`，不得提交或發布到 Pages。指定的一張插圖已傳至私人收件匣；2026-10-05 09:25:59（UTC+8）原收件裝置回報 `applied`，確認追加落盤。雲端原書與原圖校驗值不變，追加圖片 SHA-256 與本機圖一致。
+- 驗證：lint、79 項自動測試、Worker dry-run、build／cap sync、9 個 runtime／SW 的 source／dist／原生靜態資源一致。隔離 Chromium 的 iPad 直橫向完整流程與媒體管理並行合併、重載持久保存通過；[合成資料結果](verification/inbox-append-2026-10-05/browser-report.json)。實際 iPad 已核對版本並取得追加回條，未透過 UI 逐一操作私人閱讀畫面。
 
-更新日期：2026-10-05（UTC+8）。本機、網頁與 iPad App 均已更新至 v1.36.0：幼兒視覺、閱讀圖片框、書架封面、分頁 SVG、四色篩選與音效精修。功能提交 `0c35311d259ab743b4a91be4a7c4cb2097466b66` 已 push main；Pages Actions 成功，9 個改版 runtime／CSS／SW 檔與 dist、iPad 簽名包 SHA-256 一致。2026-10-05 07:59:20 iPad 自動覆蓋安裝 v1.36.0 build 79，devicectl 查詢實際版本一致。純文檔提交仍會觸發自動安裝、使 build 號遞增；功能版號不變。歷次功能見 [README](../README.md)，驗證結果見 [開發記錄](DEVELOPMENT_LOG.md)。
+更新日期：2026-10-05（UTC+8）。本機、網頁與 iPad App 均已更新至 v1.37.0。2026-10-05 09:20:35 iPad 自動覆蓋安裝 v1.37.0 build 81，devicectl 查詢實際版本一致。純文檔提交仍會觸發自動安裝、使 build 號遞增；功能版號不變。歷次功能見 [README](../README.md)，驗證結果見 [開發記錄](DEVELOPMENT_LOG.md)。
 
-## 本次本機更新（v1.36.0）
+## 前次更新（v1.36.0）
 
 - `css/app.css` 統一紙張層次與短底邊，保持故事字塊尺寸、行距計算、文字卡內距與不可點的進度條；四個分頁使用 `nav-*` SVG，四色篩選用短底線與浮起，保留原色。
 - `story.js` 揭曉舞台改為奶油色紙框並完整顯示圖片，保留媒體與完成邏輯；新增鍵盤 Escape／焦點往返，裝飾尊重 reduced-motion。書架未完成封面增加 SVG 花園，不提早露出圖片。
@@ -34,9 +34,9 @@
 
 | 目標 | 本次確認結果 |
 |---|---|
-| [GitHub Pages](https://kishoujpjp.github.io/autobook/) | v1.36.0；功能提交 `0c35311` 的 [Actions](https://github.com/kishoujpjp/autobook/actions/runs/37245685132) 成功，正式站 9 個改版 runtime／CSS／SW 檔的 SHA-256 與 dist、iPad 簽名包一致 |
-| 故事收件匣 | 本次未修改／部署 Worker，未重新查詢雲端版本 |
-| iPad「自動繪本」 | `com.kishou.autobook` v1.36.0，build 79；2026-10-05 07:59:20 自動更新完成，devicectl 確認裝置實際版本。純文檔提交後 build 號可能繼續遞增 |
+| [GitHub Pages](https://kishoujpjp.github.io/autobook/) | v1.37.0；功能提交 `e1566bd` 的 [Actions](https://github.com/kishoujpjp/autobook/actions/runs/37251041996) 成功，正式站 9 個修改 runtime／SW 檔的 SHA-256 與 dist、iPad 簽名包一致 |
+| 故事收件匣 | 已部署版本 `dafe723d-7c26-4e45-ba6c-0d22530b1bf0`；health 提供 `append-illustrations`，追加已取得原裝置 `applied` 回條 |
+| iPad「自動繪本」 | `com.kishou.autobook` v1.37.0，build 81；2026-10-05 09:20:35 自動更新完成，devicectl 確認裝置實際版本。純文檔提交後 build 號可能繼續遞增 |
 
 這是上述日期的部署紀錄，後續維護須重新查詢當次結果。`/health` 的 `version: 1` 是收件匣協定版本，不是 App 版號，也不能單憑 health 判定 Worker 程式版本。安裝成功不等於裝置上的資料遷移已完成；遷移於新版 App 載入時執行，本次未讀取 iPad 的私人故事與字表驗證遷移。
 
