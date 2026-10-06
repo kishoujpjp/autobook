@@ -1,0 +1,57 @@
+{
+  "sha": "276eef508170576d3666174a4ce61d24ccbe3a6a",
+  "results": [
+    {
+      "path": "css/app.css",
+      "hashes": {
+        "live": "933e3ce66892a82d29565ca7d0d7387b3b1d0352304832278f732f2a65bba4b7",
+        "dist": "933e3ce66892a82d29565ca7d0d7387b3b1d0352304832278f732f2a65bba4b7",
+        "source": "933e3ce66892a82d29565ca7d0d7387b3b1d0352304832278f732f2a65bba4b7",
+        "native": "933e3ce66892a82d29565ca7d0d7387b3b1d0352304832278f732f2a65bba4b7"
+      },
+      "match": true
+    },
+    {
+      "path": "js/flash.js",
+      "hashes": {
+        "live": "6c8001de7d0127d65300aa84d474fd5ea8a470c7b037369964354e47065fbb7b",
+        "dist": "6c8001de7d0127d65300aa84d474fd5ea8a470c7b037369964354e47065fbb7b",
+        "source": "6c8001de7d0127d65300aa84d474fd5ea8a470c7b037369964354e47065fbb7b",
+        "native": "6c8001de7d0127d65300aa84d474fd5ea8a470c7b037369964354e47065fbb7b"
+      },
+      "match": true
+    },
+    {
+      "path": "js/store.js",
+      "hashes": {
+        "live": "fdbd43e3164012daf8f0255b25f53cb63d6adddf132d55b54799c71fe951f5e0",
+        "dist": "fdbd43e3164012daf8f0255b25f53cb63d6adddf132d55b54799c71fe951f5e0",
+        "source": "fdbd43e3164012daf8f0255b25f53cb63d6adddf132d55b54799c71fe951f5e0",
+        "native": "fdbd43e3164012daf8f0255b25f53cb63d6adddf132d55b54799c71fe951f5e0"
+      },
+      "match": true
+    },
+    {
+      "path": "sw.js",
+      "hashes": {
+        "live": "8cf166adcae949e674144b4f24c6a484c18721996b8644329a21cbb7ab6f1ab7",
+        "dist": "8cf166adcae949e674144b4f24c6a484c18721996b8644329a21cbb7ab6f1ab7",
+        "source": "8cf166adcae949e674144b4f24c6a484c18721996b8644329a21cbb7ab6f1ab7",
+        "native": "8cf166adcae949e674144b4f24c6a484c18721996b8644329a21cbb7ab6f1ab7"
+      },
+      "match": true
+    }
+  ],
+  "device": {
+    "version": "1.38.1",
+    "bundleVersion": "86",
+    "installedAt": "2026-10-07 00:29:52 UTC+8"
+  },
+  "actions": {
+    "id": 37496071566,
+    "head_sha": "276eef508170576d3666174a4ce61d24ccbe3a6a",
+    "status": "completed",
+    "conclusion": "success",
+    "html_url": "https://github.com/kishoujpjp/autobook/actions/runs/37496071566"
+  }
+}

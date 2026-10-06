@@ -7,7 +7,9 @@
 - 使用者實機回報詞語卡在 iPad 橫向遮擋 UI。重現二字詞在 1366×1024 點字放大時，上緣跨過頁首、下緣壓入翻卡列；原版字卡只以整個 viewport 的 vh／vw 定尺寸，未扣除固定 UI、安全區或放大回饋。
 - 卡區增加 size container 與內距，字／詞卡改用 cqh／cqw 與字數計算上限；保留原大字與放大效果，預留 1.14 倍縮放、陰影和焦點環。頁首、翻卡列保持原尺寸，卡片間距跟隨卡區寬度。未變動字表、熟悉度、複習、計數、語音或鍵盤控制。
 - `tools/flash-layout-audit.mjs` 用合成資料在隔離 Chromium 檢查 240 組：6 個 viewport（含 1366×1024／1366×980／1194×834／1024×768 橫向）、家長／小孩、0／24px 安全區、1–5 字、正常／放大。直接量測卡片完整性、與 UI 的交集、可用按鈕實際點擊對象，另驗證同張字卡旋轉不換題；無 pageerror。主機無 Playwright WebKit 執行檔，不將 Chromium 當作實機視覺驗證。
-- lint、79／79 自動測試、build、cap sync 及 diff 檢查通過；App／SW／package／lock／Xcode 版號同步為 v1.38.1。正式發布與實際 iPad 版本由當次發布結果另行記錄。
+- lint、79／79 自動測試、build、cap sync 及 diff 檢查通過；App／SW／package／lock／Xcode 版號同步為 v1.38.1。[版面結果](verification/flash-layout-2026-10-07/report.json)與[修正畫面](verification/flash-layout-2026-10-07/word-landscape.png)使用合成資料。
+- 延續使用者已授權的部署與實機修正，提交 `276eef508170576d3666174a4ce61d24ccbe3a6a` 已 push main，[Actions](https://github.com/kishoujpjp/autobook/actions/runs/37496071566) 的完整 head SHA 一致且 conclusion=success。
+- 2026-10-07 00:29:52 iPad 覆蓋安裝 v1.38.1 build 86，devicectl 確認實際 version=1.38.1、bundleVersion=86；4 個修改 CSS／runtime／SW 以 no-cache 與完整 SHA 查詢參數下載，SHA-256 與 source、dist、iPad 簽名包完全一致。[發布校驗](verification/flash-layout-2026-10-07/release-report.json)。未解除安裝、清除或操作私人閱讀資料；純文檔提交後 build 號可能遞增。
 
 ## 2026-10-06 — v1.38.0：鍵盤控制（本機待發布）
 
