@@ -50,7 +50,8 @@ HEAD_HASH=$(git rev-parse HEAD 2>/dev/null) || exit 1
 HEAD_SUBJ=$(git log -1 --format=%s 2>/dev/null | head -c 60)
 
 # ── 逐裝置判斷要不要裝（連線中且「HEAD 變了 or 滿 5 天」） ──
-CONNECTED=$(xcrun devicectl list devices 2>/dev/null)
+# 新版 Xcode 預設 Identifier 顯示 UDID；加上全部欄位才保留既有 CoreDevice UUID。
+CONNECTED=$(xcrun devicectl list devices --columns '*' 2>/dev/null)
 NEEDY=()
 for D in "${DEVICES[@]}"; do
   UDID="${D%%|*}"; NAME="${D##*|}"
