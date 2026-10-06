@@ -294,11 +294,10 @@ export function startFlash(root, mode, onExit, opts = {}) {
     prevBtn.disabled = idx <= 0;
     cardArea.innerHTML = '';
     const n = card.chars.length;
-    // 每格寬 ≈ 1.2em（含左右留白），加上格間 2vw，總寬壓在 94vw 內
-    const vwCap = Math.floor((94 - 2 * (n - 1)) / (1.2 * n));
-    const size = mode === 'char'
-      ? 'min(58vh, 70vw)'
-      : `min(50vh, ${vwCap}vw)`;
+    // 依 fc-area 的實際可用空間縮放，扣掉頁首／翻卡列與安全區。
+    // 每格 1.2em 寬、1.27em 高；保留標記時 1.14 倍放大與陰影／焦點環空間。
+    const widthCap = Math.floor((86 - 2 * (n - 1)) / (1.2 * n));
+    const size = `min(66cqh, ${widthCap}cqw)`;
     const wrap = el('div', { class: 'fc-card' });
     const bank = new Map(words.map((w) => [w.ch, w]));
 

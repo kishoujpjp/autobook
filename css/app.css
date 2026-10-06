@@ -1277,6 +1277,7 @@ video.media-el { object-fit: contain; background: #1A1410; }
   height: 100%;
   min-height: 0;
 }
+.fc-stage > .spread, .fc-controls { flex-shrink: 0; }
 #page-game.active:has(.fc-stage) { display: flex; flex-direction: column; overflow: hidden; }
 .fc-counter {
   font-size: 20px;
@@ -1290,13 +1291,16 @@ video.media-el { object-fit: contain; background: #1A1410; }
 .fc-area {
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  padding: 16px;
+  container-type: size;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .fc-card {
   display: flex;
-  gap: 2vw;
+  gap: 2cqw;
   animation: modalin 0.25s var(--ease-bounce);
 }
 .fc-zi {

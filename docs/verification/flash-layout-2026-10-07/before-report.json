@@ -1,0 +1,86 @@
+{
+  "passed": false,
+  "engine": "chromium",
+  "cases": 2,
+  "results": [
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 1024
+      },
+      "role": "parent",
+      "safe": 0,
+      "n": 2,
+      "pop": false,
+      "area": {
+        "x": 43,
+        "y": 90,
+        "right": 1323,
+        "bottom": 762,
+        "width": 1280,
+        "height": 672
+      },
+      "cards": [
+        {
+          "x": 54.96875,
+          "y": 100.875,
+          "right": 669.34375,
+          "bottom": 751.109375,
+          "width": 614.375,
+          "height": 650.234375
+        },
+        {
+          "x": 696.65625,
+          "y": 100.875,
+          "right": 1311.03125,
+          "bottom": 751.109375,
+          "width": 614.375,
+          "height": 650.234375
+        }
+      ],
+      "overlap": false,
+      "hit": true,
+      "contained": true
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 1024
+      },
+      "role": "parent",
+      "safe": 0,
+      "n": 2,
+      "pop": true,
+      "area": {
+        "x": 43,
+        "y": 90,
+        "right": 1323,
+        "bottom": 762,
+        "width": 1280,
+        "height": 672
+      },
+      "cards": [
+        {
+          "x": 11.962493896484375,
+          "y": 55.358612060546875,
+          "right": 712.3499450683594,
+          "bottom": 796.6257019042969,
+          "width": 700.387451171875,
+          "height": 741.26708984375
+        },
+        {
+          "x": 653.6500244140625,
+          "y": 55.358612060546875,
+          "right": 1354.03759765625,
+          "bottom": 796.6257019042969,
+          "width": 700.3875732421875,
+          "height": 741.26708984375
+        }
+      ],
+      "overlap": true,
+      "hit": false,
+      "contained": false
+    }
+  ],
+  "errors": []
+}
