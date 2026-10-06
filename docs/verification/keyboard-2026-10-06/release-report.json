@@ -1,0 +1,99 @@
+{
+  "sha": "32d40a79bd82af8331aefd2977402cfe855edff3",
+  "results": [
+    {
+      "path": "js/keyboard.js",
+      "hashes": {
+        "live": "d2fbddf7d614ebd22779f7dfbf8a6eb14370767ebbd5905739acdf4574163cdb",
+        "dist": "d2fbddf7d614ebd22779f7dfbf8a6eb14370767ebbd5905739acdf4574163cdb",
+        "source": "d2fbddf7d614ebd22779f7dfbf8a6eb14370767ebbd5905739acdf4574163cdb",
+        "native": "d2fbddf7d614ebd22779f7dfbf8a6eb14370767ebbd5905739acdf4574163cdb"
+      },
+      "match": true
+    },
+    {
+      "path": "js/story.js",
+      "hashes": {
+        "live": "15c499a86695a03b3d4ccf54744cdf58f05a4006a609fb2271e6515676c587bf",
+        "dist": "15c499a86695a03b3d4ccf54744cdf58f05a4006a609fb2271e6515676c587bf",
+        "source": "15c499a86695a03b3d4ccf54744cdf58f05a4006a609fb2271e6515676c587bf",
+        "native": "15c499a86695a03b3d4ccf54744cdf58f05a4006a609fb2271e6515676c587bf"
+      },
+      "match": true
+    },
+    {
+      "path": "js/flash.js",
+      "hashes": {
+        "live": "6386681b449b53560bc5f4846a5cb24ca66ea183d15f2157525d7a12140a5b8c",
+        "dist": "6386681b449b53560bc5f4846a5cb24ca66ea183d15f2157525d7a12140a5b8c",
+        "source": "6386681b449b53560bc5f4846a5cb24ca66ea183d15f2157525d7a12140a5b8c",
+        "native": "6386681b449b53560bc5f4846a5cb24ca66ea183d15f2157525d7a12140a5b8c"
+      },
+      "match": true
+    },
+    {
+      "path": "js/game.js",
+      "hashes": {
+        "live": "5eccce4905d3fbc310af66bdfbb7b46743c3ff5d48373e05122db655ffeed89b",
+        "dist": "5eccce4905d3fbc310af66bdfbb7b46743c3ff5d48373e05122db655ffeed89b",
+        "source": "5eccce4905d3fbc310af66bdfbb7b46743c3ff5d48373e05122db655ffeed89b",
+        "native": "5eccce4905d3fbc310af66bdfbb7b46743c3ff5d48373e05122db655ffeed89b"
+      },
+      "match": true
+    },
+    {
+      "path": "js/ui.js",
+      "hashes": {
+        "live": "62527d72e419301824a5c684b79d9cb233253a1f3cd6cc4fddd5f338922e00ac",
+        "dist": "62527d72e419301824a5c684b79d9cb233253a1f3cd6cc4fddd5f338922e00ac",
+        "source": "62527d72e419301824a5c684b79d9cb233253a1f3cd6cc4fddd5f338922e00ac",
+        "native": "62527d72e419301824a5c684b79d9cb233253a1f3cd6cc4fddd5f338922e00ac"
+      },
+      "match": true
+    },
+    {
+      "path": "js/i18n.js",
+      "hashes": {
+        "live": "666d8a14b35027a81d67bff60e1091f00cf6ae19ca132f826277ca1d082c9f1f",
+        "dist": "666d8a14b35027a81d67bff60e1091f00cf6ae19ca132f826277ca1d082c9f1f",
+        "source": "666d8a14b35027a81d67bff60e1091f00cf6ae19ca132f826277ca1d082c9f1f",
+        "native": "666d8a14b35027a81d67bff60e1091f00cf6ae19ca132f826277ca1d082c9f1f"
+      },
+      "match": true
+    },
+    {
+      "path": "js/store.js",
+      "hashes": {
+        "live": "b1e6d39f0259c1ff20964a2fd409f9182b2b20f5298689a38c69ed050bf9d79d",
+        "dist": "b1e6d39f0259c1ff20964a2fd409f9182b2b20f5298689a38c69ed050bf9d79d",
+        "source": "b1e6d39f0259c1ff20964a2fd409f9182b2b20f5298689a38c69ed050bf9d79d",
+        "native": "b1e6d39f0259c1ff20964a2fd409f9182b2b20f5298689a38c69ed050bf9d79d"
+      },
+      "match": true
+    },
+    {
+      "path": "sw.js",
+      "hashes": {
+        "live": "70ec6c053ea54a758ad5d70730d3dc45386c5eed8ae897bf08cd01bccd8984fe",
+        "dist": "70ec6c053ea54a758ad5d70730d3dc45386c5eed8ae897bf08cd01bccd8984fe",
+        "source": "70ec6c053ea54a758ad5d70730d3dc45386c5eed8ae897bf08cd01bccd8984fe",
+        "native": "70ec6c053ea54a758ad5d70730d3dc45386c5eed8ae897bf08cd01bccd8984fe"
+      },
+      "match": true
+    }
+  ],
+  "nativeVersion": "1.38.0",
+  "nativeBuild": "84",
+  "actions": {
+    "id": 37490130041,
+    "head_sha": "32d40a79bd82af8331aefd2977402cfe855edff3",
+    "status": "completed",
+    "conclusion": "success",
+    "html_url": "https://github.com/kishoujpjp/autobook/actions/runs/37490130041"
+  },
+  "device": {
+    "version": "1.38.0",
+    "bundleVersion": "84",
+    "installedAt": "2026-10-06 23:47:38 UTC+8"
+  }
+}

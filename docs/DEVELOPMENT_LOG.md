@@ -12,6 +12,16 @@
 - [鍵盤回歸結果](verification/keyboard-2026-10-06/report.json)、[詞卡橫向](verification/keyboard-2026-10-06/word-card-1366.png)與[詞卡直向](verification/keyboard-2026-10-06/word-card-1024.png)均使用合成資料；字／詞卡頁首未溢出。
 - 本次未 commit／push／發布網站／安裝 iPad。cap sync 只準備原生靜態資產；實體 iPad 外接鍵盤操作與實際聲音尚未驗證。
 
+## 2026-10-06 — 發布與安裝 v1.38.0
+
+- 依使用者「部署上線，我實機測試」授權完成發布。功能提交 `10e7d2c3054c2404927831a9cb470acae1b8f526`、裝置辨識修正 `32d40a79bd82af8331aefd2977402cfe855edff3` 均已 push main。兩次 Pages Actions 分別為 [功能版](https://github.com/kishoujpjp/autobook/actions/runs/37489886819)與[目前功能／腳本版](https://github.com/kishoujpjp/autobook/actions/runs/37490130041)，完整 head SHA 正確、conclusion=success。
+- 發布前再通過 lint、79／79 自動測試、build、cap sync 與 diff 檢查；既有鍵盤瀏覽器回歸結果沿用上述紀錄。無關的未追蹤私人 PNG 未提交；收件匣 Worker 無改動，未重部署。
+- 目前只安裝正式版 Xcode，使用 `/Applications/Xcode.app/Contents/Developer`。舊 Xcode-beta 路徑已不存在；沙盒內 CoreDeviceService 初始化逾時後，於已授權的本機裝置環境重試成功。
+- 新版 devicectl 的預設 Identifier 欄改顯示 UDID，原腳本只比對 CoreDevice UUID，因而誤判 iPad 離線。改 `list devices --columns '*'` 保留既有 ID，`bash -n` 與實際裝置清單驗證通過；沿用原目標 iPad，未重新配對或使用 generic destination。
+- 2026-10-06 23:47:38，既有自動部署完成 iPad v1.38.0 build 84 覆蓋安裝；devicectl 實際查詢 `com.kishou.autobook` version=1.38.0、bundleVersion=84，簽名包 Info.plist 一致。未解除安裝、清除或操作私人閱讀資料。
+- 正式站 8 個 runtime／SW 以 no-cache 與完整 SHA 查詢參數下載，SHA-256 與 source、dist、iPad 簽名包完全一致；[發布校驗結果](verification/keyboard-2026-10-06/release-report.json)。實際外接鍵盤與聲音由使用者接續實機測試。
+- 純文檔提交會再觸發 Pages 與 iPad 自動部署，build 號可能遞增；本條記錄上述已確認的功能／腳本版發布結果，App 功能版本維持 v1.38.0。
+
 ## 2026-10-02 — v1.32.0：線上推送故事到 iPad
 
 功能提交：[`15136ae`](https://github.com/kishoujpjp/autobook/commit/15136aebaee7597b362499c0da2f7fca1cbeab5b)（22:30:30）。

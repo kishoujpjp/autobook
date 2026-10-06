@@ -1,15 +1,17 @@
 # 自動繪本維護交接
 
-## 本機待發布：v1.38.0 鍵盤控制（2026-10-06）
+## 最新發布：v1.38.0 鍵盤控制（2026-10-06）
+
+功能提交 `10e7d2c3054c2404927831a9cb470acae1b8f526`、安裝辨識修正 `32d40a79bd82af8331aefd2977402cfe855edff3` 已 push main；[目前功能／腳本版 Actions](https://github.com/kishoujpjp/autobook/actions/runs/37490130041) 的 head SHA 與 `32d40a7` 完全一致、conclusion=success。8 個 runtime／SW 正式站檔案以 no-cache 與完整 SHA 查詢參數核對，與 source、dist 和 iPad 簽名包一致。2026-10-06 23:47:38 iPad 自動覆蓋安裝 v1.38.0 build 84，devicectl 查詢確認實際版本。純文檔提交後 build 號可能遞增；本次未操作私人閱讀資料，外接鍵盤由使用者實機測試。
 
 - 閱讀與字／詞卡支援 ←／→、Page Up／Page Down；閱讀加 Home／End 首末頁、Esc 返回書架；字／詞卡加空白鍵／S 聽一次、Esc 返回遊戲首頁及頁首喇叭按鈕。按鈕有焦點時空白鍵保留原操作，S 只發音。繁簡提示見 README。
 - `keyboard.js` 用單一 document 監聽與每頁可替換動作；只處理目前 `.page.active`，忽略輸入、組字、組合鍵、重複按鍵與覆蓋面板。故事重繪及遊戲首頁清掉舊動作；字卡用已連接的舞台作 scope，離開後不再出題。
 - 沿用現有翻頁／字卡按鈕，保存閱讀進度、複習排程與新題計數語義。朗讀不標字、不改熟悉度；詞卡整詞沿用裝置語音，單字走原發音入口。
 - `ui.js` 的可關閉 modal 支援 Esc，只處理最上層；不可關閉的確認／等待框仍需原操作。原有揭曉舞台優先收起並保留焦點返回。
-- 版號同步為 v1.38.0（store／SW／npm 與 lockfile／Xcode），SW shell 納入新 runtime。build 與 cap sync 只準備本機資產。本次未 commit／push／部署／安裝，以下 v1.37.0 記錄為前次發布。
+- 版號同步為 v1.38.0（store／SW／npm 與 lockfile／Xcode），SW shell 納入新 runtime。已完成 build、cap sync、Pages 部署與 iPad 安裝；本次不需重部署收件匣 Worker。以下 v1.37.0 記錄為前次發布。
 - 驗證工具 `tools/keyboard-audit.mjs` 使用合成資料與獨立 Chromium，涵蓋 8 組閱讀配置、字／詞卡往返計數與朗讀、原生焦點操作、按住、面板／IME／輸入保護與重新進入。實體 iPad 外接鍵盤尚未測試。
 
-## 最新更新：v1.37.0 既有繪本追加插圖
+## 前次更新：v1.37.0 既有繪本追加插圖
 
 2026-10-05 已發布 Worker、網頁並覆蓋安裝 iPad。功能提交 `e1566bd270ec7a0866d79e5d3ec8e9b4cc83030d` 已 push main，[Pages Actions](https://github.com/kishoujpjp/autobook/actions/runs/37251041996) 成功；9 個修改 runtime／SW 的正式站、dist 與 iPad 簽名包 SHA-256 一致。沿用憑證與配對；完整格式、失敗語義與 API 見 [收件匣操作文檔](../cloud/inbox/README.md#替既有繪本追加插圖app-v1370)。
 
@@ -39,7 +41,7 @@
 - 67 項自動測試、18 組瀏覽器互動回歸、lint 與 diff 檢查通過；以合成資料檢查 iPad 1024×1366、1366×1024 與夜間配色。實際瀏覽器點按兩個「著」分別儲存並驗證指定音檔路徑；未操作 iPad 的私人故事／字表作互動測試。
 - iPad 安裝紀錄：2026-10-04 18:28:57，v1.35.0 build 76；裝置查詢確認實際版本，22 個修改 runtime／CSS／音檔／授權檔的 source、dist、原生安裝包 SHA-256 一致。未解除安裝或清除資料。build 76 依目前 HEAD 提交數產生，不代表本次修改已提交。
 
-## 最新公開上線紀錄（2026-10-05）
+## 前次公開上線紀錄（2026-10-05）
 
 | 目標 | 本次確認結果 |
 |---|---|
@@ -130,6 +132,6 @@ Worker 改動時先 dry-run，再使用既有登入部署（操作見收件匣 R
 
 iPad 目標 `Kipad Pro 12.9`，裝置 ID `773F74E2-B275-5B55-AD68-9E2C9F4FBA30`。`npm run ios:device` 使用既有安裝腳本；main 提交也會觸發 launchd 自動安裝，先看 `~/.autobook-deploy/lock` 與 `deploy.log`，避免重複建置。腳本在鎖已被占用或裝置不在線時可能退出 0，仍須核對安裝日誌和 `devicectl device info apps` 的實際版本。
 
-`xcodebuild` 必須指定實機 ID，免費帳號不可使用 generic destination，否則 provisioning profile 可能被另一台裝置替換。使用 `/Applications/Xcode-beta.app/Contents/Developer`；本次系統預設 Xcode 的 devicectl 初始化逾時，指定此 DEVELOPER_DIR 後查詢成功。免費簽名有效七天，既有排程每五天重簽。
+`xcodebuild` 必須指定實機 ID，免費帳號不可使用 generic destination，否則 provisioning profile 可能被另一台裝置替換。使用當下已安裝的 Xcode。2026-10-06 為 `/Applications/Xcode.app/Contents/Developer`，舊 Xcode-beta 路徑已不存在；沙盒內 devicectl 初次初始化逾時，於已授權的本機裝置操作環境重試後成功。新版 devicectl 預設 Identifier 欄顯示 UDID，安裝腳本以 `--columns '*'` 保留既有 CoreDevice UUID，避免把已連線裝置誤判為離線。免費簽名有效七天，既有排程每五天重簽。
 
 App 改版同步更新 `js/store.js`、`sw.js`、`package.json`／lockfile、Xcode 兩處 MARKETING_VERSION；新增 runtime JS 同步加入 SW SHELL。純文檔更新不升版，不需重部署 Worker。推送 main 仍會觸發既有 Pages 與 iPad 自動部署，建置號可能因此遞增，版本號以當次改版檔案為準。
