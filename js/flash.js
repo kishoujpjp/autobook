@@ -9,7 +9,8 @@
 import { t, getLang } from './i18n.js';
 import { el, toast, TIMING } from './ui.js';
 import { icon } from './icons.js';
-import { sfx } from './sfx.js';
+import { sfx, speakNative } from './sfx.js';
+import { bindPageKeys } from './keyboard.js';
 import {
   settings, saveSettings, words, isCooling, getCard, cycleMark, bumpFlash,
 } from './store.js';
@@ -226,15 +227,25 @@ export function startFlash(root, mode, onExit, opts = {}) {
 
   // ---------- UI ----------
   const title = mode === 'char' ? t('game_menu_flash') : t('game_menu_word');
-  const counter = el('span', { class: 'fc-counter' });
+  const counter = el('span', { class: 'fc-counter', title: t('keyboard_flash_hint') });
   const cardArea = el('div', { class: 'fc-area' });
-  const backBtn = el('button', { class: 'icon-btn', 'aria-label': t('flash_back') });
+  const backBtn = el('button', { class: 'icon-btn', 'aria-label': t('flash_back'), 'aria-keyshortcuts': 'Escape' });
   backBtn.innerHTML = SVG_BACK;
   backBtn.addEventListener('click', () => { sfx.tap(); onExit(); });
-  const prevBtn = el('button', { class: 'fc-nav', 'aria-label': t('shelf_page_prev') });
+  const prevBtn = el('button', { class: 'fc-nav', 'aria-label': t('shelf_page_prev'), 'aria-keyshortcuts': 'ArrowLeft PageUp' });
   prevBtn.innerHTML = SVG_PREV;
-  const nextBtn = el('button', { class: 'fc-nav next', 'aria-label': t('shelf_page_next') });
+  const nextBtn = el('button', { class: 'fc-nav next', 'aria-label': t('shelf_page_next'), 'aria-keyshortcuts': 'ArrowRight PageDown' });
   nextBtn.innerHTML = SVG_NEXT;
+  const listenBtn = el('button', {
+    class: 'icon-btn', 'aria-label': t('speaker_label'), 'aria-keyshortcuts': 'Space S',
+    title: t('keyboard_flash_hint'), onclick: listen,
+  }, icon('speaker'));
+  function listen() {
+    const card = seq[idx];
+    if (!card) return;
+    if (mode === 'char') speakChar(card.chars[0]);
+    else speakNative(card.text); // 整詞朗讀，保留詞境讀音；不改熟悉度或出題計數。
+  }
 
   // 認詞彙：詞長選擇
   let lenSeg = null;
@@ -259,7 +270,7 @@ export function startFlash(root, mode, onExit, opts = {}) {
     el('div', { class: 'fc-stage' },
       el('div', { class: 'spread' },
         el('div', { class: 'row' }, backBtn, el('div', { class: 'h1', style: 'margin:0;' }, icon(mode === 'char' ? 'cards' : 'puzzle'), title)),
-        el('div', { class: 'row' }, lenSeg, counter),
+        el('div', { class: 'row' }, lenSeg, listenBtn, counter),
       ),
       cardArea,
       el('div', { class: 'fc-controls' },
@@ -355,6 +366,10 @@ export function startFlash(root, mode, onExit, opts = {}) {
 
   prevBtn.addEventListener('click', () => { sfx.tap(); if (idx > 0) { idx--; renderCard(); } });
   nextBtn.addEventListener('click', () => { sfx.tap(); next(); });
+  bindPageKeys(root, {
+    prev: () => prevBtn.click(), next: () => nextBtn.click(),
+    speak: listen, exit: () => backBtn.click(),
+  }, root.querySelector('.fc-stage'));
 
   next();
 }

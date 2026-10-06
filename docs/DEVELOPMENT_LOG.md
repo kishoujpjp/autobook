@@ -2,6 +2,16 @@
 
 本檔記錄開發、驗證與發布結果，含 v1.32.0 故事收件匣起的歷程；更早功能保留於 [README](../README.md)，維護規則與交接見 [HANDOFF](HANDOFF.md)。日期／時間使用 UTC+8。v1.32.0／v1.32.1 條目於 2026-10-03 依 Git 提交與既有操作文檔補錄，不補造當時的實機測試或部署版本 ID。
 
+## 2026-10-06 — v1.38.0：鍵盤控制（本機待發布）
+
+- 閱讀、認字卡與詞語卡可用 ←／→、Page Up／Page Down 前後翻；閱讀增加 Home／End 首末頁、Esc 返回書架，字／詞卡增加空白鍵／S 與頁首「聽一次」、Esc 返回遊戲首頁。喇叭只朗讀，保留熟悉度、複習排程與出題次數。空白鍵／Enter 仍啟動有焦點的按鈕。
+- `keyboard.js` 共用單一 document 監聽、目前頁面與已連接舞台檢查；重繪替換動作，遊戲首頁清除舊字卡動作。輸入、選單、contenteditable、IME、修飾鍵與重複按住不觸發快捷動作；背景故事／字卡不穿透 modal 或揭曉舞台。
+- 可關閉的 modal 支援 Esc，只收最上層；確認／不可關閉面板仍需原按鈕。揭曉舞台沿用原焦點與 Esc。繁簡快捷鍵提示、ARIA keyshortcuts 與 README 操作表一起補上。
+- lint、79／79 自動測試、build、cap sync 與 diff 檢查通過；8 個 runtime／SW 的 source、dist 與 iOS 靜態資產 SHA-256 一致。store／SW／package／lock／Xcode 版號同步為 1.38.0；音節快取版號不變。
+- `tools/keyboard-audit.mjs` 使用隔離 Chromium 與合成資料驗證 8 組閱讀配置（直橫向 × focus／side × small／big），首頁／末頁邊界、字／詞卡新題與歷史計數、朗讀不改熟悉度、原生按鈕焦點、按住、輸入／組字／面板保護、重新進入與 Esc。長篇 Home／End 等平滑捲動完成再讀頁碼；不以固定短等待判定。正式站與私人資料未參與測試。
+- [鍵盤回歸結果](verification/keyboard-2026-10-06/report.json)、[詞卡橫向](verification/keyboard-2026-10-06/word-card-1366.png)與[詞卡直向](verification/keyboard-2026-10-06/word-card-1024.png)均使用合成資料；字／詞卡頁首未溢出。
+- 本次未 commit／push／發布網站／安裝 iPad。cap sync 只準備原生靜態資產；實體 iPad 外接鍵盤操作與實際聲音尚未驗證。
+
 ## 2026-10-02 — v1.32.0：線上推送故事到 iPad
 
 功能提交：[`15136ae`](https://github.com/kishoujpjp/autobook/commit/15136aebaee7597b362499c0da2f7fca1cbeab5b)（22:30:30）。

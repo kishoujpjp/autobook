@@ -25,6 +25,7 @@ import { readingAt } from './story-pronunciation.js';
 import { openStoryPronunciation } from './story-pronunciation-ui.js';
 import { Fog } from './fog.js';
 import { storyLines } from './story-layout.js';
+import { bindPageKeys } from './keyboard.js';
 
 let root = null;
 let currentId = null;
@@ -61,6 +62,7 @@ function inputScriptSelect() {
 }
 
 export function render() {
+  bindPageKeys(root, {});
   celebrateSeq++;
   completeNow = null;
   clearTimeout(autoTimer);
@@ -200,9 +202,9 @@ export function render() {
   if (titleLine) textWrap.append(titleLine);
   const scroll = el('div', { class: 'story-scroll' }, textWrap);
   const textCard = el('div', { class: 'card text-card' }, scroll);
-  const upBtn = el('button', { class: 'page-btn', 'aria-label': t('page_prev') }, icon('prev'));
-  const downBtn = el('button', { class: 'page-btn', 'aria-label': t('page_next') }, icon('next'));
-  const pageInd = el('span', { class: 'page-ind', text: '1 / 1' });
+  const upBtn = el('button', { class: 'page-btn', 'aria-label': t('page_prev'), 'aria-keyshortcuts': 'ArrowLeft PageUp' }, icon('prev'));
+  const downBtn = el('button', { class: 'page-btn', 'aria-label': t('page_next'), 'aria-keyshortcuts': 'ArrowRight PageDown' }, icon('next'));
+  const pageInd = el('span', { class: 'page-ind', text: '1 / 1', title: t('keyboard_story_hint') });
 
   // 頁高鎖成整行：先算放得下幾行（字塊高 + 10px 基本行距），
   // 再把卡片剩餘高度平均攤進行距（上限 +24px），不留一整行空白；
@@ -265,6 +267,18 @@ export function render() {
   }
   upBtn.addEventListener('click', () => { sfx.tap(); flip(-1); });
   downBtn.addEventListener('click', () => { sfx.tap(); flip(1); });
+  function jumpTo(top) {
+    clearTimeout(autoTimer);
+    sfx.tap();
+    scroll.scrollTo({ top, behavior: 'smooth' });
+  }
+  bindPageKeys(root, {
+    prev: () => upBtn.click(),
+    next: () => downBtn.click(),
+    first: () => jumpTo(0),
+    last: () => jumpTo(scroll.scrollHeight - scroll.clientHeight),
+    exit: () => { clearTimeout(autoTimer); sfx.tap(); showPage('shelf'); },
+  });
 
   // 自動翻頁（閱讀設定裡的開關）：目前這一頁的字全部點過就等 2 秒翻下一頁。
   // 每點一次字都重新評估：取消掉之前排的，條件還成立才重排（取消標記也會跟著取消倒數）。
@@ -826,6 +840,7 @@ function openReadSettings(story) {
   }, t('rs_autopage'));
 
   m.body.append(
+    el('p', { class: 'settings-note', text: t('keyboard_story_hint') }),
     el('div', { class: 'field-label', text: t('rs_mode') }), modeSeg,
     el('div', { class: 'field-label', text: t('rs_font') }), fontSeg,
     el('div', { class: 'field-label', text: t('rs_layout') }), layoutSeg,

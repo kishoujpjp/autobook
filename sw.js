@@ -1,5 +1,5 @@
 // Service Worker：app shell 快取（cache-first），API 一律走網路
-const CACHE = 'autobook-v1.37.0';
+const CACHE = 'autobook-v1.38.0';
 // 音節音檔獨立持久快取：檔案不變，cache-first；版本更新時不清除（不用重抓 25MB）
 const SYL_CACHE = 'autobook-syl-1';
 const SHELL = [
@@ -9,6 +9,7 @@ const SHELL = [
   './js/theme.js',
   './js/icons.js',
   './js/nav.js',
+  './js/keyboard.js',
   './js/wait.js',
   './js/parent.js',
   './js/onboarding.js',

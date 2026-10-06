@@ -10,6 +10,7 @@ import { settings, saveSettings, words, bumpGame, getCard, idbGet, idbSet, hasAu
 import { ttsChar } from './gemini.js';
 import { playSyllable } from './voice.js';
 import { startFlash } from './flash.js';
+import { bindPageKeys } from './keyboard.js';
 import { confirmDialog } from './ui.js';
 
 const Q_COUNT = 10;
@@ -31,6 +32,7 @@ let viewSeq = 0;
 
 // ---------- 首頁（三個遊戲入口） ----------
 function renderIntro() {
+  bindPageKeys(root, {});
   viewSeq++;
   root.innerHTML = '';
   root.classList.add('game-page');

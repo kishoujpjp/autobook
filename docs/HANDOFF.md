@@ -1,5 +1,14 @@
 # 自動繪本維護交接
 
+## 本機待發布：v1.38.0 鍵盤控制（2026-10-06）
+
+- 閱讀與字／詞卡支援 ←／→、Page Up／Page Down；閱讀加 Home／End 首末頁、Esc 返回書架；字／詞卡加空白鍵／S 聽一次、Esc 返回遊戲首頁及頁首喇叭按鈕。按鈕有焦點時空白鍵保留原操作，S 只發音。繁簡提示見 README。
+- `keyboard.js` 用單一 document 監聽與每頁可替換動作；只處理目前 `.page.active`，忽略輸入、組字、組合鍵、重複按鍵與覆蓋面板。故事重繪及遊戲首頁清掉舊動作；字卡用已連接的舞台作 scope，離開後不再出題。
+- 沿用現有翻頁／字卡按鈕，保存閱讀進度、複習排程與新題計數語義。朗讀不標字、不改熟悉度；詞卡整詞沿用裝置語音，單字走原發音入口。
+- `ui.js` 的可關閉 modal 支援 Esc，只處理最上層；不可關閉的確認／等待框仍需原操作。原有揭曉舞台優先收起並保留焦點返回。
+- 版號同步為 v1.38.0（store／SW／npm 與 lockfile／Xcode），SW shell 納入新 runtime。build 與 cap sync 只準備本機資產。本次未 commit／push／部署／安裝，以下 v1.37.0 記錄為前次發布。
+- 驗證工具 `tools/keyboard-audit.mjs` 使用合成資料與獨立 Chromium，涵蓋 8 組閱讀配置、字／詞卡往返計數與朗讀、原生焦點操作、按住、面板／IME／輸入保護與重新進入。實體 iPad 外接鍵盤尚未測試。
+
 ## 最新更新：v1.37.0 既有繪本追加插圖
 
 2026-10-05 已發布 Worker、網頁並覆蓋安裝 iPad。功能提交 `e1566bd270ec7a0866d79e5d3ec8e9b4cc83030d` 已 push main，[Pages Actions](https://github.com/kishoujpjp/autobook/actions/runs/37251041996) 成功；9 個修改 runtime／SW 的正式站、dist 與 iPad 簽名包 SHA-256 一致。沿用憑證與配對；完整格式、失敗語義與 API 見 [收件匣操作文檔](../cloud/inbox/README.md#替既有繪本追加插圖app-v1370)。

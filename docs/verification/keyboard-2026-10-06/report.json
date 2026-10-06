@@ -1,0 +1,96 @@
+{
+  "passed": true,
+  "results": [
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 1024
+      },
+      "layout": "focus",
+      "font": "small",
+      "total": 4
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 1024
+      },
+      "layout": "focus",
+      "font": "big",
+      "total": 6
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 1024
+      },
+      "layout": "side",
+      "font": "small",
+      "total": 6
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 1024
+      },
+      "layout": "side",
+      "font": "big",
+      "total": 9
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 1366
+      },
+      "layout": "focus",
+      "font": "small",
+      "total": 3
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 1366
+      },
+      "layout": "focus",
+      "font": "big",
+      "total": 7
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 1366
+      },
+      "layout": "side",
+      "font": "small",
+      "total": 6
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 1366
+      },
+      "layout": "side",
+      "font": "big",
+      "total": 15
+    },
+    {
+      "guards": "modifiers, IME, repeat, inputs, nested dialogs"
+    },
+    {
+      "reveal": "Esc closes only the stage"
+    },
+    {
+      "mode": "char",
+      "cards": "navigation, counts, speech, focus, repeat, re-entry, Escape"
+    },
+    {
+      "mode": "word",
+      "cards": "navigation, counts, speech, focus, repeat, re-entry, Escape"
+    },
+    {
+      "mode": "char",
+      "cards": "navigation, counts, speech, focus, repeat, re-entry, Escape"
+    }
+  ],
+  "errors": []
+}

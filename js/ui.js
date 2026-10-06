@@ -52,8 +52,17 @@ export function openModal(title, { onClose, closable = true, icon: iconName = nu
   const modal = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title || undefined }, head, body, foot);
 
   function close() {
+    document.removeEventListener('keydown', onKey);
     mask.remove();
     if (onClose) onClose();
+  }
+  function onKey(e) {
+    if (!closable || e.defaultPrevented || e.repeat || e.isComposing || e.keyCode === 229 ||
+        e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.key !== 'Escape') return;
+    if (root.lastElementChild !== mask) return; // 只收最上層，不能跳過不可關閉的確認框。
+    e.preventDefault();
+    sfx.tap();
+    close();
   }
   if (closable) {
     head.append(el('button', { class: 'modal-close', 'aria-label': t('close_label'), onclick: () => { sfx.tap(); close(); } }, icon('close')));
@@ -61,6 +70,7 @@ export function openModal(title, { onClose, closable = true, icon: iconName = nu
   mask.append(modal);
   mask.addEventListener('click', (e) => { if (e.target === mask && closable) close(); });
   root.append(mask);
+  document.addEventListener('keydown', onKey);
   return { close, body, foot, head, modal };
 }
 
