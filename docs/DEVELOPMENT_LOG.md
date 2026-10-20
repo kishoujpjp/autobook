@@ -7,7 +7,8 @@
 - 依使用者四項 UI 要求，排序移至搜尋左側、鎖定移至右側，同列固定在捲動容器頂端；整理／完成按鈕移到頁首新增字左邊。刪除本頁搜尋下方說明、篩選計數及模式／鎖定說明，保留其他選字頁的提示。
 - 鎖定切換改為原地更新按鈕，點字時即時讀取鎖定設定；排序重畫後恢復捲動位置。整理模式仍提供入庫與刪除工具。CSS 處理頁面內距與安全區，避免浮動列重複下移；右上全域入口保留可操作空間，Safari 排序選單改為統一外觀。
 - 85／85 自動測試、lint、build、diff 檢查通過；[工具列結果](verification/words-toolbar-2026-10-20/toolbar-report.json)涵蓋 Chromium／WebKit × iPad 直橫向／小螢幕 × 0／24px 安全區，共 12 組，無水平溢出或 pageerror，浮動時可操作搜尋／排序／鎖定，切換鎖定與排序不跳動。[8 組既有選字回歸](verification/words-toolbar-2026-10-20/search-regression.json)每組 21 項通過。初始及捲動畫面使用合成資料，保存於同一驗證目錄。
-- 使用者隨後要求發布，App／SW／package／lock／Xcode 版號同步為 1.39.1；發布前重新通過 lint、85／85 自動測試、build 及 cap sync。Pages 與 iPad 實際結果待驗證後補錄；未操作私人字表或學習資料。
+- 使用者隨後要求發布，App／SW／package／lock／Xcode 版號同步為 1.39.1；發布前重新通過 lint、85／85 自動測試、build 及 cap sync。
+- 功能提交 `5bcc0e653a2ac6261672d6715afbdd038e82ee76` 已 push main，[Pages Actions](https://github.com/kishoujpjp/autobook/actions/runs/39432925686) 完整 head SHA 一致且成功；API 限流，改以官方 Actions 頁面結構化資料核對狀態、工作流程與完整 commit 連結。2026-10-20 21:44:27 iPad 自動覆蓋安裝 v1.39.1 build 92，devicectl 查詢確認實際版本與簽名包一致。5 個 CSS／runtime／SW 以 no-cache 與完整 SHA 查詢參數核對，source、dist、正式站與簽名包 SHA-256 全部一致，[發布結果](verification/words-toolbar-2026-10-20/release-report.json)。純文檔提交可能再遞增 build 號；未操作私人字表或學習資料，實機手感由使用者接續確認。
 
 ## 2026-10-20 — v1.39.0 多字與連續拼音搜尋
 
