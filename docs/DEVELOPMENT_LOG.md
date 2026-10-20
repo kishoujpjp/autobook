@@ -7,7 +7,7 @@
 - 使用者指出白色色塊遮擋、解鎖右側有空白。移除浮動列 `::before` 遮罩及 176px 預留區，將工具列獨立於字格面板，保持初始與捲動時完整寬度及正常內距。前次只檢查可操作範圍，未對這些外觀缺陷設驗收條件；本次加入無額外遮罩、鎖定靠右及人工截圖檢視。
 - 帳號／家長入口以原節點移入認字表頁首，隨頁首捲走；切頁時由 main 還原至 body，不以遮罩或空白避讓。維持原事件監聽、帳號面板與家長頁動作，安全區由頁面裁切處理。
 - 85／85 自動測試、lint、build、cap sync 與 diff 檢查通過；[12 組工具列驗證](verification/words-toolbar-refine-2026-10-20/toolbar-report.json)涵蓋 Chromium／WebKit、iPad 直橫向／小螢幕及安全區，另以真正 main.js 驗證帳號面板、重畫與跨頁還原；[8 組選字回歸](verification/words-toolbar-refine-2026-10-20/search-regression.json)每組 21 項通過。已查看初始、浮動、直橫向與小螢幕合成資料畫面。
-- 延續此次工具列發布修正，版號同步為 1.39.2，網站與 iPad 發布證據待驗證後補錄；未操作私人字表或學習資料。
+- 延續此次工具列發布修正，版號同步為 1.39.2。功能提交 `89c5c32caaba9410885aafd5d999c21c84d34fff` 已 push main，[官方 Pages Actions](https://github.com/kishoujpjp/autobook/actions/runs/39449961913) 完整 SHA 一致且成功。2026-10-20 23:38:13 iPad 覆蓋安裝 v1.39.2 build 94，devicectl 查詢確認實際版本；6 個 CSS／runtime／SW 的 source、dist、無快取正式站與簽名包 SHA-256 一致，[發布結果](verification/words-toolbar-refine-2026-10-20/release-report.json)。唯讀版本查詢的自動權限審核逾時，依工具允許重試一次後成功。純文檔提交可能再遞增 build 號；未操作私人字表或學習資料，實機觸控與鍵盤由使用者接續確認。
 
 ## 2026-10-20 — v1.39.1 認字表精簡工具列
 

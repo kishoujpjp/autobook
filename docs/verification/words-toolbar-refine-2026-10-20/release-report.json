@@ -1,0 +1,83 @@
+{
+  "sha": "89c5c32caaba9410885aafd5d999c21c84d34fff",
+  "verifiedAt": "2026-10-20T23:40:43.931443+08:00",
+  "actions": {
+    "id": 39449961913,
+    "head_sha": "89c5c32caaba9410885aafd5d999c21c84d34fff",
+    "status": "completed",
+    "conclusion": "success",
+    "html_url": "https://github.com/kishoujpjp/autobook/actions/runs/39449961913"
+  },
+  "actionsEvidenceSource": "github-actions-web",
+  "signedBundle": {
+    "version": "1.39.2",
+    "bundleVersion": "94"
+  },
+  "device": {
+    "bundleIdentifier": "com.kishou.autobook",
+    "version": "1.39.2",
+    "bundleVersion": "94"
+  },
+  "results": [
+    {
+      "path": "css/app.css",
+      "hashes": {
+        "source": "0d4982f7899dbdac5c23a810c1b0dd9d87c74a22161c405b644ce2f0af6dfec9",
+        "dist": "0d4982f7899dbdac5c23a810c1b0dd9d87c74a22161c405b644ce2f0af6dfec9",
+        "native": "0d4982f7899dbdac5c23a810c1b0dd9d87c74a22161c405b644ce2f0af6dfec9",
+        "live": "0d4982f7899dbdac5c23a810c1b0dd9d87c74a22161c405b644ce2f0af6dfec9"
+      },
+      "match": true
+    },
+    {
+      "path": "js/account.js",
+      "hashes": {
+        "source": "0d9aa427703de10592f118f1e1e1754ece7f1dfa56f1948d09d877c38bc0b912",
+        "dist": "0d9aa427703de10592f118f1e1e1754ece7f1dfa56f1948d09d877c38bc0b912",
+        "native": "0d9aa427703de10592f118f1e1e1754ece7f1dfa56f1948d09d877c38bc0b912",
+        "live": "0d9aa427703de10592f118f1e1e1754ece7f1dfa56f1948d09d877c38bc0b912"
+      },
+      "match": true
+    },
+    {
+      "path": "js/main.js",
+      "hashes": {
+        "source": "4e1db28c4da3aa87ef59c9f71d442dc18eb8358db411dc74a80aebb39c298e8f",
+        "dist": "4e1db28c4da3aa87ef59c9f71d442dc18eb8358db411dc74a80aebb39c298e8f",
+        "native": "4e1db28c4da3aa87ef59c9f71d442dc18eb8358db411dc74a80aebb39c298e8f",
+        "live": "4e1db28c4da3aa87ef59c9f71d442dc18eb8358db411dc74a80aebb39c298e8f"
+      },
+      "match": true
+    },
+    {
+      "path": "js/words.js",
+      "hashes": {
+        "source": "3ad9de4dc876ce044daa7da88ca6bc39d996b3108746f2945964d96718b33ed3",
+        "dist": "3ad9de4dc876ce044daa7da88ca6bc39d996b3108746f2945964d96718b33ed3",
+        "native": "3ad9de4dc876ce044daa7da88ca6bc39d996b3108746f2945964d96718b33ed3",
+        "live": "3ad9de4dc876ce044daa7da88ca6bc39d996b3108746f2945964d96718b33ed3"
+      },
+      "match": true
+    },
+    {
+      "path": "js/store.js",
+      "hashes": {
+        "source": "2973b6189348db23f74f7989930e78baa7476f3da8d3ab21c8ea2e9ff02022cc",
+        "dist": "2973b6189348db23f74f7989930e78baa7476f3da8d3ab21c8ea2e9ff02022cc",
+        "native": "2973b6189348db23f74f7989930e78baa7476f3da8d3ab21c8ea2e9ff02022cc",
+        "live": "2973b6189348db23f74f7989930e78baa7476f3da8d3ab21c8ea2e9ff02022cc"
+      },
+      "match": true
+    },
+    {
+      "path": "sw.js",
+      "hashes": {
+        "source": "12141ffb832a05d566eea88ca69e52ea5fbceac1b236957511e987cc7c60c5df",
+        "dist": "12141ffb832a05d566eea88ca69e52ea5fbceac1b236957511e987cc7c60c5df",
+        "native": "12141ffb832a05d566eea88ca69e52ea5fbceac1b236957511e987cc7c60c5df",
+        "live": "12141ffb832a05d566eea88ca69e52ea5fbceac1b236957511e987cc7c60c5df"
+      },
+      "match": true
+    }
+  ]
+}
