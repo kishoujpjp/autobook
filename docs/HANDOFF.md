@@ -1,12 +1,14 @@
 # 自動繪本維護交接
 
-## v1.38.2 發布準備：收件匣插圖總數修正（2026-10-20）
+## 最新發布：v1.38.2 收件匣插圖總數修正（2026-10-20）
 
 接收訊息原本只計入獨立追加插圖，漏算新故事隨附圖片；圖片實際已保存，並非通知早於下載。`js/inbox.js` 現在於新書圖片與故事落盤後將隨附張數加入本輪 `images`，繁簡訊息統一顯示「收到 N 張插圖」。計數是本輪新增量，不是書架圖片總數，重送回條不重複計數。
 
-`tools/inbox-append-audit.mjs` 已補混合接收、多圖新書、半途下載失敗與重試、通知及設定頁文字檢查；隔離 Chromium 直橫向各一組通過，[結果](verification/inbox-count-2026-10-20/browser-report.json)。79／79 自動測試、lint、build、cap sync 通過；App／SW／package／lock／Xcode 版號同步為 1.38.2。使用者已要求發布，Pages 與 iPad 實際結果待驗證後補錄；不需改動 Worker、配對或既有資料。
+`tools/inbox-append-audit.mjs` 已補混合接收、多圖新書、半途下載失敗與重試、通知及設定頁文字檢查；隔離 Chromium 直橫向各一組通過，[結果](verification/inbox-count-2026-10-20/browser-report.json)。79／79 自動測試、lint、build、cap sync 通過；App／SW／package／lock／Xcode 版號同步為 1.38.2。
 
-## 最新發布：v1.38.1 字／詞卡版面（2026-10-07）
+功能提交 `723284b1762bd1797fc8cf5a8e095472afd17893` 已 push main，[Pages Actions](https://github.com/kishoujpjp/autobook/actions/runs/39422563815) 的完整 head SHA 一致、conclusion=success。2026-10-20 20:29:30 iPad 自動覆蓋安裝 v1.38.2 build 88，devicectl 查詢實際版本與簽名包一致；4 個 runtime／SW 以 no-cache 與完整 SHA 查詢參數核對，source、dist、正式站與 iPad 簽名包 SHA-256 全部一致，[發布結果](verification/inbox-count-2026-10-20/release-report.json)。純文檔提交可能再遞增 build 號，功能版本維持 1.38.2；未改動 Worker、配對或既有資料。
+
+## 前次發布：v1.38.1 字／詞卡版面（2026-10-07）
 
 修正提交 `276eef508170576d3666174a4ce61d24ccbe3a6a` 已 push main，[Pages Actions](https://github.com/kishoujpjp/autobook/actions/runs/37496071566) 的完整 head SHA 一致且 conclusion=success。2026-10-07 00:29:52 iPad 自動覆蓋安裝 v1.38.1 build 86，devicectl 實際版本與簽名包一致；4 個 CSS／runtime／SW 的 source、dist、正式站及 iPad 簽名包 SHA-256 全部一致。純文檔提交後 build 號可能遞增。
 

@@ -1,0 +1,62 @@
+{
+  "sha": "723284b1762bd1797fc8cf5a8e095472afd17893",
+  "actions": {
+    "id": 39422563815,
+    "head_sha": "723284b1762bd1797fc8cf5a8e095472afd17893",
+    "status": "completed",
+    "conclusion": "success",
+    "html_url": "https://github.com/kishoujpjp/autobook/actions/runs/39422563815"
+  },
+  "results": [
+    {
+      "path": "js/inbox.js",
+      "hashes": {
+        "source": "be30fc1b388fb5fc6400b004518b26d98388c67fa48447999b8cc382f2c10ab8",
+        "dist": "be30fc1b388fb5fc6400b004518b26d98388c67fa48447999b8cc382f2c10ab8",
+        "native": "be30fc1b388fb5fc6400b004518b26d98388c67fa48447999b8cc382f2c10ab8",
+        "live": "be30fc1b388fb5fc6400b004518b26d98388c67fa48447999b8cc382f2c10ab8"
+      },
+      "match": true
+    },
+    {
+      "path": "js/i18n.js",
+      "hashes": {
+        "source": "4f71d177189d869ab4a48d2830f651f987e0ffaf6382a54bb1866aef8352109b",
+        "dist": "4f71d177189d869ab4a48d2830f651f987e0ffaf6382a54bb1866aef8352109b",
+        "native": "4f71d177189d869ab4a48d2830f651f987e0ffaf6382a54bb1866aef8352109b",
+        "live": "4f71d177189d869ab4a48d2830f651f987e0ffaf6382a54bb1866aef8352109b"
+      },
+      "match": true
+    },
+    {
+      "path": "js/store.js",
+      "hashes": {
+        "source": "9b94b23ec7b5caf95708a97be05d35fb3d99bf1d5fa3322fe351111029ce3c2b",
+        "dist": "9b94b23ec7b5caf95708a97be05d35fb3d99bf1d5fa3322fe351111029ce3c2b",
+        "native": "9b94b23ec7b5caf95708a97be05d35fb3d99bf1d5fa3322fe351111029ce3c2b",
+        "live": "9b94b23ec7b5caf95708a97be05d35fb3d99bf1d5fa3322fe351111029ce3c2b"
+      },
+      "match": true
+    },
+    {
+      "path": "sw.js",
+      "hashes": {
+        "source": "a326b6f2439ed6841bd3a940d704f356fb45f46de22351514e7d1eff40e0d0e2",
+        "dist": "a326b6f2439ed6841bd3a940d704f356fb45f46de22351514e7d1eff40e0d0e2",
+        "native": "a326b6f2439ed6841bd3a940d704f356fb45f46de22351514e7d1eff40e0d0e2",
+        "live": "a326b6f2439ed6841bd3a940d704f356fb45f46de22351514e7d1eff40e0d0e2"
+      },
+      "match": true
+    }
+  ],
+  "signedBundle": {
+    "version": "1.38.2",
+    "bundleVersion": "88"
+  },
+  "device": {
+    "bundleIdentifier": "com.kishou.autobook",
+    "version": "1.38.2",
+    "bundleVersion": "88",
+    "installedAt": "2026-10-20 20:29:30 UTC+8"
+  }
+}

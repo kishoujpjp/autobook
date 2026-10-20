@@ -7,7 +7,8 @@
 - 使用者回報接收故事顯示插圖 0 張，打開卻有圖片。原因是 `images` 只在獨立追加插圖流程累加，未計新故事隨附圖；新故事原本已等待圖片與文字落盤，並非通知時序錯誤。
 - 新書 `onImported` 同步累加已保存媒體張數並更新狀態；追加圖沿用原計數。繁簡接收中、完成與通知文字改為插圖總數，不再稱「追加插圖」。
 - 隔離 Chromium 使用合成資料，在修改前重現新書附圖＋追加圖實際 2 張、狀態僅 1 張；修正後直橫向各一組通過。另驗證兩張圖的新書顯示 2 張、半途下載失敗顯示 0、重試成功才累加、再次接收不重複計數，以及通知／設定頁文字。結果位於 `/tmp/autobook-inbox-append-audit/report.json`；79／79 自動測試與 lint 通過。
-- 隨後使用者要求發布更新，App／SW／package／lock／Xcode 版號同步為 1.38.2，重新通過 lint、79／79 自動測試、build 與 cap sync。[瀏覽器結果](verification/inbox-count-2026-10-20/browser-report.json)已保存；Pages 與 iPad 實際結果待驗證後補錄。未操作私人收件匣或閱讀資料，Worker 與配對沿用。
+- 隨後使用者要求發布更新，App／SW／package／lock／Xcode 版號同步為 1.38.2，重新通過 lint、79／79 自動測試、build 與 cap sync。[瀏覽器結果](verification/inbox-count-2026-10-20/browser-report.json)已保存。
+- 功能提交 `723284b1762bd1797fc8cf5a8e095472afd17893` 已 push main，[Pages Actions](https://github.com/kishoujpjp/autobook/actions/runs/39422563815) 完整 head SHA 一致、conclusion=success。2026-10-20 20:29:30 iPad 自動覆蓋安裝 v1.38.2 build 88，devicectl 查詢確認實際版本。四個 runtime／SW 以 no-cache 和完整 SHA 查詢參數下載，source、dist、正式站與簽名安裝包 SHA-256 全部一致，[發布結果](verification/inbox-count-2026-10-20/release-report.json)。純文檔提交會再次觸發部署，build 號可能遞增；未操作私人收件匣或閱讀資料，Worker 與配對沿用。
 
 ## 2026-10-07 — v1.38.1：iPad 橫向字／詞卡遮擋修正
 
