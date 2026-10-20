@@ -1,0 +1,92 @@
+{
+  "sha": "d8bcc3014a184f709bc1c9ec7e8bcd30754a087b",
+  "verifiedAt": "2026-10-20T21:20:06.537424+08:00",
+  "actions": {
+    "id": 39429237189,
+    "head_sha": "d8bcc3014a184f709bc1c9ec7e8bcd30754a087b",
+    "status": "completed",
+    "conclusion": "success",
+    "html_url": "https://github.com/kishoujpjp/autobook/actions/runs/39429237189"
+  },
+  "signedBundle": {
+    "version": "1.39.0",
+    "bundleVersion": "90"
+  },
+  "device": {
+    "bundleIdentifier": "com.kishou.autobook",
+    "version": "1.39.0",
+    "bundleVersion": "90"
+  },
+  "results": [
+    {
+      "path": "css/app.css",
+      "hashes": {
+        "source": "8dddc6e08a20e4ae48672b95b2a4d0bd060e799cc154c89e67a867ce5518b3b1",
+        "dist": "8dddc6e08a20e4ae48672b95b2a4d0bd060e799cc154c89e67a867ce5518b3b1",
+        "native": "8dddc6e08a20e4ae48672b95b2a4d0bd060e799cc154c89e67a867ce5518b3b1",
+        "live": "8dddc6e08a20e4ae48672b95b2a4d0bd060e799cc154c89e67a867ce5518b3b1"
+      },
+      "match": true
+    },
+    {
+      "path": "js/i18n.js",
+      "hashes": {
+        "source": "6cf439ae2bd4ae1e166fb55439454618677917478e61174aa7126ff52ee8651b",
+        "dist": "6cf439ae2bd4ae1e166fb55439454618677917478e61174aa7126ff52ee8651b",
+        "native": "6cf439ae2bd4ae1e166fb55439454618677917478e61174aa7126ff52ee8651b",
+        "live": "6cf439ae2bd4ae1e166fb55439454618677917478e61174aa7126ff52ee8651b"
+      },
+      "match": true
+    },
+    {
+      "path": "js/search-readings.js",
+      "hashes": {
+        "source": "c92988a72bad26e5e0dcb981261a5e6d64d87764bab0a6e0326b604b37ebb6a4",
+        "dist": "c92988a72bad26e5e0dcb981261a5e6d64d87764bab0a6e0326b604b37ebb6a4",
+        "native": "c92988a72bad26e5e0dcb981261a5e6d64d87764bab0a6e0326b604b37ebb6a4",
+        "live": "c92988a72bad26e5e0dcb981261a5e6d64d87764bab0a6e0326b604b37ebb6a4"
+      },
+      "match": true
+    },
+    {
+      "path": "js/word-search-ui.js",
+      "hashes": {
+        "source": "ea49ac99082f28bfc1f1f2b0587fbcdd0b8774340f36e385f34996bc84acd41b",
+        "dist": "ea49ac99082f28bfc1f1f2b0587fbcdd0b8774340f36e385f34996bc84acd41b",
+        "native": "ea49ac99082f28bfc1f1f2b0587fbcdd0b8774340f36e385f34996bc84acd41b",
+        "live": "ea49ac99082f28bfc1f1f2b0587fbcdd0b8774340f36e385f34996bc84acd41b"
+      },
+      "match": true
+    },
+    {
+      "path": "js/word-search.js",
+      "hashes": {
+        "source": "dcd02ac6ca22fb5ad76b1d68d2ae2b87fb8bb856c233d3c9b8177fec3507798d",
+        "dist": "dcd02ac6ca22fb5ad76b1d68d2ae2b87fb8bb856c233d3c9b8177fec3507798d",
+        "native": "dcd02ac6ca22fb5ad76b1d68d2ae2b87fb8bb856c233d3c9b8177fec3507798d",
+        "live": "dcd02ac6ca22fb5ad76b1d68d2ae2b87fb8bb856c233d3c9b8177fec3507798d"
+      },
+      "match": true
+    },
+    {
+      "path": "js/store.js",
+      "hashes": {
+        "source": "f9ed3d7d1cb59159afe7bcf5f8f62e71223f5f803fc5bffd4bbfaa7d13379d35",
+        "dist": "f9ed3d7d1cb59159afe7bcf5f8f62e71223f5f803fc5bffd4bbfaa7d13379d35",
+        "native": "f9ed3d7d1cb59159afe7bcf5f8f62e71223f5f803fc5bffd4bbfaa7d13379d35",
+        "live": "f9ed3d7d1cb59159afe7bcf5f8f62e71223f5f803fc5bffd4bbfaa7d13379d35"
+      },
+      "match": true
+    },
+    {
+      "path": "sw.js",
+      "hashes": {
+        "source": "4d155c40112a2ffd7c184558e0b84310a14a1b2cb2d7dcf058ab88bdc04a7650",
+        "dist": "4d155c40112a2ffd7c184558e0b84310a14a1b2cb2d7dcf058ab88bdc04a7650",
+        "native": "4d155c40112a2ffd7c184558e0b84310a14a1b2cb2d7dcf058ab88bdc04a7650",
+        "live": "4d155c40112a2ffd7c184558e0b84310a14a1b2cb2d7dcf058ab88bdc04a7650"
+      },
+      "match": true
+    }
+  ]
+}

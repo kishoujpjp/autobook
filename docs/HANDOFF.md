@@ -1,13 +1,13 @@
 # 自動繪本維護交接
 
-## v1.39.0 發布準備：多字與連續拼音搜尋（2026-10-20）
+## 最新發布：v1.39.0 多字與連續拼音搜尋（2026-10-20）
 
 - 認字表與認字卡沿用共用 `word-search.js`／`word-search-ui.js`，支援多漢字、連續拼音、半形／全形空白及混合輸入。無空白的 `xian` 合併 `xian`、`xi + an` 等完整切法；明確分隔的 `xi an` 只依指定音節搜尋。單音節既有前綴與聲調規則保留，連續輸入未完成時僅最後一段可用前綴；不可能完成的整段不留下零碎匹配。
 - 音節字典來自既有離線搜尋讀音與音訊讀音，不依目前字表建立；`search-readings.js` 新增 `searchSyllables()`，產生器 `tools/make_search_readings.py` 同步。以可達位置合併切分結果，避免列舉全部組合；不修改字形、發音、學習紀錄或選取集合。共用功能也適用於新故事必用字及追加新字。
 - 85／85 自動測試、lint、build 及 diff 檢查通過；隔離 Chromium／WebKit × 直橫向 × 明暗共 8 組，每組 20 項頁面回歸通過，無 pageerror 或水平溢出。[瀏覽器結果](verification/multi-character-search-2026-10-20/browser-report.json)。執行方式：啟動 `python3 tools/devserver.py 8138`，再執行 `node tools/word-search-audit.mjs`；可用 `PLAYWRIGHT_MODULE` 指定既有模組。
-- 使用者已要求發布；App／SW／package／lock／Xcode 版號同步為 1.39.0，發布前 lint、85／85 自動測試、build 及 cap sync 通過。Pages 與 iPad 實際結果待驗證後補錄；未操作私人字表或真實閱讀資料。
+- App／SW／package／lock／Xcode 版號同步為 1.39.0，發布前 lint、85／85 自動測試、build 及 cap sync 通過。功能提交 `d8bcc3014a184f709bc1c9ec7e8bcd30754a087b` 已 push main，[Pages Actions](https://github.com/kishoujpjp/autobook/actions/runs/39429237189) 完整 head SHA 一致、conclusion=success。2026-10-20 21:18:52 iPad 自動覆蓋安裝 v1.39.0 build 90，devicectl 查詢實際版本與簽名包一致；7 個 CSS／runtime／SW 以 no-cache 和完整 SHA 查詢參數核對，source、dist、正式站與簽名包 SHA-256 全部一致，[發布結果](verification/multi-character-search-2026-10-20/release-report.json)。純文檔提交可能再遞增 build 號，功能版本維持 1.39.0；未操作私人字表或真實閱讀資料，實機觸控由使用者接續確認。
 
-## 最新發布：v1.38.2 收件匣插圖總數修正（2026-10-20）
+## 前次發布：v1.38.2 收件匣插圖總數修正（2026-10-20）
 
 接收訊息原本只計入獨立追加插圖，漏算新故事隨附圖片；圖片實際已保存，並非通知早於下載。`js/inbox.js` 現在於新書圖片與故事落盤後將隨附張數加入本輪 `images`，繁簡訊息統一顯示「收到 N 張插圖」。計數是本輪新增量，不是書架圖片總數，重送回條不重複計數。
 

@@ -8,7 +8,8 @@
 - `word-search.js` 從離線讀音建立音節／前綴集合，用前後可達位置合併切分候選，避免歧義組合膨脹；字典不依候選字表建立。未輸完的最後音節可前綴搜尋，無法完成的尾段不產生局部候選。`search-readings.js` 及產生器同步匯出音節表，沒有更動讀音資料或發音預設。
 - 共用搜尋框補上繁簡提示；保留已選字、分類交集、全選／取消結果、原字身份與輸入法組字保護。新故事必用字及追加新字也沿用此搜尋功能。
 - 85／85 自動測試、lint、build 與 diff 檢查通過。`tools/word-search-audit.mjs` 使用隔離瀏覽器及合成字表，在 Chromium／WebKit、iPad 直橫向、明暗主題共 8 組，每組 20 項測試通過，無 pageerror／水平溢出；涵蓋連續／混合輸入、歧義切分、空白切分、全選、保留選字、組字、分類與原有操作。[結果](verification/multi-character-search-2026-10-20/browser-report.json)。
-- 使用者隨後要求發布；App／SW／package／lock／Xcode 版號同步為 1.39.0，發布前重新通過 lint、85／85 自動測試、build 及 cap sync；Pages 與 iPad 實際結果待驗證後補錄。未操作私人字表或閱讀資料。
+- 使用者隨後要求發布；App／SW／package／lock／Xcode 版號同步為 1.39.0，發布前重新通過 lint、85／85 自動測試、build 及 cap sync。
+- 功能提交 `d8bcc3014a184f709bc1c9ec7e8bcd30754a087b` 已 push main，[Pages Actions](https://github.com/kishoujpjp/autobook/actions/runs/39429237189) 完整 head SHA 一致、conclusion=success。2026-10-20 21:18:52 iPad 自動覆蓋安裝 v1.39.0 build 90，devicectl 查詢確認實際版本；7 個 CSS／runtime／SW 以 no-cache 與完整 SHA 查詢參數核對，source、dist、正式站與簽名包 SHA-256 全部一致，[發布結果](verification/multi-character-search-2026-10-20/release-report.json)。GitHub API 曾暫時回傳 403，後續成功取得同一完整 SHA 的成功結果；沒有以推送或建置成功替代部署驗證。純文檔提交可能再次遞增 build 號；未操作私人字表或閱讀資料，實體 iPad 觸控由使用者接續確認。
 
 ## 2026-10-20 — 收件匣插圖總數修正與 v1.38.2 發布
 
