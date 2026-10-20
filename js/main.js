@@ -12,7 +12,7 @@ import { initWords, refreshWordsPage } from './words.js';
 import { initSettings, refreshSettingsPage } from './settings.js';
 import { initRepeat, refreshRepeatPage } from './repeat.js';
 import { initParent, refreshParentPage } from './parent.js';
-import { initAccountUI, applyRole } from './account.js';
+import { initAccountUI, applyRole, dockAccountUI } from './account.js';
 import { maybeOnboard } from './onboarding.js';
 import { startInbox, watchInbox } from './inbox.js';
 
@@ -45,6 +45,7 @@ function showPage(target) {
   if (!pages[target]) return;
   if (PARENT_ONLY.has(target) && isKid()) target = 'story'; // 小孩帳號：程式面也擋
   if (target !== activePage) stopConfetti();
+  dockAccountUI();
   activePage = target;
   document.querySelectorAll('#tabbar .tab').forEach((x) => {
     const on = x.dataset.page === target;

@@ -2365,7 +2365,10 @@ details.adv[open] summary::before { content: "▾ "; }
 .words-page { --words-blue-ink: var(--sky-deep); }
 :root[data-theme='dark'] .words-page { --words-blue-ink: var(--focus); }
 .words-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 20px; }
-.page.words-page > .words-heading { margin-right: 200px; }
+.page.words-page { clip-path: inset(var(--safe-t) 0 0); }
+.words-header-tools { display: flex; align-items: center; gap: 20px; }
+.words-account-actions { display: flex; align-items: center; gap: 12px; }
+.words-account-actions #parent-btn, .words-account-actions #avatar-btn { position: static; flex: 0 0 64px; width: 64px; height: 64px; margin: 0; }
 .words-title-row { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .words-title-copy { min-width: 0; }
 .words-heading .h1 { margin: 0; }
@@ -2398,17 +2401,16 @@ details.adv[open] summary::before { content: "▾ "; }
 .words-page .stat-chip .lab { font-size: 16px; margin-top: 4px; color: var(--ink); }
 .words-workspace { position: relative; padding: 24px; background: var(--card); border: 1px solid var(--line); border-radius: 32px; box-shadow: var(--shadow-soft); }
 .words-workspace::before { content: ''; position: absolute; top: -1px; left: 28%; right: 28%; height: 7px; border-radius: 0 0 10px 10px; background: linear-gradient(90deg, var(--sky) 0% 25%, var(--mint) 25% 50%, var(--berry) 50% 75%, var(--sun) 75%); pointer-events: none; }
-.words-search-bar { position: sticky; top: var(--safe-t); z-index: 20; display: flex; align-items: center; gap: 12px; padding: 10px 0 14px; margin-bottom: 8px; background: var(--card); border-bottom: 1px solid var(--line); }
-.words-search-bar::before { content: ''; position: absolute; bottom: 100%; left: 0; right: 0; height: calc(var(--safe-t) + 24px); background: var(--card); pointer-events: none; }
-/* .page 的捲動內距已含安全區；扣回基本 24px，並避開右上全域入口。 */
-.page.words-page .words-search-bar { top: -24px; padding-right: 176px; }
+.words-search-bar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; padding: 12px; margin-bottom: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 28px; box-shadow: 0 3px 12px rgba(74, 59, 42, .08); }
+/* .page 的捲動內距已含安全區；工具列本身完整佔寬，不使用額外遮罩或留白。 */
+.page.words-page .words-search-bar { top: -24px; }
 .words-search-bar .word-search { flex: 1; min-width: 0; margin: 0; }
-.words-workspace .word-search-field { gap: 12px; padding: 8px; background: var(--sky-bg); border: 3px solid transparent; border-radius: 28px; }
-.words-workspace .word-search-field:focus-within { border-color: var(--sky); }
-.words-workspace .word-search-field > .ic { width: 48px; height: 48px; padding: 10px; border-radius: 50%; background: var(--sun-bg); color: var(--warn); }
-.words-workspace .word-search-field .text-input { min-height: 64px; border: 0; border-radius: 20px; font-size: 22px; }
-.words-workspace .word-search-field .text-input::placeholder { color: var(--ink-2); opacity: 1; }
-.words-workspace .word-search-field .btn { min-width: 64px; min-height: 64px; padding: 12px; border-radius: 22px; background: var(--card); color: var(--words-blue-ink); box-shadow: 0 4px 0 var(--line); }
+.words-search-bar .word-search-field { position: relative; gap: 8px; }
+.words-search-bar .word-search-field > .ic { position: absolute; left: 16px; width: 24px; height: 24px; color: var(--ink-2); pointer-events: none; }
+.words-search-bar .word-search-field .text-input { min-height: 64px; padding: 12px 16px 12px 50px; border: 2px solid var(--line); border-radius: 20px; background: var(--card-2); font-size: 22px; }
+.words-search-bar .word-search-field .text-input:focus { border-color: var(--sky); }
+.words-search-bar .word-search-field .text-input::placeholder { color: var(--ink-2); opacity: 1; }
+.words-search-bar .word-search-field .btn { min-width: 56px; min-height: 64px; padding: 12px; border-radius: 20px; background: var(--sky-bg); color: var(--words-blue-ink); }
 .words-sort-select { appearance: none; -webkit-appearance: none; flex: 0 0 auto; max-width: 160px; min-height: 64px; padding: 12px 36px 12px 14px; border: 3px solid var(--line); border-radius: 22px; background: var(--sun-bg); background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%); background-position: right 18px center, right 12px center; background-size: 6px 6px; background-repeat: no-repeat; color: var(--ink); font: inherit; font-size: 20px; }
 .words-sort-select:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
 .words-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
@@ -2444,13 +2446,17 @@ details.adv[open] summary::before { content: "▾ "; }
 .pronunciation-char[aria-pressed='true'] { outline: 3px solid var(--sky); outline-offset: 2px; }
 .pronunciation-credit a { color: var(--ink-2); }
 @media (max-width: 700px) {
-  .words-heading { flex-wrap: wrap; }
-  .page.words-page > .words-heading { margin-right: 0; padding-top: 96px; }
+  .words-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 10px; }
+  .words-header-tools { display: contents; }
+  .words-heading-actions { grid-column: 1 / -1; grid-row: 2; justify-content: flex-end; }
+  .words-account-actions { grid-column: 2; grid-row: 1; gap: 8px; }
+  .words-account-actions #parent-btn, .words-account-actions #avatar-btn { flex-basis: 48px; width: 48px; height: 48px; }
+  .words-heading .icon-btn { min-width: 48px; min-height: 48px; }
+  .words-heading .h1 { font-size: 30px; }
   .words-heading-actions .btn { font-size: 18px; padding: 10px 14px; }
   .words-title-row { gap: 10px; }
-  .words-buddy { flex-basis: 56px; width: 56px; height: 56px; border-radius: 20px; }
-  .words-buddy .ic { width: 48px; height: 48px; }
-  .words-tagline { font-size: 15px; }
+  .words-buddy { display: none; }
+  .words-tagline { font-size: 13px; }
   .words-account { gap: 10px; }
   .words-page .stats-row { gap: 8px; }
   .words-page .stat-chip { flex-direction: column; justify-content: center; gap: 6px; padding: 10px 4px; text-align: center; }
@@ -2460,16 +2466,14 @@ details.adv[open] summary::before { content: "▾ "; }
   .words-workspace { padding: 16px; }
   .words-actions { width: 100%; }
   .words-actions .btn { font-size: 20px; }
-  .words-search-bar { gap: 6px; }
-  .page.words-page .words-search-bar { top: 84px; padding-right: 0; }
-  .words-search-bar::before { height: calc(var(--safe-t) + 108px); }
-  .words-sort-select { max-width: 108px; min-height: 48px; padding: 8px 28px 8px 8px; font-size: 16px; background-position: right 14px center, right 8px center; }
+  .words-search-bar { gap: 6px; padding: 8px; border-radius: 22px; }
+  .words-sort-select { max-width: 104px; min-height: 48px; padding: 8px 28px 8px 8px; font-size: 16px; background-position: right 14px center, right 8px center; }
   .words-search-bar .words-lock-btn { min-width: 48px; min-height: 48px; padding: 10px; }
   .words-lock-label { display: none; }
-  .words-workspace .word-search-field { gap: 6px; padding: 6px; }
-  .words-workspace .word-search-field > .ic { display: none; }
-  .words-workspace .word-search-field .text-input { min-height: 48px; font-size: 18px; padding: 8px; }
-  .words-workspace .word-search-field .btn { min-width: 44px; min-height: 44px; padding: 8px; }
+  .words-search-bar .word-search-field { gap: 6px; }
+  .words-search-bar .word-search-field > .ic { display: none; }
+  .words-search-bar .word-search-field .text-input { min-height: 48px; font-size: 18px; padding: 8px; }
+  .words-search-bar .word-search-field .btn { min-width: 44px; min-height: 48px; padding: 8px; }
 }
 
 /* 小視窗與橫向短螢幕也保留圖片、收起鈕及足夠的點按空間。 */

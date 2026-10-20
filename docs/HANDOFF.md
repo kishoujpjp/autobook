@@ -1,5 +1,13 @@
 # 自動繪本維護交接
 
+## v1.39.2 發布準備：浮動列遮擋與留白修正（2026-10-20）
+
+- 使用者回報 v1.39.1 額外白色色塊遮擋及解鎖右側空白。原因是 `.words-search-bar::before` 永久繪製遮罩，以及為全域入口硬留 `padding-right: 176px`。前次檢查雖證明位置與點按可用，沒有驗證這兩個視覺問題。
+- 移除偽元素遮罩與保留區，工具列移到字格面板外，成為獨立圓角列，鎖定右側只留正常 12px／8px 內距。`.page.words-page` 裁切安全區外的繪製，避免在工具列外另畫遮擋。初始與浮動時使用同一完整寬度。
+- `account.js` 的 `dockAccountUI()` 搬動原帳號／家長入口節點至認字表頁首，保留既有事件；頁首隨內容捲走。`main.js` 切頁前還原全域入口到 body，維持其他頁面的固定入口。重畫認字表時保留原節點參照並重新放回頁首，不複製入口或丟失監聽。
+- 85／85 自動測試、lint、build、cap sync、diff 檢查通過。[12 組版面檢查](verification/words-toolbar-refine-2026-10-20/toolbar-report.json)新增鎖定靠右、無遮罩、頁首隨捲動離場；Chromium／WebKit 另透過真正 main.js 檢查帳號面板、重畫、家長頁返回與重新進入。[8 組選字回歸](verification/words-toolbar-refine-2026-10-20/search-regression.json)每組 21 項通過。已人工檢視[初始](verification/words-toolbar-refine-2026-10-20/webkit-1366-initial.png)、[直向](verification/words-toolbar-refine-2026-10-20/webkit-1024-initial.png)、[浮動](verification/words-toolbar-refine-2026-10-20/webkit-1024-safe24.png)及小螢幕截圖，使用合成資料。
+- 延續本次工具列發布的缺陷修正，App／SW／package／lock／Xcode 版號同步為 1.39.2；Pages 與 iPad 實際結果待驗證後補錄。未操作私人字表或學習資料。
+
 ## 最新發布：v1.39.1 認字表精簡工具列（2026-10-20）
 
 - `words.js` 將排序、搜尋與鎖定放進同一條 `words-search-bar`；整理／完成入口移到頁首新增字左側，整理模式的入庫與刪除工具仍按需顯示。移除認字表搜尋提示、篩選／選取計數、無結果提示及模式／鎖定說明；`createWordSearch({ showDetails: false })` 只影響本頁，其餘選字入口仍使用完整提示。

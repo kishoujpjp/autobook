@@ -11,7 +11,7 @@ import {
   getCard, cycleMark,
   currentAccount, isHan,
 } from './store.js';
-import { manageKidRow } from './account.js';
+import { manageKidRow, dockAccountUI } from './account.js';
 import { speakChar } from './voice.js';
 import { showPage } from './nav.js';
 import { convertTo, audioKeysFor } from './zhconv.js';
@@ -66,6 +66,7 @@ function render() {
       class: 'btn berry words-add-btn', onclick: () => { sfx.tap(); openAddWords(); },
     }, icon('plus'), t('words_add_open')),
   );
+  const accountActions = el('div', { class: 'words-account-actions' });
   const backBtn = el('button', {
     class: 'icon-btn', 'aria-label': t(kidMode ? 'parent_back' : 'parent_back_hub'),
     onclick: () => { sfx.tap(); showPage(kidMode ? 'story' : 'parent'); },
@@ -78,8 +79,9 @@ function render() {
         el('p', { class: 'words-tagline', text: t('words_tagline') }),
       ),
     ),
-    headingActions,
+    el('div', { class: 'words-header-tools' }, headingActions, accountActions),
   ));
+  dockAccountUI(accountActions);
 
   // 帳號與統計是字表的背景資訊，保持精簡；主要操作集中在下面的字表區。
   const kidRow = manageKidRow(() => { selected.clear(); render(); });
@@ -301,9 +303,8 @@ function render() {
   }
 
   toolbar.insertBefore(search.root, toolbar.querySelector('.words-lock-btn'));
-  workspace.prepend(toolbar);
   workspace.append(grid);
-  root.append(workspace);
+  root.append(toolbar, workspace);
 }
 
 function statChip(num, label, kind = 'total') {

@@ -29,11 +29,8 @@ if (new URLSearchParams(location.search).has('layout')) {
   root.removeAttribute('style');
   root.classList.add('page','active');
   document.body.style.padding = '0';
-  const {icon} = await import('../js/icons.js');
-  const {avatarEl} = await import('../js/avatars.js');
-  for (const [id,label,child] of [['parent-btn','家長',icon('lock')],['avatar-btn','帳號',avatarEl(store.currentAccount())]]) {
-    const btn=document.createElement('button');btn.id=id;btn.setAttribute('aria-label',label);btn.append(child);document.body.append(btn);
-  }
+  const {initAccountUI} = await import('../js/account.js');
+  initAccountUI(()=>{});
 }
 
 const report = document.getElementById('results');

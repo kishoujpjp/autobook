@@ -29,6 +29,12 @@ export function initAccountUI(changeCb) {
   applyRole();
 }
 
+/** 認字表將原本的全域入口放進頁首；搬動原節點，保留帳號與家長門事件。 */
+export function dockAccountUI(container = document.body) {
+  if (parentBtn) container.append(parentBtn);
+  if (avatarBtn) container.append(avatarBtn);
+}
+
 async function openParentHub() {
   sfx.tap();
   if (isKid()) {
