@@ -1584,6 +1584,10 @@ zuo2:㩇㸲䋏䎰䝫䞢䞰䟄作捽昨柮椊琢砟秨稓笮筰苲莋鈼𡪳𢂃�
 zuo3:㝾䦈䶹佐左撮繓𠂇𢀡𢤎𥙀𦈛𧲭𨀨
 zuo4:㑅㘀㘴㘸㤰㭮䔘䟭䟶乍作侳做凿唑坐岝岞座怍挫柞祚糳胙葃葄蓙袏諎迮酢醋鑿阼飵𠱯𡯨𡹥𥅁𥥏𥹁𥽿𦥬𧃘𧨀𨐳𨝨𪎲𫗢
 zuo5:咗`;
+// 共用同一份離線讀音，避免連續拼音切分漏掉字表中尚未出現的音節。
+export function searchSyllables() {
+  return RAW.split('\n').map((row) => row.slice(0, row.indexOf(':')));
+}
 let index;
 export function searchReadings(ch) {
   if (!index) {

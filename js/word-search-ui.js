@@ -20,7 +20,8 @@ export function createWordSearch({ grid, entries, getSelected, getCandidates, va
   const summary = el('p', { class: 'settings-note word-search-summary', role: 'status', 'aria-live': 'polite' });
   const empty = el('p', { class: 'settings-note word-search-empty', text: t('word_search_empty') });
   const root = el('div', { class: 'word-search' },
-    el('div', { class: 'word-search-field' }, icon('search'), input, clear), summary, empty);
+    el('div', { class: 'word-search-field' }, icon('search'), input, clear),
+    el('p', { class: 'settings-note word-search-hint', text: t('word_search_hint') }), summary, empty);
   grid.classList.add('word-search-grid');
 
   function refresh({ deferLayout = false } = {}) {

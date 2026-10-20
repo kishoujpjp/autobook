@@ -37,7 +37,7 @@ if (new URLSearchParams(location.search).has('layout')) {
 }
 
 const report = document.getElementById('results');
-const chars = [...'貓狗燈發髮行樂長女綠嗎馬'];
+const chars = [...'貓狗燈發髮行樂長女綠嗎馬大天我不打田提安西先'];
 const close = () => document.querySelectorAll('.modal-close').forEach(b => b.click());
 const assert = (value,msg) => { if(!value) throw new Error(msg); };
 const scope = () => [...document.querySelectorAll('.modal')].at(-1) || root;
@@ -61,6 +61,22 @@ function addNew(){close();clearPageClasses();initStory(root);openReadSettingsCur
 function test(name,fn){const item=document.createElement('li');report.append(item);try{fn();item.textContent='通過：'+name;}catch(e){item.textContent='失敗：'+name+' — '+e.message;item.style.color='red';throw e;}}
 function run(){
   reset();report.replaceChildren();
+  test('認字表即時篩選連續拼音、空白與漢字混合，合併所有切法',()=>{
+    wordsPage();
+    for(const text of ['大天我不','datianwobu','da tian wo bu','da　tian　wo　bu','大tian我bu']) {
+      const input=query(text);assert([...'大天我不'].every(ch=>visible().includes(ch)),text+' 四字都顯示');
+      assert(!visible().includes('貓'),text+' 不顯示無關字');assert(document.activeElement===input,'保留輸入焦點');
+    }
+    query('xian');assert([...'先西安'].every(ch=>visible().includes(ch)),'所有合理切法');
+    query('xi　an');assert(visible().includes('西')&&visible().includes('安')&&!visible().includes('先'),'空白明確切分');
+  });
+  test('認字卡連續拼音全選、換查詢保留、清除後選字仍在',()=>{
+    flashPage();query('datianwobu');button(t('word_search_all')).click();
+    const before=selected();assert([...'大天我不'].every(ch=>before.includes(ch)),'全選所有搜尋結果');
+    query('貓');assert(before.every(ch=>selected().includes(ch)),'換搜尋保留選字');
+    tap('貓');button(t('word_search_clear')).click();assert(selected().length===before.length+1,'清除只還原顯示');
+    query('da tian wo bu');button(t('word_search_cancel')).click();assert(selected().includes('貓'),'取消符合字不清掉貓');
+  });
   test('字表繁簡、聲調搜尋與原使用次數小字',()=>{wordsPage();const input=query('dēng');assert(visible().join('')==='燈','聲調搜尋');assert(document.activeElement===input,'輸入焦點');assert(card('燈').querySelector('.u').textContent===t('used_times',{n:0}),'原小字');assert(card('燈').classList.contains('mk-g'),'綠標');query('发');assert(visible().length===2,'發髮獨立');});
   test('輸入法組字完成前不重新篩選',()=>{const input=query('灯');input.dispatchEvent(new CompositionEvent('compositionstart'));input.value='貓';input.dispatchEvent(new InputEvent('input',{isComposing:true}));assert(visible().join('')==='燈','組字不閃爍');input.dispatchEvent(new CompositionEvent('compositionend'));assert(visible().join('')==='貓','組字完成');});
   test('新增字按需開啟，取消不存字、確認後保留搜尋',()=>{

@@ -2358,7 +2358,7 @@ details.adv[open] summary::before { content: "▾ "; }
 .word-search-field .text-input { min-width: 0; flex: 1; }
 .word-search-field input::-webkit-search-cancel-button { display: none; }
 .word-search-field .btn { flex-shrink: 0; min-width: 44px; min-height: 44px; }
-.word-search-summary, .word-search-empty { margin: 8px 0 0; }
+.word-search-hint, .word-search-summary, .word-search-empty { margin: 8px 0 0; }
 .word-search-grid > [hidden], .word-search [hidden] { display: none; }
 
 /* 認字表：繪本配色與大點按區，保留熟悉度及選取的原有色意。 */
