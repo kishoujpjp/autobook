@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import worker from '../cloud/inbox/worker.js';
 import { inboxStoryId } from '../js/inbox-transfer.js';
-import { base, readToken, PNG, env, upload } from '../tests/inbox-fixtures.js';
+import { base, readToken, writeToken, PNG, env, upload, body, call } from '../tests/inbox-fixtures.js';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
@@ -27,10 +27,12 @@ try {
     let oldWorker = false;
     let failEarlierImage = false;
     let failAck = false;
+    let failStoryImage = false;
     await page.route(`${base}/**`, async (route) => {
       const req = route.request();
       if ((oldWorker && req.url().endsWith('/v1/illustrations'))
           || (failEarlierImage && req.url().includes('/append_earlier/images/'))
+          || (failStoryImage && req.url().endsWith('/stories/count_story/images/1'))
           || (failAck && req.url().includes('/illustrations/') && req.url().endsWith('/receipts'))) {
         await route.fulfill({ status: oldWorker ? 404 : 503, contentType: 'application/json', body: JSON.stringify({ error: oldWorker ? 'not_found' : 'network' }) });
         return;
@@ -167,12 +169,26 @@ try {
     const missing = await page.evaluate(async () => (await import('/js/inbox.js')).syncInbox());
     // 現在空間足夠，先收原書再追加，不能建立第二份原書。
     assert.equal(missing.count, 1);
-    assert.equal(missing.images, 1);
+    assert.equal(missing.images, 2, '新書隨附圖片與追加圖片都計入接收總數');
     assert.equal(missing.error, '');
+    // 多圖新書：半途失敗不能計入，存好後才顯示總張數，重試不重複計數。
+    const form = body('stories', { id: 'count_story' });
+    form.append('images', new Blob([PNG], { type: 'image/png' }), 'second.png');
+    assert.equal((await call(e, '/v1/stories', writeToken, { method: 'POST', body: form })).status, 201);
+    failStoryImage = true;
+    const failedStory = await page.evaluate(async () => (await import('/js/inbox.js')).syncInbox());
+    assert.deepEqual(failedStory, { count: 0, images: 0, error: 'network' });
+    failStoryImage = false;
+    const newStory = await page.evaluate(async () => (await import('/js/inbox.js')).syncInbox());
+    assert.deepEqual(newStory, { count: 1, images: 2, error: '' });
+    assert.equal(await page.locator('#toast-root .toast').last().textContent(), '收到 1 本新故事、2 張插圖！');
     await page.evaluate(async () => (await import('/js/nav.js')).showPage('settings'));
+    assert.match(await page.locator('.settings-note[aria-live="polite"]').textContent(), /新增 1 本、收到 2 張插圖/);
     await page.screenshot({ path: `${output}/settings-${viewport.width}.png` });
+    const repeated = await page.evaluate(async () => (await import('/js/inbox.js')).syncInbox());
+    assert.deepEqual(repeated, { count: 0, images: 0, error: '' });
     assert.deepEqual(errors, []);
-    reports.push({ viewport, first, retry, appliedOrder, persisted, full, missing, errors });
+    reports.push({ viewport, first, retry, appliedOrder, persisted, full, missing, failedStory, newStory, repeated, errors });
     await context.close();
   }
   fs.writeFileSync(`${output}/report.json`, JSON.stringify(reports, null, 2) + '\n');

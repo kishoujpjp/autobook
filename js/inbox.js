@@ -193,9 +193,10 @@ async function sync(signal) {
             commit: commitInboxStory, ack,
             onImported: (story) => {
               count++;
+              images += story.media.length;
               bumpUsed(words.filter((w) => story.text.includes(w.ch)).map((w) => w.ch));
               window.dispatchEvent(new CustomEvent('autobook:inbox-story', { detail: { id: story.id } }));
-              status({ count });
+              status({ count, images });
             },
           });
         } catch (e) {
