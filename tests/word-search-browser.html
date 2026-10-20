@@ -61,6 +61,13 @@ function addNew(){close();clearPageClasses();initStory(root);openReadSettingsCur
 function test(name,fn){const item=document.createElement('li');report.append(item);try{fn();item.textContent='通過：'+name;}catch(e){item.textContent='失敗：'+name+' — '+e.message;item.style.color='red';throw e;}}
 function run(){
   reset();report.replaceChildren();
+  test('認字表排序搜尋鎖定同列，整理入口在新增左側且不顯示說明計數',()=>{
+    wordsPage();const bar=root.querySelector('.words-search-bar');
+    assert(bar.querySelector('.words-sort-select')&&bar.querySelector('.word-search input')&&bar.querySelector('.words-lock-btn'),'同列工具齊全');
+    const actions=root.querySelector('.words-heading-actions');
+    assert(actions.firstElementChild.classList.contains('words-edit-btn')&&actions.lastElementChild.classList.contains('words-add-btn'),'整理在新增左側');
+    assert(!root.querySelector('.words-mode-hint,.word-search-hint,.word-search-summary,.word-search-empty'),'無說明及篩選計數');
+  });
   test('認字表即時篩選連續拼音、空白與漢字混合，合併所有切法',()=>{
     wordsPage();
     for(const text of ['大天我不','datianwobu','da tian wo bu','da　tian　wo　bu','大tian我bu']) {

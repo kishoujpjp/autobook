@@ -5,7 +5,7 @@ import { filterCharacters } from './word-search.js';
 import { syllableOf } from './readings.js';
 
 /** 篩選既有字卡節點，保留其標色、讀音、選框及事件；輸入時不重繪頁面。 */
-export function createWordSearch({ grid, entries, getSelected, getCandidates, value = '', onQueryChange = () => {}, maxSelected }) {
+export function createWordSearch({ grid, entries, getSelected, getCandidates, value = '', onQueryChange = () => {}, maxSelected, showDetails = true }) {
   const nodes = new Map(entries.map(({ ch, node }) => [ch, node]));
   const pool = [...nodes.keys()];
   let query = value;
@@ -21,7 +21,7 @@ export function createWordSearch({ grid, entries, getSelected, getCandidates, va
   const empty = el('p', { class: 'settings-note word-search-empty', text: t('word_search_empty') });
   const root = el('div', { class: 'word-search' },
     el('div', { class: 'word-search-field' }, icon('search'), input, clear),
-    el('p', { class: 'settings-note word-search-hint', text: t('word_search_hint') }), summary, empty);
+    showDetails ? [el('p', { class: 'settings-note word-search-hint', text: t('word_search_hint') }), summary, empty] : []);
   grid.classList.add('word-search-grid');
 
   function refresh({ deferLayout = false } = {}) {

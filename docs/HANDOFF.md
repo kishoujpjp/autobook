@@ -1,5 +1,13 @@
 # 自動繪本維護交接
 
+## v1.39.1 發布準備：認字表精簡工具列（2026-10-20）
+
+- `words.js` 將排序、搜尋與鎖定放進同一條 `words-search-bar`；整理／完成入口移到頁首新增字左側，整理模式的入庫與刪除工具仍按需顯示。移除認字表搜尋提示、篩選／選取計數、無結果提示及模式／鎖定說明；`createWordSearch({ showDetails: false })` 只影響本頁，其餘選字入口仍使用完整提示。
+- 工具列用 sticky 定位在 `.page` 捲動容器上緣；原有頁面內距已含安全區，扣回基本 24px 以免重複位移，並遮住安全區後方滾過的字卡。iPad 版預留右上全域入口空間，小螢幕工具列停在全域入口下方、鎖定改用圖示並保留可存取名稱。排序選單使用一致的自訂外觀，Safari 不會縮成小型原生外框。
+- 鎖定按鈕原地更新狀態，不重畫字表或丟掉輸入焦點；讀字判斷即時讀 `settings.wordsLocked`。排序重畫後恢復原捲動量。原字、閱讀／學習資料及複選集合沿用既有規則。
+- 85／85 自動測試、lint、build、diff 檢查通過。[12 組工具列檢查](verification/words-toolbar-2026-10-20/toolbar-report.json)涵蓋 Chromium／WebKit、1366×1024／1024×1366／390×844、0／24px 安全區，測同列位置、無溢出、浮動後可點按，以及鎖定／排序不跳動；[8 組選字回歸](verification/words-toolbar-2026-10-20/search-regression.json)每組 21 項通過。[初始版面](verification/words-toolbar-2026-10-20/webkit-1366-initial.png)與[捲動版面](verification/words-toolbar-2026-10-20/webkit-1024-safe24.png)均使用合成資料。
+- `tools/words-toolbar-audit.mjs` 與既有 `tools/word-search-audit.mjs` 皆需先啟動 `python3 tools/devserver.py 8138`，可設定 `PLAYWRIGHT_MODULE`。先完成 build 再跑瀏覽器，避免測試讀到正在產生的 vendor。使用者已要求發布，App／SW／package／lock／Xcode 版號同步為 1.39.1；發布前重新通過 lint、85／85 自動測試、build 及 cap sync，Pages 與 iPad 實際結果待驗證後補錄。
+
 ## 最新發布：v1.39.0 多字與連續拼音搜尋（2026-10-20）
 
 - 認字表與認字卡沿用共用 `word-search.js`／`word-search-ui.js`，支援多漢字、連續拼音、半形／全形空白及混合輸入。無空白的 `xian` 合併 `xian`、`xi + an` 等完整切法；明確分隔的 `xi an` 只依指定音節搜尋。單音節既有前綴與聲調規則保留，連續輸入未完成時僅最後一段可用前綴；不可能完成的整段不留下零碎匹配。

@@ -61,7 +61,11 @@ function render() {
   const kidMode = currentAccount().role === 'kid';
   if (kidMode) editMode = false;
   const acc = null;
-  const locked = settings.wordsLocked;
+  const headingActions = el('div', { class: 'words-heading-actions' },
+    kidMode || editMode ? null : el('button', {
+      class: 'btn berry words-add-btn', onclick: () => { sfx.tap(); openAddWords(); },
+    }, icon('plus'), t('words_add_open')),
+  );
   const backBtn = el('button', {
     class: 'icon-btn', 'aria-label': t(kidMode ? 'parent_back' : 'parent_back_hub'),
     onclick: () => { sfx.tap(); showPage(kidMode ? 'story' : 'parent'); },
@@ -74,9 +78,7 @@ function render() {
         el('p', { class: 'words-tagline', text: t('words_tagline') }),
       ),
     ),
-    kidMode || editMode ? null : el('button', {
-      class: 'btn berry words-add-btn', onclick: () => { sfx.tap(); openAddWords(); },
-    }, icon('plus'), t('words_add_open')),
+    headingActions,
   ));
 
   // 帳號與統計是字表的背景資訊，保持精簡；主要操作集中在下面的字表區。
@@ -112,33 +114,53 @@ function render() {
     return;
   }
 
-  // ---- 排序 + 工具列（小孩模式只留排序） ----
+  // ---- 固定搜尋列：左排序、中搜尋、右鎖定；整理入口放頁首 ----
   let toolRefresher = null; // 編輯模式工具鈕的刷新（選取數字），setSel 用
   const workspace = el('div', { class: 'words-workspace' });
-  const toolbar = el('div', { class: 'words-toolbar' });
+  const toolbar = el('div', { class: 'words-search-bar' });
   const sort = el('select', { class: 'words-sort-select', 'aria-label': t('words_sort_label') });
   for (const [value, key] of [['new', 'words_sort_new'], ['weak', 'words_sort_weak'], ['least', 'words_sort_least'], ['most', 'words_sort_most']]) {
     sort.append(el('option', { value, text: t(key) }));
   }
   sort.value = sortMode;
-  sort.addEventListener('change', () => { sfx.tap(); sortMode = sort.value; render(); });
-  toolbar.append(el('label', { class: 'words-sort' }, t('words_sort_label'), sort));
+  sort.addEventListener('change', () => {
+    sfx.tap(); sortMode = sort.value;
+    const scrollTop = root.scrollTop;
+    render(); root.scrollTop = scrollTop;
+  });
+  toolbar.append(sort);
 
-  if (kidMode) {
-    workspace.append(toolbar);
-  } else {
+  if (!kidMode) {
     // 鎖定：點字只發音，不改紅綠（防小孩亂按）
     const lockBtn = el('button', {
-      class: `btn small words-lock-btn ${settings.wordsLocked ? 'berry' : 'ghost'}`,
-      'aria-pressed': String(settings.wordsLocked),
-      onclick: () => { sfx.tap(); settings.wordsLocked = !settings.wordsLocked; saveSettings(); render(); },
-    }, settings.wordsLocked ? [icon('lock'), t('words_unlock')] : [icon('unlock'), t('words_lock')]);
+      class: 'btn small words-lock-btn',
+      onclick: () => {
+        sfx.tap();
+        const previous = settings.wordsLocked;
+        settings.wordsLocked = !previous;
+        if (!saveSettings()) settings.wordsLocked = previous;
+        refreshLock();
+      },
+    });
+    function refreshLock() {
+      const locked = settings.wordsLocked;
+      lockBtn.classList.toggle('berry', locked);
+      lockBtn.classList.toggle('ghost', !locked);
+      lockBtn.setAttribute('aria-pressed', String(locked));
+      lockBtn.setAttribute('aria-label', t(locked ? 'words_unlock' : 'words_lock'));
+      lockBtn.replaceChildren(icon(locked ? 'lock' : 'unlock'), el('span', {
+        class: 'words-lock-label', text: t(locked ? 'words_unlock' : 'words_lock'),
+      }));
+    }
+    refreshLock();
+    toolbar.append(lockBtn);
 
     const editBtn = el('button', {
       class: `btn small words-edit-btn ${editMode ? 'mint' : 'sky'}`,
       'aria-pressed': String(editMode),
       onclick: () => { sfx.tap(); editMode = !editMode; selected.clear(); render(); },
     }, editMode ? [icon('check'), t('words_edit_done')] : [icon('broom'), t('words_edit')]);
+    headingActions.prepend(editBtn);
 
     // 編輯模式：刪除選取 + 入庫/出庫
     const delBtn = el('button', { class: 'btn danger small' });
@@ -174,17 +196,8 @@ function render() {
       render();
     });
 
-    toolbar.append(el('div', { class: 'words-actions' },
-      editMode ? archBtn : lockBtn,
-      editMode ? delBtn : null,
-      editBtn,
-    ));
-    workspace.append(toolbar);
+    if (editMode) workspace.append(el('div', { class: 'words-actions words-edit-tools' }, archBtn, delBtn));
   }
-  workspace.append(el('p', { class: 'settings-note words-mode-hint',
-    text: editMode ? t('words_edit_hint')
-      : locked ? t('words_lock_hint') : t(kidMode ? 'words_kid_hint' : 'words_mark_help'),
-  }));
 
   // ---- 字格 ----
   const now = Date.now();
@@ -223,7 +236,7 @@ function render() {
       // 點一下：輪換熟悉度（白→綠→紅→白）＋唸字（AI 快取優先，缺檔用內建語音）
       // 鎖定或小孩模式：只發音，不改紅綠；檢視小孩時改的是該小孩的紀錄
       chip.addEventListener('click', () => {
-        if (locked) {
+        if (settings.wordsLocked) {
           sfx.tap();
           chip.classList.remove('pop');
         } else {
@@ -249,6 +262,7 @@ function render() {
 
   search = createWordSearch({
     grid, entries: [...chipByCh].map(([ch, node]) => ({ ch, node })),
+    showDetails: false,
     getSelected: editMode ? () => selected : undefined, value: searchQuery,
     getCandidates: () => [...chipByCh.keys()].filter((ch) => {
       const w = wordByCh.get(ch);
@@ -286,7 +300,8 @@ function render() {
     grid.addEventListener('pointerleave', stop);
   }
 
-  workspace.prepend(search.root);
+  toolbar.insertBefore(search.root, toolbar.querySelector('.words-lock-btn'));
+  workspace.prepend(toolbar);
   workspace.append(grid);
   root.append(workspace);
 }
