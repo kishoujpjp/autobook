@@ -471,10 +471,10 @@ export function render() {
   // 閱讀中只推進度條，圖片不打開；全部讀完才一次揭曉：
   //   並排版面：迷霧分批散開（配階梯音）→ 圖片放大回彈＋魔法星星＋彩帶＋完成音
   //   專注版面：星星階梯音 → 童話外框的圖片框從中央彈出＋魔法星星＋彩帶＋完成音
-  let celebrated = false; // 這次 render 是否已放過揭曉動畫（重開已完成的書不重播）
+  let celebrated = false; // 這輪是否已計過讀完；重開只重播慶祝，不再次計數。
   const mySeq = celebrateSeq;
   function bigCelebrate() {
-    if (mySeq !== celebrateSeq) return;
+    if (mySeq !== celebrateSeq || !root.getClientRects().length) return;
     replayBtn.hidden = layout !== 'focus';
     if (layout === 'focus') { openStage(mediaView); return; }
     figWrap.classList.remove('reveal-bounce');
@@ -554,18 +554,19 @@ export function render() {
   refreshActs(); // 先填好文字與顯示狀態，等 rAF 才填會閃一下空按鈕
 
   requestAnimationFrame(() => {
+    if (mySeq !== celebrateSeq) return;
     if (layout !== 'focus') {
       fog = new Fog(fogCanvas, story.id);
-      // 進場：已完成的書直接亮圖（不重播動畫）；未完成一律全罩迷霧
+      // 已完成的書不再遮迷霧，下面直接重播圖片慶祝；未完成全罩迷霧。
       fog.revealed = completed ? fog.total : 0;
       fog.draw(1);
       fog.canvas.style.opacity = completed ? '0' : '1';
-      if (completed) mediaView.start();
     }
     if (completed) celebrated = true;
     updateProgress();
     sizeText();
     updatePager();
+    if (completed) bigCelebrate();
   });
 }
 

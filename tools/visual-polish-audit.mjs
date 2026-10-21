@@ -103,7 +103,7 @@ const origin = process.env.AUDIT_URL || 'http://127.0.0.1:8137';
   const s=await import('/js/store.js');s.stories[0].media=[{id:'qa-video',kind:'video',url:origin+'/qa-video.webm'}];
   (await import('/js/story.js')).render();
  },origin);
- await page.getByRole('button',{name:'再看一次',exact:true}).click();
+ await page.locator('.reveal-stage').waitFor(); // 已完成繪本重畫後自動打開影片慶祝
  await page.waitForFunction(()=>{const v=document.querySelector('.frame-mat video');return v&&v.readyState>=2&&!v.paused}).catch(async e=>{console.error(await page.locator('.frame-mat video').evaluate(v=>({src:v.src,ready:v.readyState,paused:v.paused,error:v.error?.message})));throw e;});
  assert.equal(await page.locator('.frame-mat video').evaluate(v=>v.muted),true,'影片初始靜音');
  await page.locator('.frame-mat .media-sound').click();
