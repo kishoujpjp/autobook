@@ -2,13 +2,14 @@
 
 本檔記錄開發、驗證與發布結果，含 v1.32.0 故事收件匣起的歷程；更早功能保留於 [README](../README.md)，維護規則與交接見 [HANDOFF](HANDOFF.md)。日期／時間使用 UTC+8。v1.32.0／v1.32.1 條目於 2026-10-03 依 Git 提交與既有操作文檔補錄，不補造當時的實機測試或部署版本 ID。
 
-## 2026-10-22 — v1.39.6 圖片框與慶祝動畫精修（發布中）
+## 2026-10-22 — v1.39.6 圖片框與慶祝動畫精修（已發布）
 
 - 相框改為較薄紙質邊框、柔和陰影與較小圓角，移除四角固定星星；拿掉「點一下，再慶祝一次！」可見文字，保留點圖／背景重播與鍵盤可存取名稱。去掉提示後重新調整舞台與相框可用高度，仍完整 contain 插圖並保留收起按鈕。
 - 繪本粒子由 160 減至 120，長彩帶比例由 1/3 降為 1/12（約 54 條降為 10 條）；長度由 32–56px 縮至 22–36px。入場錯開約 1.6 秒，初段加速、受阻力逐漸接近終端速度，以不同頻率緩慢翻面、側向擺動和彎曲，約 4.8 秒淡出清空。起始粒子分散在整個畫面，長彩帶顏色獨立取樣。
 - 星星尺寸由 20–44px 調為 28–46px，增加淺色描邊與深色柔和陰影，提升與插圖重疊時的辨識。保留每次替換舊粒子、重播不計讀完次數、影片不中斷、慶祝忽略減少動態效果，以及重開已讀繪本停在閱讀畫面的行為。
 - 本機舊測試伺服器在 reload 時出現 inbox.js 的 ERR_CONNECTION_RESET，改用獨立安靜伺服器與較大連線佇列後完整通過；未因此修改 App 啟動流程。截圖取樣檢查也調整至星星清理前，並相容瀏覽器將 stroke fill 序列化為 stroke。
-- App／SW／package／lock／Xcode 同步為 1.39.6，lint、85／85 自動測試、build／cap sync 與 diff 檢查通過，Chromium／WebKit × iPad 直橫向及小螢幕共 6 組檢查通過，[結果](verification/story-celebration-polish-2026-10-22/browser-report.json)；已檢視[橫向](verification/story-celebration-polish-2026-10-22/landscape.png)、[直向](verification/story-celebration-polish-2026-10-22/portrait.png)、[飄落中段](verification/story-celebration-polish-2026-10-22/fall-middle.png)、[後段](verification/story-celebration-polish-2026-10-22/fall-late.png)及小螢幕。完整 Chromium 回歸另通過 16 組設定、42 頁、重讀解鎖與影片、音效檢查。待發布與實機核對。
+- App／SW／package／lock／Xcode 同步為 1.39.6，lint、85／85 自動測試、build／cap sync 與 diff 檢查通過，Chromium／WebKit × iPad 直橫向及小螢幕共 6 組檢查通過，[結果](verification/story-celebration-polish-2026-10-22/browser-report.json)；已檢視[橫向](verification/story-celebration-polish-2026-10-22/landscape.png)、[直向](verification/story-celebration-polish-2026-10-22/portrait.png)、[飄落中段](verification/story-celebration-polish-2026-10-22/fall-middle.png)、[後段](verification/story-celebration-polish-2026-10-22/fall-late.png)及小螢幕。完整 Chromium 回歸另通過 16 組設定、42 頁、重讀解鎖與影片、音效檢查。
+- v1.39.6 已發布：功能提交 `bb645e11f90d91ad5e6f8a28e415a9cee0d8c575` 已 push main，[Pages Actions](https://github.com/kishoujpjp/autobook/actions/runs/39666975679) 完整 SHA 一致且成功。2026-10-22 04:04:07 iPad 自動覆蓋安裝 v1.39.6 build 102，devicectl 查詢確認實際版號；6 個 CSS／runtime／SW 的 source、dist、no-cache 正式站與簽名包 SHA-256 全部一致，[發布結果](verification/story-celebration-polish-2026-10-22/release-report.json)。純文檔提交可能再遞增 build；未操作私人故事與閱讀資料，實機飄落節奏的主觀驗收由使用者接續確認。
 
 ## 2026-10-22 — v1.39.5 慶祝固定播放、重開保留閱讀畫面（已發布）
 
