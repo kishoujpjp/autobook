@@ -2,14 +2,14 @@
 
 本檔記錄開發、驗證與發布結果，含 v1.32.0 故事收件匣起的歷程；更早功能保留於 [README](../README.md)，維護規則與交接見 [HANDOFF](HANDOFF.md)。日期／時間使用 UTC+8。v1.32.0／v1.32.1 條目於 2026-10-03 依 Git 提交與既有操作文檔補錄，不補造當時的實機測試或部署版本 ID。
 
-## 2026-10-22 — v1.39.3 閱讀完成慶祝動畫（發布中）
+## 2026-10-22 — v1.39.3 閱讀完成慶祝動畫（已發布）
 
 - 完成繪本後，新增約 4.2 秒分批飄落的彩紙與旋轉曲線彩帶，24 顆彩色星星分三波閃爍並向外飛散。彩帶用時間計算位置，高更新率螢幕不會加速；第一批立即出現，尾端淡出。
 - 專注版面點圖片、背景或提示文字都重播，按「收起來」或 Escape 關閉；圖片框支援 Tab、Enter／空白鍵。並排版面點已完成插圖同樣重播。450ms 防連點，每輪替換舊粒子，不增加閱讀遍數；影片也能放特效，播放進度與聲音狀態保留，點喇叭不觸發慶祝。
 - 遵守系統「減少動態效果」，收起／重畫／切頁立即清掉彩帶。圖片仍以 contain 完整顯示。
 - lint、85／85 自動測試、build、diff 檢查通過。`tools/story-celebration-audit.mjs` 以隔離帳號及合成插圖驗證 Chromium／WebKit × 1366×1024、1024×1366、844×390 共 6 組，涵蓋真正點讀完成、觸控圖片／背景重播、鍵盤、閱讀次數、動畫自然清空、收起／切頁清理及減少動態效果，無 pageerror。[結果](verification/story-celebration-2026-10-22/browser-report.json)、[橫向](verification/story-celebration-2026-10-22/landscape.png)、[直向](verification/story-celebration-2026-10-22/portrait.png)；已人工檢視直橫向與小螢幕截圖。
 - 既有 `tools/visual-polish-audit.mjs` 更新焦點及影片重播預期，完整 Chromium 回歸通過：16 組閱讀設定、42 頁、再讀解鎖下一張、影片播放／聲音狀態與 12 組音效。第一次啟動等待逾時，重跑完整通過，未因此更改 App 啟動邏輯。
-- 使用者已授權發布；App／SW／package／lock／Xcode 同步升版 1.39.3，重新執行發布檢查、build／cap sync，後續核對 Pages 與 iPad。尚未操作私人閱讀資料。
+- v1.39.3 發布完成：功能提交 `21222729a4840c8ae6d724178597ee270de4d1cb` 已 push main，[Pages Actions](https://github.com/kishoujpjp/autobook/actions/runs/39656537811) 完整 SHA 一致且成功。2026-10-22 02:53:28 iPad 自動覆蓋安裝 v1.39.3 build 96，devicectl 查詢確認實際版號；6 個 CSS／runtime／SW 以 no-cache 與完整 SHA 查詢參數核對，source、dist、正式站與簽名包 SHA-256 全部一致，[發布結果](verification/story-celebration-2026-10-22/release-report.json)。手動安裝指令因既有自動部署持鎖而未另起安裝，實際安裝證據來自該次自動部署紀錄與後續裝置查詢。純文檔提交可能再遞增 build 號；未操作私人閱讀資料，實機動畫手感由使用者接續確認。
 
 ## 2026-10-20 — v1.39.2 浮動列遮擋與留白修正
 
