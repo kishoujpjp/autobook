@@ -480,9 +480,7 @@ export function render() {
     figWrap.classList.remove('reveal-bounce');
     void figWrap.offsetWidth;
     figWrap.classList.add('reveal-bounce');
-    spawnMagicStars(figWrap);
-    sfx.fanfare();
-    confetti();
+    playRevealEffects(figWrap);
     mediaView.start();
   }
   function celebrate() {
@@ -504,16 +502,18 @@ export function render() {
       onDone: bigCelebrate,
     });
   }
-  // 迷霧解開後點圖可以再放一次特效（1.5 秒冷卻，連點不疊放）
+  // 迷霧解開後點圖重播；替換上一輪粒子，不累積特效。
   let lastReplay = 0;
   figWrap.addEventListener('click', (e) => {
     if (!celebrated) return;
-    if (mediaView.kind === 'video') return;       // 影片正在播，不要被特效打斷
     if (e.target.closest('.media-sound')) return; // 影片的喇叭鈕不算
     const now = Date.now();
-    if (now - lastReplay < 1500) return;
+    if (now - lastReplay < TIMING.tapGuard) return;
     lastReplay = now;
-    bigCelebrate();
+    figWrap.classList.remove('reveal-bounce');
+    void figWrap.offsetWidth;
+    figWrap.classList.add('reveal-bounce');
+    playRevealEffects(figWrap);
   });
   const hintKey = layout === 'focus' ? 'focus_hint' : 'fog_hint';
   function updateProgress() {
@@ -688,44 +688,51 @@ function createMediaView(m) {
 
 // ---------- 揭曉舞台（專注版面的童話外框圖片框） ----------
 function closeStage() {
-  if (stageEl) { stageEl.remove(); stageEl = null; stopConfetti(); }
+  if (stageEl) { stageEl.remove(); stageEl = null; }
+  stopConfetti();
   if (stageReturnFocus?.isConnected) stageReturnFocus.focus({ preventScroll: true });
   stageReturnFocus = null;
 }
 
-/** 把媒體放進童話外框、蓋在整頁上彈出來；點外面或「收起來」關掉（文字還在下面隨時可以再讀） */
+/** 把媒體放進相框；點圖片或背景重播慶祝，「收起來」或 Escape 關閉。 */
 function openStage(view) {
   closeStage();
   stageReturnFocus = document.activeElement;
-  const frame = el('div', { class: 'story-frame in' },
+  const frame = el('div', { class: 'story-frame in', role: 'button', tabindex: '0', 'aria-label': t('reveal_replay_hint') },
     ...['tl', 'tr', 'bl', 'br'].map((k) => el('span', { class: `orn ${k}` }, icon('sparkle'))),
     el('div', { class: 'frame-mat' }, view.el),
   );
   const shut = () => { sfx.tap(); view.stop(); closeStage(); };
-  // 點框可以再放一次特效（1.5 秒冷卻，連點不疊放）；影片正在播就不打斷
-  let lastReplay = Date.now();
-  frame.addEventListener('click', () => {
-    if (view.kind === 'video') return;
+  // 重播只更新動畫，影片播放位置與靜音狀態都不動。
+  let lastReplay = 0;
+  const replay = () => {
     const now = Date.now();
-    if (now - lastReplay < 1500) return;
+    if (now - lastReplay < TIMING.tapGuard) return;
     lastReplay = now;
     frame.classList.remove('in', 'pop');
     void frame.offsetWidth; // 重新觸發動畫
     frame.classList.add('pop');
-    spawnMagicStars(frame);
-    sfx.fanfare();
-    confetti();
+    playRevealEffects(frame);
+  };
+  frame.addEventListener('keydown', (e) => {
+    if (e.target !== frame || !['Enter', ' '].includes(e.key)) return;
+    e.preventDefault();
+    replay();
   });
+  const hint = el('p', { class: 'reveal-replay-hint', text: t('reveal_replay_hint') });
   const closeBtn = el('button', { class: 'stage-close', onclick: (e) => { e.stopPropagation(); shut(); } }, icon('close'), t('reveal_close'));
   const stage = el('div', { class: 'reveal-stage', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('media_replay') },
     frame,
+    hint,
     closeBtn,
   );
-  stage.addEventListener('click', (e) => { if (e.target === stage) shut(); });
+  stage.addEventListener('click', (e) => {
+    if (!e.target.closest('.media-sound, .stage-close')) replay();
+  });
   stage.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { e.preventDefault(); shut(); }
     if (e.key === 'Tab') {
-      const buttons = [...stage.querySelectorAll('button')].filter((b) => !b.hidden && !b.disabled);
+      const buttons = [...stage.querySelectorAll('button, [tabindex="0"]')].filter((b) => !b.hidden && !b.disabled);
       const at = buttons.indexOf(document.activeElement);
       e.preventDefault();
       buttons[(at + (e.shiftKey ? -1 : 1) + buttons.length) % buttons.length].focus();
@@ -735,9 +742,7 @@ function openStage(view) {
   root.append(stage);
   stageEl = stage;
   closeBtn.focus({ preventScroll: true });
-  spawnMagicStars(frame);
-  sfx.fanfare();
-  confetti();
+  playRevealEffects(frame);
   view.start();
 }
 
@@ -747,18 +752,31 @@ function speakChar(story, dispCh) {
   speakAt(story, dispCh, i);
 }
 
-/** 揭曉時灑在插圖上的魔法星星 */
+function playRevealEffects(host) {
+  spawnMagicStars(host);
+  sfx.fanfare();
+  confetti(4200, 160, { ribbons: true });
+}
+
+/** 交錯閃爍、往外飛散的彩色星星；重播先清掉上一輪，避免連點堆積。 */
 function spawnMagicStars(host) {
+  host.querySelectorAll('.magic-star').forEach((star) => star.remove());
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const names = ['sparkle', 'star', 'sparkle'];
-  for (let i = 0; i < 12; i++) {
-    const s = el('span', { class: 'magic-star' }, icon(names[i % names.length]));
-    s.style.left = `${6 + Math.random() * 84}%`;
-    s.style.top = `${6 + Math.random() * 84}%`;
-    s.style.width = s.style.height = `${22 + Math.random() * 26}px`;
-    s.style.animationDelay = `${(Math.random() * 0.45).toFixed(2)}s`;
+  const colors = ['var(--sun)', 'var(--mint)', 'var(--berry)', 'var(--sky)'];
+  for (let i = 0; i < 24; i++) {
+    const angle = i / 24 * Math.PI * 2;
+    const s = el('span', { class: 'magic-star', 'aria-hidden': 'true' }, icon(names[i % names.length]));
+    s.style.left = `${50 + Math.cos(angle) * (30 + Math.random() * 12)}%`;
+    s.style.top = `${50 + Math.sin(angle) * (30 + Math.random() * 12)}%`;
+    s.style.width = s.style.height = `${20 + Math.random() * 24}px`;
+    s.style.color = colors[i % colors.length];
+    s.style.setProperty('--star-x', `${Math.cos(angle) * 65}px`);
+    s.style.setProperty('--star-y', `${Math.sin(angle) * 65 - 25}px`);
+    s.style.setProperty('--star-turn', `${i % 2 ? 100 : -100}deg`);
+    s.style.animationDelay = `${(i % 3 * 0.32).toFixed(2)}s`;
     host.append(s);
-    setTimeout(() => s.remove(), 2200);
+    setTimeout(() => s.remove(), 3000);
   }
 }
 

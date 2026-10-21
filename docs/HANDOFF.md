@@ -1,5 +1,14 @@
 # 自動繪本維護交接
 
+## 2026-10-22 — v1.39.3 閱讀完成慶祝動畫（發布中）
+
+- 完成繪本後，新增約 4.2 秒分批飄落的彩紙與旋轉曲線彩帶，24 顆彩色星星分三波閃爍並向外飛散。彩帶用時間計算位置，高更新率螢幕不會加速；第一批立即出現，尾端淡出。
+- 專注版面點圖片、背景或提示文字都重播，按「收起來」或 Escape 關閉；圖片框支援 Tab、Enter／空白鍵。並排版面點已完成插圖同樣重播。450ms 防連點，每輪替換舊粒子，不增加閱讀遍數；影片也能放特效，播放進度與聲音狀態保留，點喇叭不觸發慶祝。
+- 遵守系統「減少動態效果」，收起／重畫／切頁立即清掉彩帶。圖片仍以 contain 完整顯示。
+- lint、85／85 自動測試、build、diff 檢查通過。`tools/story-celebration-audit.mjs` 以隔離帳號及合成插圖驗證 Chromium／WebKit × 1366×1024、1024×1366、844×390 共 6 組，涵蓋真正點讀完成、觸控圖片／背景重播、鍵盤、閱讀次數、動畫自然清空、收起／切頁清理及減少動態效果，無 pageerror。[結果](verification/story-celebration-2026-10-22/browser-report.json)、[橫向](verification/story-celebration-2026-10-22/landscape.png)、[直向](verification/story-celebration-2026-10-22/portrait.png)；已人工檢視直橫向與小螢幕截圖。
+- 既有 `tools/visual-polish-audit.mjs` 更新焦點及影片重播預期，完整 Chromium 回歸通過：16 組閱讀設定、42 頁、再讀解鎖下一張、影片播放／聲音狀態與 12 組音效。第一次啟動等待逾時，重跑完整通過，未因此更改 App 啟動邏輯。
+- 使用者已授權發布；App／SW／package／lock／Xcode 同步升版 1.39.3，重新執行發布檢查、build／cap sync，後續核對 Pages 與 iPad。尚未操作私人閱讀資料。
+
 ## 最新發布：v1.39.2 浮動列遮擋與留白修正（2026-10-20）
 
 - 使用者回報 v1.39.1 額外白色色塊遮擋及解鎖右側空白。原因是 `.words-search-bar::before` 永久繪製遮罩，以及為全域入口硬留 `padding-right: 176px`。前次檢查雖證明位置與點按可用，沒有驗證這兩個視覺問題。

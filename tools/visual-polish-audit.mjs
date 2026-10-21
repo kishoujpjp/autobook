@@ -27,7 +27,7 @@ const origin = process.env.AUDIT_URL || 'http://127.0.0.1:8137';
   localStorage.setItem('autobook.stories',JSON.stringify(stories));
   localStorage.setItem('autobook.words',JSON.stringify([...new Set([...text+'日月水火木山人朋好友學會'].filter(x=>/\p{Script=Han}/u.test(x)))].map((ch,i)=>({ch,addedAt:Date.now()+i,usedCount:i%4===0?0:2,readCount:0,archived:false,cards:{[kid+'|zh-Hant']:{mark:i%3===0?'green':i%3===1?'red':null,markedAt:Date.now(),flashCount:0,ok:0,ng:0}}}))));
  });
- await page.goto(origin); await page.waitForFunction(()=>window.__autobookReady); await page.waitForTimeout(500);
+ await page.goto(origin); await page.waitForFunction(()=>window.__autobookReady).catch(error=>{throw new Error(`啟動失敗：${errors.join('; ') || error.message}`)}); await page.waitForTimeout(500);
  fs.mkdirSync(output,{recursive:true});
  await page.waitForTimeout(250); await page.screenshot({path:`${output}/reader-landscape.png`});
  await page.getByRole('button',{name:'故事書架',exact:true}).click();
@@ -73,7 +73,7 @@ const origin = process.env.AUDIT_URL || 'http://127.0.0.1:8137';
   if(size.width===1024) {await page.waitForTimeout(250); await page.screenshot({path:`${output}/reveal-portrait.png`});}
  }
  await page.keyboard.press('Tab');
- assert.equal(await page.locator('.stage-close').evaluate(el=>el===document.activeElement),true,'圖片框焦點保留在舞台');
+ assert.equal(await page.locator('.story-frame').evaluate(el=>el===document.activeElement),true,'Tab 可到圖片重播入口，焦點保留在舞台');
  await page.keyboard.press('Escape');
  assert.equal(await page.locator('.reveal-stage').count(),0,'Escape 能收起圖片');
 
@@ -109,7 +109,8 @@ const origin = process.env.AUDIT_URL || 'http://127.0.0.1:8137';
  await page.locator('.frame-mat .media-sound').click();
  assert.equal(await page.locator('.frame-mat video').evaluate(v=>v.muted),false,'喇叭可解除靜音');
  await page.waitForTimeout(1600); await page.locator('.story-frame').click();
- assert.equal(await page.locator('.story-frame').evaluate(f=>f.classList.contains('pop')),false,'點影片不重播特效');
+ assert.equal(await page.locator('.story-frame').evaluate(f=>f.classList.contains('pop')),true,'點影片重播慶祝動畫');
+ assert.equal(await page.locator('.frame-mat video').evaluate(v=>!v.paused&&!v.muted),true,'重播慶祝時影片繼續播放並保留聲音狀態');
  await page.evaluate(()=>{window.__qaVideo=document.querySelector('.frame-mat video')});
  await page.getByRole('button',{name:'收起來',exact:true}).click();
  assert.equal(await page.evaluate(()=>window.__qaVideo.paused),true,'收起圖片框停止影片');

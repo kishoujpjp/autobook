@@ -122,8 +122,9 @@ export function stopConfetti() {
   if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 }
 
-export function confetti(durationMs = 2200, count = 120) {
+export function confetti(durationMs = 2200, count = 120, { ribbons = false } = {}) {
   const canvas = document.getElementById('confetti-canvas');
+  if (!canvas) return;
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     stopConfetti();
     return;
@@ -133,6 +134,56 @@ export function confetti(durationMs = 2200, count = 120) {
   canvas.height = innerHeight * dpr;
   const ctx2d = canvas.getContext('2d');
   ctx2d.scale(dpr, dpr);
+
+  // 繪本慶祝：分批入場的長彩帶與彩紙，以經過時間計算，120Hz iPad 也不會加速。
+  if (ribbons) {
+    const width = innerWidth, height = innerHeight;
+    const parts = Array.from({ length: count }, (_, i) => ({
+      x: Math.random() * width,
+      delay: i < 24 ? 0 : Math.random() * 1.1,
+      speed: (height + 160) / (2.4 + Math.random() * 1.2),
+      drift: -45 + Math.random() * 90,
+      phase: Math.random() * Math.PI * 2,
+      spin: -3 + Math.random() * 6,
+      w: i % 3 === 0 ? 6 : 9 + Math.random() * 5,
+      h: i % 3 === 0 ? 32 + Math.random() * 24 : 7 + Math.random() * 5,
+      ribbon: i % 3 === 0,
+      color: COLORS[i % COLORS.length],
+    }));
+    const start = performance.now();
+    const myRun = ++confettiRun;
+    const frame = (now) => {
+      if (myRun !== confettiRun) return;
+      const elapsed = now - start;
+      ctx2d.clearRect(0, 0, width, height);
+      if (elapsed >= durationMs) return;
+      const fade = Math.min(1, (durationMs - elapsed) / 700);
+      for (const p of parts) {
+        const age = elapsed / 1000 - p.delay;
+        if (age < 0) continue;
+        const y = -18 + p.speed * age;
+        if (y > height + 80) continue;
+        ctx2d.save();
+        ctx2d.globalAlpha = fade;
+        ctx2d.translate(p.x + p.drift * age + Math.sin(age * 3 + p.phase) * 28, y);
+        ctx2d.rotate(p.phase + p.spin * age);
+        ctx2d.scale(1, 0.4 + Math.abs(Math.cos(age * 5 + p.phase)) * 0.6);
+        ctx2d.fillStyle = ctx2d.strokeStyle = p.color;
+        if (p.ribbon) {
+          ctx2d.lineWidth = p.w;
+          ctx2d.lineCap = 'round';
+          ctx2d.beginPath();
+          ctx2d.moveTo(0, -p.h / 2);
+          ctx2d.bezierCurveTo(-12, -p.h / 4, 12, p.h / 4, 0, p.h / 2);
+          ctx2d.stroke();
+        } else ctx2d.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx2d.restore();
+      }
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+    return;
+  }
 
   const parts = Array.from({ length: count }, () => ({
     x: Math.random() * innerWidth,

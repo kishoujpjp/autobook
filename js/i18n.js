@@ -237,6 +237,7 @@ const DICT = {
     media_unlocked: '已打開 {a}/{b}',
     media_replay: '再看一次',
     reveal_close: '收起來',
+    reveal_replay_hint: '點一下，再慶祝一次！',
     story_again: '再讀一遍',
     // 遊戲頁
     game_title: '認字遊戲',
@@ -691,6 +692,7 @@ const DICT = {
     media_unlocked: '已打开 {a}/{b}',
     media_replay: '再看一次',
     reveal_close: '收起来',
+    reveal_replay_hint: '点一下，再庆祝一次！',
     story_again: '再读一遍',
     game_title: '认字游戏',
     game_intro: '听声音，找出正确的字！',

@@ -3,7 +3,7 @@ import { t2s, s2t, toStoredTraditional, unambiguousTraditional } from './zhconv.
 import { prepareStoredStory, prepareStoredWords } from './text-policy.js';
 import { illustrationReceiptId } from './inbox-format.js';
 
-export const VERSION = '1.39.2';
+export const VERSION = '1.39.3';
 
 const LS = {
   settings: 'autobook.settings',

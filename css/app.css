@@ -439,13 +439,16 @@ button {
   pointer-events: none;
   opacity: 0;
   color: var(--sun);
-  animation: magic-star 1.5s ease-out forwards;
+  filter: drop-shadow(0 2px 4px rgba(255, 249, 230, .65));
+  animation: magic-star 2.1s ease-out forwards;
 }
 .magic-star .ic { width: 100%; height: 100%; }
 @keyframes magic-star {
-  0% { opacity: 0; transform: scale(0.2) translateY(12px); }
-  25% { opacity: 1; transform: scale(1.3) translateY(-6px); }
-  100% { opacity: 0; transform: scale(0.6) translateY(-44px); }
+  0% { opacity: 0; transform: scale(.15) rotate(-25deg); }
+  18% { opacity: 1; transform: scale(1.35) rotate(15deg); }
+  42% { opacity: .65; }
+  58% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--star-x), var(--star-y)) scale(.3) rotate(var(--star-turn)); }
 }
 /* 進度條：整條不可點，永遠當「翻頁鈕的鄰居」，小孩戳翻頁不會誤觸功能鈕 */
 .progress-track {
@@ -728,7 +731,20 @@ video.media-el { object-fit: contain; background: #1A1410; }
   70% { opacity: 1; transform: translateY(-3px) scale(1.015); }
   100% { opacity: 1; transform: none; }
 }
-.story-frame.pop { animation: reveal-bounce var(--t-reward) var(--ease-out); }
+.story-frame.pop { animation: frame-pop var(--t-reward) var(--ease-out); }
+@keyframes frame-pop {
+  0%, 100% { transform: scale(1); }
+  35% { transform: scale(1.035); }
+  65% { transform: scale(.985); }
+}
+.reveal-replay-hint {
+  margin: -12px 0;
+  color: #fff9ef;
+  text-shadow: 0 1px 5px rgba(36, 25, 15, .65);
+  font-size: clamp(15px, 2vw, 20px);
+  font-weight: 800;
+  text-align: center;
+}
 .frame-mat {
   position: relative;
   width: 100%;
