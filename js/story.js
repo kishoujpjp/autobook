@@ -700,7 +700,6 @@ function openStage(view) {
   closeStage();
   stageReturnFocus = document.activeElement;
   const frame = el('div', { class: 'story-frame in', role: 'button', tabindex: '0', 'aria-label': t('reveal_replay_hint') },
-    ...['tl', 'tr', 'bl', 'br'].map((k) => el('span', { class: `orn ${k}` }, icon('sparkle'))),
     el('div', { class: 'frame-mat' }, view.el),
   );
   const shut = () => { sfx.tap(); view.stop(); closeStage(); };
@@ -720,11 +719,9 @@ function openStage(view) {
     e.preventDefault();
     replay();
   });
-  const hint = el('p', { class: 'reveal-replay-hint', text: t('reveal_replay_hint') });
   const closeBtn = el('button', { class: 'stage-close', onclick: (e) => { e.stopPropagation(); shut(); } }, icon('close'), t('reveal_close'));
   const stage = el('div', { class: 'reveal-stage', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('media_replay') },
     frame,
-    hint,
     closeBtn,
   );
   stage.addEventListener('click', (e) => {
@@ -756,7 +753,7 @@ function speakChar(story, dispCh) {
 function playRevealEffects(host) {
   spawnMagicStars(host);
   sfx.fanfare();
-  confetti(4200, 160, { ribbons: true, ignoreReducedMotion: true });
+  confetti(4800, 120, { ribbons: true, ignoreReducedMotion: true });
 }
 
 /** 交錯閃爍、往外飛散的彩色星星；重播先清掉上一輪，避免連點堆積。 */
@@ -769,7 +766,7 @@ function spawnMagicStars(host) {
     const s = el('span', { class: 'magic-star', 'aria-hidden': 'true' }, icon(names[i % names.length]));
     s.style.left = `${50 + Math.cos(angle) * (30 + Math.random() * 12)}%`;
     s.style.top = `${50 + Math.sin(angle) * (30 + Math.random() * 12)}%`;
-    s.style.width = s.style.height = `${20 + Math.random() * 24}px`;
+    s.style.width = s.style.height = `${28 + Math.random() * 18}px`;
     s.style.color = colors[i % colors.length];
     s.style.setProperty('--star-x', `${Math.cos(angle) * 65}px`);
     s.style.setProperty('--star-y', `${Math.sin(angle) * 65 - 25}px`);

@@ -9,6 +9,14 @@ const origin = process.env.AUDIT_URL || 'http://127.0.0.1:8139';
 const output = process.env.AUDIT_OUTPUT || '/tmp/autobook-celebration';
 fs.mkdirSync(output, { recursive: true });
 const results = [];
+const waitForReady = async (page) => {
+  try { await page.waitForFunction(() => window.__autobookReady); }
+  catch (error) {
+    await page.screenshot({ path: `${output}/startup-failure.png` });
+    console.error(await page.evaluate(() => ({ text: document.body.innerText.slice(0, 1800), errors: localStorage.getItem('autobook.errlog') })));
+    throw error;
+  }
+};
 const canvasVisible = (page) => page.evaluate(() => {
   const c = document.querySelector('#confetti-canvas');
   return c.getContext('2d').getImageData(0, 0, c.width, c.height).data.some(v => v !== 0);
@@ -21,6 +29,7 @@ for (const engine of ['chromium', 'webkit']) {
       const page = await context.newPage();
       const errors = [];
       page.on('pageerror', e => errors.push(e.message));
+      page.on('requestfailed', request => console.error(request.url(), request.failure()));
       await page.addInitScript(() => {
         if (localStorage.getItem('autobook.stories')) return; // reload 要保留真正讀完後落盤的進度
         const account = 'qa-parent';
@@ -31,7 +40,7 @@ for (const engine of ['chromium', 'webkit']) {
         localStorage.setItem('autobook.stories', JSON.stringify([{ id: 'qa-story', title: '小兔看書', text: '小兔看書。', lang: 'zh-Hant', textPolicy: 1, media: [{ id: 'qa-media', kind: 'image', url: 'data:image/svg+xml,' + encodeURIComponent(svg) }], hlBy: {}, readsBy: {} }]));
       });
       await page.goto(origin);
-      await page.waitForFunction(() => window.__autobookReady);
+      await waitForReady(page);
       // 真正點完內文字塊，驗證只計一次讀完。
       for (const tile of await page.locator('.story-text .zi').all()) await tile.click();
       await page.locator('.reveal-stage').waitFor();
@@ -42,10 +51,21 @@ for (const engine of ['chromium', 'webkit']) {
       await page.screenshot({ path: `${output}/${engine}-${viewport.width}.png` });
       const geometry = await page.evaluate(() => {
         const box = s => { const r = document.querySelector(s).getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom }; };
-        return { frame: box('.story-frame'), close: box('.stage-close'), hint: box('.reveal-replay-hint'), fit: getComputedStyle(document.querySelector('.frame-mat img')).objectFit };
+        return { frame: box('.story-frame'), close: box('.stage-close'), fit: getComputedStyle(document.querySelector('.frame-mat img')).objectFit };
       });
-      assert(geometry.frame.x >= 0 && geometry.frame.y >= 0 && geometry.frame.right <= viewport.width && geometry.close.bottom <= viewport.height && geometry.hint.bottom <= geometry.close.y, '圖片、提示與收起鈕完整可見');
+      assert(geometry.frame.x >= 0 && geometry.frame.y >= 0 && geometry.frame.right <= viewport.width && geometry.close.bottom <= viewport.height && geometry.frame.bottom <= geometry.close.y, '圖片與收起鈕完整可見');
       assert.equal(geometry.fit, 'contain');
+      assert.equal(await page.locator('.story-frame .orn, .reveal-replay-hint').count(), 0, '移除角落星星與重播說明文字');
+      assert(await page.locator('.magic-star path').first().evaluate(p => {
+        const style = getComputedStyle(p);
+        return style.paintOrder.startsWith('stroke') && parseFloat(style.strokeWidth) >= 4 && style.stroke !== 'none';
+      }), '星星以淺色描邊區隔插圖');
+      if (viewport.width === 1366) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${output}/${engine}-fall-middle.png` });
+        await page.waitForTimeout(1400);
+        await page.screenshot({ path: `${output}/${engine}-fall-late.png` });
+      }
       // 觸控圖片及背景皆重播；一次只保留一組星星。
       await page.locator('.story-frame').tap();
       await page.waitForTimeout(500);
@@ -54,7 +74,7 @@ for (const engine of ['chromium', 'webkit']) {
       assert.equal(await page.locator('.magic-star').count(), 24, '重播替換上一輪星星');
       await page.waitForTimeout(200);
       assert(await canvasVisible(page), '背景重播有彩帶');
-      await page.waitForTimeout(4100);
+      await page.waitForTimeout(4700);
       assert.equal(await canvasVisible(page), false, '播放結束清空彩帶');
       await page.locator('.story-frame').focus();
       await page.keyboard.press('Enter');
@@ -73,7 +93,7 @@ for (const engine of ['chromium', 'webkit']) {
       assert.equal(await page.locator('.reveal-stage').count(), 0, '從書架重開停在閱讀畫面');
       assert.equal(await canvasVisible(page), false, '重開不自動慶祝');
       await page.reload();
-      await page.waitForFunction(() => window.__autobookReady);
+      await waitForReady(page);
       await page.waitForTimeout(800);
       assert.equal(await page.locator('.reveal-stage').count(), 0, '重新啟動仍停在閱讀畫面');
       assert.equal(await canvasVisible(page), false, '重新啟動不自動慶祝');

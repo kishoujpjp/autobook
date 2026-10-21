@@ -1,0 +1,140 @@
+[
+  {
+    "engine": "chromium",
+    "viewport": {
+      "width": 1366,
+      "height": 1024
+    },
+    "geometry": {
+      "frame": {
+        "x": 133,
+        "y": 53.75,
+        "right": 1233,
+        "bottom": 886.25
+      },
+      "close": {
+        "x": 600,
+        "y": 906.25,
+        "right": 766,
+        "bottom": 970.25
+      },
+      "fit": "contain"
+    },
+    "passed": true
+  },
+  {
+    "engine": "chromium",
+    "viewport": {
+      "width": 1024,
+      "height": 1366
+    },
+    "geometry": {
+      "frame": {
+        "x": 28,
+        "y": 274.9375,
+        "right": 996,
+        "bottom": 1007.0625
+      },
+      "close": {
+        "x": 429,
+        "y": 1027.0625,
+        "right": 595,
+        "bottom": 1091.0625
+      },
+      "fit": "contain"
+    },
+    "passed": true
+  },
+  {
+    "engine": "chromium",
+    "viewport": {
+      "width": 844,
+      "height": 390
+    },
+    "geometry": {
+      "frame": {
+        "x": 275.328125,
+        "y": 40.4375,
+        "right": 568.65625,
+        "bottom": 265.5625
+      },
+      "close": {
+        "x": 339,
+        "y": 285.5625,
+        "right": 505,
+        "bottom": 349.5625
+      },
+      "fit": "contain"
+    },
+    "passed": true
+  },
+  {
+    "engine": "webkit",
+    "viewport": {
+      "width": 1366,
+      "height": 1024
+    },
+    "geometry": {
+      "frame": {
+        "x": 133,
+        "y": 53.75,
+        "right": 1233,
+        "bottom": 886.25
+      },
+      "close": {
+        "x": 600,
+        "y": 906.25,
+        "right": 766,
+        "bottom": 970.25
+      },
+      "fit": "contain"
+    },
+    "passed": true
+  },
+  {
+    "engine": "webkit",
+    "viewport": {
+      "width": 1024,
+      "height": 1366
+    },
+    "geometry": {
+      "frame": {
+        "x": 28,
+        "y": 274.9375,
+        "right": 996,
+        "bottom": 1007.0625
+      },
+      "close": {
+        "x": 429,
+        "y": 1027.0625,
+        "right": 595,
+        "bottom": 1091.0625
+      },
+      "fit": "contain"
+    },
+    "passed": true
+  },
+  {
+    "engine": "webkit",
+    "viewport": {
+      "width": 844,
+      "height": 390
+    },
+    "geometry": {
+      "frame": {
+        "x": 275.328125,
+        "y": 40.4375,
+        "right": 568.65625,
+        "bottom": 265.5625
+      },
+      "close": {
+        "x": 339,
+        "y": 285.5625,
+        "right": 505,
+        "bottom": 349.5625
+      },
+      "fit": "contain"
+    },
+    "passed": true
+  }
+]
