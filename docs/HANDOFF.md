@@ -1,11 +1,12 @@
 # 自動繪本維護交接
 
-## 2026-10-22 — v1.39.4 重開已讀完繪本自動慶祝（發布中）
+## 2026-10-22 — v1.39.4 重開已讀完繪本自動慶祝（已發布）
 
 - 使用者在 v1.39.3 重開已讀完繪本沒有慶祝；原因是沿用舊版刻意跳過完成動畫的初始化分支。修正為已完成繪本載入後直接走圖片慶祝，專注版面自動打開圖片框，並排版面直接亮圖與彩帶星星。
 - 先標記這輪已計過讀完，再更新進度並播放慶祝，不增加閱讀次數、不清除標註，也不改變已解鎖媒體。加入 render 世代與可見性檢查，舊 render 或已隱藏的故事頁不播放遲到的動畫。
 - 擴充 `tools/story-celebration-audit.mjs`，驗證真實點讀完成後從書架重開、整頁重新載入、兩種版面與閱讀次數；初始合成資料只注入一次，重新載入保留落盤的完成紀錄。既有影片回歸改為等待自動出現的舞台。
-- lint、85／85 自動測試、build／cap sync、diff 檢查通過；Chromium／WebKit × iPad 直橫向與小螢幕共 6 組實際操作通過，涵蓋書架重開、重新載入自動慶祝、兩種版面、讀完次數不增加、背景點擊重播、清理與減少動態效果。[結果](verification/story-reopen-2026-10-22/browser-report.json)。完整 Chromium 閱讀回歸另通過 16 組設定、42 頁、影片及重讀解鎖檢查。App／SW／package／lock／Xcode 同步為 1.39.4，待完成發布與實機核對。
+- lint、85／85 自動測試、build／cap sync、diff 檢查通過；Chromium／WebKit × iPad 直橫向與小螢幕共 6 組實際操作通過，涵蓋書架重開、重新載入自動慶祝、兩種版面、讀完次數不增加、背景點擊重播、清理與減少動態效果。[結果](verification/story-reopen-2026-10-22/browser-report.json)。完整 Chromium 閱讀回歸另通過 16 組設定、42 頁、影片及重讀解鎖檢查。App／SW／package／lock／Xcode 同步為 1.39.4。
+- v1.39.4 已發布：功能提交 `25d31da8e0e725fc7ae2a5afac0d039898aca7c9` 已 push main，[Pages Actions](https://github.com/kishoujpjp/autobook/actions/runs/39657709984) 完整 SHA 一致且成功。2026-10-22 03:00:28 iPad 自動覆蓋安裝 v1.39.4 build 98，devicectl 查詢確認實際版號；6 個 CSS／runtime／SW 的 source、dist、no-cache 正式站與簽名包 SHA-256 全部一致，[發布結果](verification/story-reopen-2026-10-22/release-report.json)。純文檔提交可能再遞增 build；未操作私人故事與閱讀資料，重新開書的實機體感待使用者接續確認。
 
 ## 2026-10-22 — v1.39.3 閱讀完成慶祝動畫（已發布）
 
