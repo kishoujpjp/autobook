@@ -1,11 +1,12 @@
 # 自動繪本維護交接
 
-## 2026-10-22 — v1.39.5 慶祝固定播放、重開保留閱讀畫面（發布中）
+## 2026-10-22 — v1.39.5 慶祝固定播放、重開保留閱讀畫面（已發布）
 
 - 使用者確認 iPad 開啟「減少動態效果」，並明確要求繪本慶祝無視該設定。原先 JS 同時停用彩帶與星星，CSS 全域還將星星及相框動畫設為 none；本次為繪本彩帶加上明確覆寫選項、恢復星星建立，並讓慶祝舞台、星星、相框進場／回彈與角落星星動畫覆寫減少動態規則。全域偏好及其他功能的效果規則維持原狀。
 - 依最新要求撤回 v1.39.4 的重開自動慶祝：從書架重開或重新啟動已讀完繪本都停在閱讀畫面，專注版面按「再看一次」才開圖片與慶祝；本輪真正讀完時仍自動慶祝。重播不增加讀完次數。
 - 擴充瀏覽器檢查，從啟動開始模擬減少動態開啟，檢查彩帶像素、星星實際 opacity、相框動畫名稱、點圖重播、書架重開及重新載入不彈圖，以及減少動態關閉時的再看；不是只檢查 DOM 中有星星。
-- App／SW／package／lock／Xcode 同步升為 1.39.5；lint、85／85 自動測試、build／cap sync、diff 檢查通過，Chromium／WebKit × 1366×1024、1024×1366、844×390 共 6 組通過；已檢視減少動態開啟時的[實際重播截圖](verification/story-celebration-override-2026-10-22/reduced-motion-replay.png)，[瀏覽器結果](verification/story-celebration-override-2026-10-22/browser-report.json)。完整 Chromium 回歸另通過 16 組設定、42 頁、重讀解鎖、影片播放及音效檢查。待發布與實機核對。
+- App／SW／package／lock／Xcode 同步升為 1.39.5；lint、85／85 自動測試、build／cap sync、diff 檢查通過，Chromium／WebKit × 1366×1024、1024×1366、844×390 共 6 組通過；已檢視減少動態開啟時的[實際重播截圖](verification/story-celebration-override-2026-10-22/reduced-motion-replay.png)，[瀏覽器結果](verification/story-celebration-override-2026-10-22/browser-report.json)。完整 Chromium 回歸另通過 16 組設定、42 頁、重讀解鎖、影片播放及音效檢查。
+- v1.39.5 已發布：功能提交 `eb7aa77f859c04756b528a8756997f2abfb280fe` 已 push main，[Pages Actions](https://github.com/kishoujpjp/autobook/actions/runs/39659409873) 完整 SHA 一致且成功。2026-10-22 03:11:55 iPad 自動覆蓋安裝 v1.39.5 build 100，devicectl 查詢確認實際版號；6 個 CSS／runtime／SW 的 source、dist、no-cache 正式站與簽名包 SHA-256 全部一致，[發布結果](verification/story-celebration-override-2026-10-22/release-report.json)。純文檔提交可能再遞增 build；未操作私人故事與閱讀資料。瀏覽器已在 reduced-motion 開啟條件下驗證實際可見星星、彩帶及相框動畫；實體 iPad 主觀手感由使用者接續確認。
 
 ## 2026-10-22 — v1.39.4 重開已讀完繪本自動慶祝（已發布）
 
