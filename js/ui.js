@@ -122,10 +122,10 @@ export function stopConfetti() {
   if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 }
 
-export function confetti(durationMs = 2200, count = 120, { ribbons = false } = {}) {
+export function confetti(durationMs = 2200, count = 120, { ribbons = false, ignoreReducedMotion = false } = {}) {
   const canvas = document.getElementById('confetti-canvas');
   if (!canvas) return;
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (!ignoreReducedMotion && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     stopConfetti();
     return;
   }

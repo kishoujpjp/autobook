@@ -17,7 +17,7 @@ for (const engine of ['chromium', 'webkit']) {
   const browser = await engines[engine].launch({ headless: true });
   try {
     for (const viewport of [{ width: 1366, height: 1024 }, { width: 1024, height: 1366 }, { width: 844, height: 390 }]) {
-      const context = await browser.newContext({ viewport, hasTouch: true, serviceWorkers: 'block' });
+      const context = await browser.newContext({ viewport, hasTouch: true, reducedMotion: 'reduce', serviceWorkers: 'block' });
       const page = await context.newPage();
       const errors = [];
       page.on('pageerror', e => errors.push(e.message));
@@ -37,6 +37,8 @@ for (const engine of ['chromium', 'webkit']) {
       await page.locator('.reveal-stage').waitFor();
       await page.waitForTimeout(650);
       assert(await canvasVisible(page), '首次讀完有彩帶');
+      assert(await page.locator('.magic-star').evaluateAll(stars => stars.some(s => +getComputedStyle(s).opacity > 0.1)), '減少動態開啟時，星星實際可見');
+      assert.equal(await page.locator('.story-frame').evaluate(f => getComputedStyle(f).animationName), 'frame-in', '圖片進場動畫不受減少動態影響');
       await page.screenshot({ path: `${output}/${engine}-${viewport.width}.png` });
       const geometry = await page.evaluate(() => {
         const box = s => { const r = document.querySelector(s).getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom }; };
@@ -64,30 +66,35 @@ for (const engine of ['chromium', 'webkit']) {
       await page.getByRole('button', { name: '再看一次', exact: true }).tap();
       await page.keyboard.press('Escape');
       assert.equal(await page.locator('.reveal-stage').count(), 0, 'Escape 關閉');
-      // 這次回報的路徑：從書架重開、重新啟動頁面都要自動慶祝，無須再點「再看一次」。
+      // 重開已讀完繪本停在閱讀畫面，按「再看一次」才慶祝。
       await page.getByRole('button', { name: '故事書架', exact: true }).tap();
       await page.locator('.bk-cover').filter({ hasText: '小兔看書' }).tap();
-      await page.locator('.reveal-stage').waitFor();
-      await page.waitForTimeout(250);
-      assert(await canvasVisible(page), '從書架重開已讀完繪本，自動播放慶祝');
+      await page.waitForTimeout(800);
+      assert.equal(await page.locator('.reveal-stage').count(), 0, '從書架重開停在閱讀畫面');
+      assert.equal(await canvasVisible(page), false, '重開不自動慶祝');
       await page.reload();
       await page.waitForFunction(() => window.__autobookReady);
-      await page.locator('.reveal-stage').waitFor();
-      await page.waitForTimeout(250);
-      assert(await canvasVisible(page), '重新啟動後已讀完繪本自動慶祝');
+      await page.waitForTimeout(800);
+      assert.equal(await page.locator('.reveal-stage').count(), 0, '重新啟動仍停在閱讀畫面');
+      assert.equal(await canvasVisible(page), false, '重新啟動不自動慶祝');
       assert.equal(await page.evaluate(async () => { const s = await import('/js/store.js'); return s.storyReads(s.stories[0]); }), 1, '重開與重新啟動不增加閱讀次數');
-      await page.keyboard.press('Escape');
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.getByRole('button', { name: '再看一次', exact: true }).tap();
       await page.locator('.story-frame').tap();
       await page.waitForTimeout(250);
-      assert.equal(await canvasVisible(page), false, '減少動態效果不播放彩帶');
-      assert.equal(await page.locator('.magic-star').count(), 0);
+      assert(await canvasVisible(page), '減少動態效果開啟時，再看一次仍播放彩帶');
+      assert(await page.locator('.magic-star').evaluateAll(stars => stars.some(s => +getComputedStyle(s).opacity > 0.1)), '點圖重播時星星實際可見');
+      assert.equal(await page.locator('.story-frame').evaluate(f => getComputedStyle(f).animationName), 'frame-pop', '重播回彈不受減少動態影響');
+      await page.screenshot({ path: `${output}/${engine}-${viewport.width}-replay.png` });
       await page.keyboard.press('Escape');
       await page.emulateMedia({ reducedMotion: 'no-preference' });
+      await page.getByRole('button', { name: '再看一次', exact: true }).tap();
+      await page.waitForTimeout(250);
+      assert(await canvasVisible(page), '減少動態關閉時，同樣能手動播放慶祝');
+      await page.keyboard.press('Escape');
       await page.evaluate(async () => { const s = await import('/js/store.js'); s.settings.storyLayout = 'side'; (await import('/js/story.js')).render(); });
       await page.waitForTimeout(250);
-      assert(await canvasVisible(page), '並排版面重開已讀完繪本也自動慶祝');
+      assert.equal(await canvasVisible(page), false, '並排版面重開不自動慶祝');
       await page.locator('.fig-wrap').tap();
       await page.waitForTimeout(250);
       assert(await canvasVisible(page), '圖文並排也能觸控重播');

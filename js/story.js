@@ -471,7 +471,7 @@ export function render() {
   // 閱讀中只推進度條，圖片不打開；全部讀完才一次揭曉：
   //   並排版面：迷霧分批散開（配階梯音）→ 圖片放大回彈＋魔法星星＋彩帶＋完成音
   //   專注版面：星星階梯音 → 童話外框的圖片框從中央彈出＋魔法星星＋彩帶＋完成音
-  let celebrated = false; // 這輪是否已計過讀完；重開只重播慶祝，不再次計數。
+  let celebrated = false; // 這輪是否已計過讀完；重開保留閱讀畫面，不自動慶祝。
   const mySeq = celebrateSeq;
   function bigCelebrate() {
     if (mySeq !== celebrateSeq || !root.getClientRects().length) return;
@@ -557,16 +557,16 @@ export function render() {
     if (mySeq !== celebrateSeq) return;
     if (layout !== 'focus') {
       fog = new Fog(fogCanvas, story.id);
-      // 已完成的書不再遮迷霧，下面直接重播圖片慶祝；未完成全罩迷霧。
+      // 已完成的書不再遮迷霧；未完成全罩迷霧。
       fog.revealed = completed ? fog.total : 0;
       fog.draw(1);
       fog.canvas.style.opacity = completed ? '0' : '1';
+      if (completed) mediaView.start();
     }
     if (completed) celebrated = true;
     updateProgress();
     sizeText();
     updatePager();
-    if (completed) bigCelebrate();
   });
 }
 
@@ -756,13 +756,12 @@ function speakChar(story, dispCh) {
 function playRevealEffects(host) {
   spawnMagicStars(host);
   sfx.fanfare();
-  confetti(4200, 160, { ribbons: true });
+  confetti(4200, 160, { ribbons: true, ignoreReducedMotion: true });
 }
 
 /** 交錯閃爍、往外飛散的彩色星星；重播先清掉上一輪，避免連點堆積。 */
 function spawnMagicStars(host) {
   host.querySelectorAll('.magic-star').forEach((star) => star.remove());
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const names = ['sparkle', 'star', 'sparkle'];
   const colors = ['var(--sun)', 'var(--mint)', 'var(--berry)', 'var(--sky)'];
   for (let i = 0; i < 24; i++) {
@@ -775,7 +774,7 @@ function spawnMagicStars(host) {
     s.style.setProperty('--star-x', `${Math.cos(angle) * 65}px`);
     s.style.setProperty('--star-y', `${Math.sin(angle) * 65 - 25}px`);
     s.style.setProperty('--star-turn', `${i % 2 ? 100 : -100}deg`);
-    s.style.animationDelay = `${(i % 3 * 0.32).toFixed(2)}s`;
+    s.style.setProperty('animation-delay', `${(i % 3 * 0.32).toFixed(2)}s`, 'important');
     host.append(s);
     setTimeout(() => s.remove(), 3000);
   }
