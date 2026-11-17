@@ -578,12 +578,12 @@ export function render() {
  */
 function embedUrl(url, yt = youtubeVideoId(url)) {
   if (yt) {
-    if (location.protocol === 'capacitor:') return `https://kishoujpjp.github.io/autobook/youtube-player.html?v=3#v=${yt}`;
+    if (location.protocol === 'capacitor:') return `https://kishoujpjp.github.io/autobook/youtube-player.html?v=4#v=${yt}`;
     return youtubeEmbedUrl(yt);
   }
   const vm = String(url).match(/vimeo\.com\/(?:video\/)?(\d+)/);
   if (vm) {
-    return `https://player.vimeo.com/video/${vm[1]}?autoplay=1&muted=1&loop=1&playsinline=1`
+    return `https://player.vimeo.com/video/${vm[1]}?autoplay=1&muted=1&loop=0&playsinline=1`
       + '&controls=0&title=0&byline=0&portrait=0&dnt=1';
   }
   return null;
@@ -655,7 +655,6 @@ function createMediaView(m) {
       };
     }
     const v = el('video', { class: 'media-el' });
-    v.loop = true;
     v.muted = true;
     v.playsInline = true;
     v.preload = 'auto';
