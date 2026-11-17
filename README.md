@@ -204,7 +204,7 @@
 - **救援層 `js/rescue.js`（v1.23.0）**：非 module 的傳統 script，在 `main.js` 之前載入。啟動完成前（`window.__autobookReady` 尚未為 true）的任何錯誤——含 module 語法錯、壞資料讓 store.js 求值失敗——會顯示最小救援畫面（重新載入／匯出資料／重設全部資料／先繼續使用）；啟動完成後的錯誤只寫進 `autobook.errlog`，不打擾小孩。`main.js` 各分頁 init 各自 try/catch，一個分頁壞掉不拖垮其他分頁。
 - **資料層防護（v1.23.0）**：`store.load()` 對壞 JSON、`"null"`、型別不對的資料一律回預設值，原始內容先留在 `<key>.bad`（救援層匯出會帶上）；陣列型資料逐筆驗證必要欄位。`save()` 包 try/catch，寫入失敗（配額滿、私密模式）不炸呼叫端，改發 `autobook:savefail` 事件由 UI toast 提醒備份；`flushSaves` 逐 key 隔離，失敗的留在佇列。
 - **書架上限（`MAX_STORIES` 240 本；v1.31.0 前是 24）不再靜默淘汰**：做新書（AI 或手動）前先用 `shelfVictim()` 檢查，滿了跳確認框說明會丟掉哪一本，不同意就不做、也不花 API。
-- **內嵌影片加固**：YouTube 走 `youtube-nocookie.com` 並關掉控制列／鍵盤／全螢幕／註解，Vimeo 關掉標題／作者／頭像並 `dnt=1`；iframe 加 `sandbox="allow-scripts allow-same-origin allow-presentation"`（不給跳頁與彈窗），上面再蓋一層透明 `.media-shield` 吃掉點擊，小孩點影片不會跳出 App。
+- **內嵌影片**：YouTube 走 `youtube-nocookie.com`，只有播放器請求附上來源網站的 origin。iPad 的 Capacitor 頁面無法直接送出 HTTPS 來源，由 GitHub Pages 上的 `youtube-player.html` 嵌入播放器。更新 iPad 版前先確認 Pages 已上線這個頁面。YouTube 和 Vimeo iframe 都使用 sandbox 限制跳頁與彈窗，Vimeo 另外以 `dnt=1` 播放並保留點擊遮罩。
 - **家長 PIN（v1.24.0）**：設定頁帳號區可設 4 位數 PIN（`settings.parentPin`）。「切回家長要確認」開關開著時：有 PIN 用 PIN 鍵盤，沒有就用個位數算術題（改 4 選 1）；通過後 5 分鐘內不再問；PIN 錯 3 次鎖 30 秒、之後每多錯一次加倍（鎖定寫在 `autobook.gateLock`，重開也還在）。關掉開關＝直接切換。
 - **隱私說明（v1.24.0）**：設定頁最下方有「隱私說明」卡（哪些內容送 Google／Apple、免費層可能被用來改善產品、資料只在本機、備份含照片）；**第一次填 API Key 會先跳同一份說明要求「我知道了」**（`settings.privacyAck`）才存 Key。備份匯出的「準備好了」視窗也提醒檔案含小孩照片。iOS 殼補 `NSCameraUsageDescription`／`NSPhotoLibraryUsageDescription`（`<input type=file>` 在 WKWebView 會出現拍照選項）與 `PrivacyInfo.xcprivacy`（不追蹤、不收集；宣告 UserDefaults／FileTimestamp）。
 - **備份匯入原子化（v1.24.0）**：先把整包「解析＋白名單過濾＋逐鍵型別驗證＋全部 base64 解碼」做完（檔案 ≤400 MB、單一 blob ≤80 MB），確認沒問題才開始寫；寫入前記下 localStorage 舊值，中途失敗就回復並提示。以前是邊驗證邊覆蓋，壞檔會留下三方不一致。

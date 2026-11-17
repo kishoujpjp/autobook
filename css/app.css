@@ -929,11 +929,25 @@ video.media-el { object-fit: contain; background: #1A1410; }
 }
 .book-edit:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--mint-deep); }
 :root[data-theme="dark"] .book-edit { color: var(--mint); }
+.edit-story-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.edit-story-gallery:empty { display: none; }
 .edit-story-img {
   width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  background: var(--card-2);
   border-radius: var(--r-2);
-  margin-top: 14px;
   display: block;
+}
+.edit-story-img:only-child {
+  grid-column: 1 / -1;
+  aspect-ratio: auto;
+  background: none;
 }
 
 /* ============ Modal ============ */

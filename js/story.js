@@ -26,6 +26,7 @@ import { openStoryPronunciation } from './story-pronunciation-ui.js';
 import { Fog } from './fog.js';
 import { storyLines } from './story-layout.js';
 import { bindPageKeys } from './keyboard.js';
+import { youtubeEmbedUrl, youtubeVideoId } from './youtube-embed.js';
 
 let root = null;
 let currentId = null;
@@ -572,17 +573,13 @@ export function render() {
 
 // ---------- 圖片／影片 ----------
 /**
- * YouTube／Vimeo 連結 → 可自動靜音循環播放的嵌入網址；其他連結回傳 null（當成直接檔案播）。
- * 兒童產品的加固：用 youtube-nocookie、關掉控制列／鍵盤／全螢幕／註解，
- * 再配合 iframe 的 sandbox（不給跳頁、不給彈窗）與蓋在上面的透明遮罩（.media-shield），
- * 小孩點到影片標題或 logo 不會跳出 App 進 YouTube。
+ * iOS 的 Capacitor 頁面使用自訂 scheme，無法提供 YouTube 要求的 HTTPS 來源。
+ * 在這個環境用 Autobook 的 HTTPS 播放器頁，其他網頁直接嵌入。
  */
-function embedUrl(url) {
-  if (!url) return null;
-  const yt = String(url).match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/);
+function embedUrl(url, yt = youtubeVideoId(url)) {
   if (yt) {
-    return `https://www.youtube-nocookie.com/embed/${yt[1]}?autoplay=1&mute=1&loop=1&playlist=${yt[1]}`
-      + '&playsinline=1&rel=0&controls=0&modestbranding=1&disablekb=1&fs=0&iv_load_policy=3';
+    if (location.protocol === 'capacitor:') return `https://kishoujpjp.github.io/autobook/youtube-player.html#v=${yt}`;
+    return youtubeEmbedUrl(yt);
   }
   const vm = String(url).match(/vimeo\.com\/(?:video\/)?(\d+)/);
   if (vm) {
@@ -628,14 +625,15 @@ function createMediaView(m) {
   }
 
   if (m.kind === 'video') {
-    const embed = embedUrl(m.url);
+    const youtube = youtubeVideoId(m.url);
+    const embed = embedUrl(m.url, youtube);
     if (embed) {
       // iframe 一放進 DOM 就開始載入播放，所以等揭曉時才建立
       let frame = null;
       const ph = el('span', { class: 'media-none-emoji' }, icon('video'));
-      const shield = el('div', { class: 'media-shield' }); // 吃掉所有點擊：小孩點影片不會跳去 YouTube
+      const shield = youtube ? null : el('div', { class: 'media-shield' });
       box.append(ph);
-      const stop = () => { if (frame) { frame.remove(); shield.remove(); frame = null; box.append(ph); } };
+      const stop = () => { if (frame) { frame.remove(); shield?.remove(); frame = null; box.append(ph); } };
       return {
         el: box,
         kind,
@@ -643,12 +641,14 @@ function createMediaView(m) {
           if (frame) return;
           ph.remove();
           frame = el('iframe', {
-            class: 'media-el', src: embed, frameborder: '0',
+            class: 'media-el', title: youtube ? 'YouTube' : 'Vimeo', src: embed, frameborder: '0',
+            referrerpolicy: youtube ? 'strict-origin-when-cross-origin' : null,
             // 不給 allow-top-navigation／allow-popups：播放器裡的連結點了也出不去
             sandbox: 'allow-scripts allow-same-origin allow-presentation',
             allow: 'autoplay; encrypted-media',
           });
-          box.append(frame, shield);
+          box.append(frame);
+          if (shield) box.append(shield);
         },
         stop,
         destroy: stop,
@@ -1125,9 +1125,36 @@ function renderShelf() {
 // 編輯框固定顯示/輸入繁體（資料核心是繁體，簡體介面顯示時自動轉換）。
 // 內文變動後，索引式的點讀/標註紀錄與多音字資料都會失效，一律重設。
 function openEditStoryModal(story, onSaved) {
-  let imgUrl = null;
+  const previewUrls = [];
+  const gallery = el('div', { class: 'edit-story-gallery' });
+  function clearPreview() {
+    gallery.replaceChildren();
+    previewUrls.splice(0).forEach((url) => URL.revokeObjectURL(url));
+  }
+  function drawPreview() {
+    clearPreview();
+    storyMedia(story).forEach((item, index) => {
+      if (item.kind !== 'image') return;
+      const img = el('img', { class: 'edit-story-img', alt: t('media_slot', { n: index + 1 }) });
+      gallery.append(img);
+      if (item.url) img.src = item.url;
+      else idbGet('images', item.id).then((blob) => {
+        if (!gallery.contains(img)) return;
+        if (!blob) { img.remove(); return; }
+        const url = URL.createObjectURL(blob);
+        previewUrls.push(url);
+        img.src = url;
+      }).catch(() => img.remove());
+    });
+  }
+  const onInboxMedia = (event) => {
+    if (event.detail?.id === story.id) drawPreview();
+  };
   const m = openModal(t('story_edit'), { icon: 'edit',
-    onClose: () => { if (imgUrl) URL.revokeObjectURL(imgUrl); },
+    onClose: () => {
+      window.removeEventListener('autobook:inbox-story', onInboxMedia);
+      clearPreview();
+    },
   });
   const titleInput = el('input', { class: 'text-input', value: story.title });
   const textArea = el('textarea', { class: 'text-area', style: 'min-height:220px;margin-top:4px;' });
@@ -1170,20 +1197,10 @@ function openEditStoryModal(story, onSaved) {
       m.close();
       openMediaModal(story, onSaved);
     } }, icon('image'), t('rs_media_btn')),
+    gallery,
   );
-  // 這本的插圖放在最下面，改文字時捲下去就能對照
-  const cover = storyMedia(story).find((mi) => mi.kind === 'image');
-  if (cover) {
-    const img = el('img', { class: 'edit-story-img', alt: '' });
-    m.body.append(img);
-    if (cover.url) img.src = cover.url;
-    else {
-      idbGet('images', cover.id).then((blob) => {
-        if (blob) { imgUrl = URL.createObjectURL(blob); img.src = imgUrl; }
-        else img.remove();
-      }).catch(() => img.remove());
-    }
-  }
+  window.addEventListener('autobook:inbox-story', onInboxMedia);
+  drawPreview();
   m.foot.append(saveBtn);
 }
 
