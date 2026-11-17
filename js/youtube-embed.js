@@ -21,7 +21,7 @@ export function youtubeVideoId(value) {
 
 export function youtubeEmbedUrl(id) {
   if (!VIDEO_ID.test(id || '')) return null;
-  // 靜音才能自動播放。保留 YouTube 的控制列，讓使用者在播放器內解除靜音。
-  return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}`
+  // 讓播放鍵直接開始有聲播放，重開影片時不用再解除 Autobook 設定的靜音。
+  return `https://www.youtube-nocookie.com/embed/${id}?autoplay=0&loop=1&playlist=${id}`
     + '&playsinline=1&rel=0&controls=1&disablekb=1&fs=0&iv_load_policy=3';
 }

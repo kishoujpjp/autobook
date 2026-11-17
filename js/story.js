@@ -578,7 +578,7 @@ export function render() {
  */
 function embedUrl(url, yt = youtubeVideoId(url)) {
   if (yt) {
-    if (location.protocol === 'capacitor:') return `https://kishoujpjp.github.io/autobook/youtube-player.html?v=2#v=${yt}`;
+    if (location.protocol === 'capacitor:') return `https://kishoujpjp.github.io/autobook/youtube-player.html?v=3#v=${yt}`;
     return youtubeEmbedUrl(yt);
   }
   const vm = String(url).match(/vimeo\.com\/(?:video\/)?(\d+)/);
@@ -611,8 +611,8 @@ function setMediaSrc(node, box, m) {
 
 /**
  * 建一組圖片／影片的顯示元件。
- * 回傳 { el, start, stop, destroy }：start() 要等揭曉動畫之後才呼叫，影片這時才開始循環播放。
- * 影片一律先靜音（iOS 不給沒手勢的有聲自動播放），旁邊有喇叭鈕可以開聲音。
+ * 回傳 { el, start, stop, destroy }：揭曉後 start() 才載入嵌入播放器。
+ * YouTube 等使用者點播放，直接上傳的影片則靜音自動播，可用喇叭鈕開聲。
  */
 function createMediaView(m) {
   const box = el('div', { class: 'media-view' });
@@ -628,7 +628,7 @@ function createMediaView(m) {
     const youtube = youtubeVideoId(m.url);
     const embed = embedUrl(m.url, youtube);
     if (embed) {
-      // iframe 一放進 DOM 就開始載入播放，所以等揭曉時才建立
+      // 等揭曉後才載入嵌入播放器。
       let frame = null;
       const ph = el('span', { class: 'media-none-emoji' }, icon('video'));
       const shield = youtube ? null : el('div', { class: 'media-shield' });
