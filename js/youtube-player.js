@@ -1,4 +1,4 @@
-import { youtubeEmbedUrl } from './youtube-embed.js';
+import { youtubeEmbedUrl } from './youtube-embed.js?v=2';
 
 const src = youtubeEmbedUrl(new URLSearchParams(location.hash.slice(1)).get('v'));
 if (src) {

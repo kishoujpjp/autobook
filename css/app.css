@@ -423,7 +423,7 @@ button {
   width: 100%;
   height: 100%;
 }
-.fig-wrap canvas.fogc { z-index: 2; }
+.fig-wrap canvas.fogc { z-index: 2; pointer-events: none; }
 
 /* 全讀完揭曉：迷霧散盡後圖片放大回彈＋魔法星星（獎勵 900ms、bounce 曲線） */
 /* 繪本慶祝依使用者要求固定播放，覆寫系統減少動態效果的全域規則。 */
@@ -588,7 +588,7 @@ button {
 img.media-el { object-fit: cover; }
 /* 影片用 contain：直式影片不會被裁掉頭 */
 video.media-el { object-fit: contain; background: #1A1410; }
-/* 內嵌播放器（YouTube／Vimeo）上蓋一層透明遮罩：小孩點影片不會點進播放器的連結跳出 App */
+/* Vimeo 播放器的透明遮罩：防止點到播放器裡的連結。 */
 .media-shield { position: absolute; inset: 0; z-index: 1; background: transparent; }
 .media-view.media-none {
   display: grid;

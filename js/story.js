@@ -578,7 +578,7 @@ export function render() {
  */
 function embedUrl(url, yt = youtubeVideoId(url)) {
   if (yt) {
-    if (location.protocol === 'capacitor:') return `https://kishoujpjp.github.io/autobook/youtube-player.html#v=${yt}`;
+    if (location.protocol === 'capacitor:') return `https://kishoujpjp.github.io/autobook/youtube-player.html?v=2#v=${yt}`;
     return youtubeEmbedUrl(yt);
   }
   const vm = String(url).match(/vimeo\.com\/(?:video\/)?(\d+)/);
